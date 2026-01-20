@@ -57,7 +57,8 @@ interface GeneratedWorkflow {
 
 /**
  * Gemini AI Service for intelligent workflow generation
- * Uses Google Gemini 3 Flash Preview to understand user requests and generate n8n workflows
+ * Uses Google Gemini 3 Flash Preview (gemini-3-flash-preview) to understand user requests and generate n8n workflows
+ * Model can be overridden via GEMINI_MODEL environment variable
  */
 export class GeminiService {
   private model: GenerativeModel | null = null;
@@ -83,9 +84,9 @@ export class GeminiService {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Use Gemini 2.0 Flash as it's the latest available model
+      // Use Gemini 3.0 Flash Preview as specified in app requirements
       this.model = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
+        model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview'
       });
       this.apiKey = apiKey;
       console.log('Gemini AI model initialized successfully');
@@ -118,7 +119,7 @@ export class GeminiService {
       try {
         const genAI = new GoogleGenerativeAI(customApiKey);
         model = genAI.getGenerativeModel({
-          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
+          model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview'
         });
       } catch (error) {
         console.error('Failed to initialize Gemini with custom key:', error);
