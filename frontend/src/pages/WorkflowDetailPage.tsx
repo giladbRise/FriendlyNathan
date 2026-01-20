@@ -134,22 +134,22 @@ const WorkflowDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading workflow details...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading workflow details...</p>
       </div>
     );
   }
 
   if (error || !workflow) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-red-600">{error || 'Workflow not found'}</p>
+          <div className="bg-card rounded-lg shadow p-6 border border-border">
+            <p className="text-destructive">{error || 'Workflow not found'}</p>
             <button
               onClick={() => navigate('/workflow/history')}
-              className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+              className="mt-4 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-md transition-colors"
             >
               Back to History
             </button>
@@ -160,7 +160,7 @@ const WorkflowDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
 
       {/* Main Content */}
@@ -170,20 +170,20 @@ const WorkflowDetailPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/workflow/history')}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              className="text-primary hover:text-secondary text-sm font-medium transition-colors"
             >
               ← Back to History
             </button>
           </div>
 
           {/* Header Card */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-card rounded-lg shadow p-6 border border-border">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                <h2 className="text-2xl font-bold text-foreground mb-2">
                   Workflow Generation Details
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   ID: {workflow.id}
                 </p>
               </div>
@@ -194,7 +194,7 @@ const WorkflowDetailPage: React.FC = () => {
                     href={workflow.n8nWorkflowUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors"
+                    className="px-4 py-2 bg-success hover:bg-success/90 text-white font-medium rounded-md transition-colors"
                   >
                     Open in n8n ↗
                   </a>
@@ -207,7 +207,7 @@ const WorkflowDetailPage: React.FC = () => {
                         retryInstanceId: workflow.n8nInstance?.id,
                       }
                     })}
-                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md transition-colors"
+                    className="px-4 py-2 bg-warning hover:bg-warning/90 text-white font-medium rounded-md transition-colors"
                   >
                     Retry Generation
                   </button>
@@ -218,15 +218,15 @@ const WorkflowDetailPage: React.FC = () => {
             {/* Description */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-medium text-gray-500">Description</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Description</h3>
                 <button
                   onClick={copyDescription}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm text-primary hover:text-secondary transition-colors"
                 >
                   {copySuccess ? '✓ Copied!' : 'Copy Description'}
                 </button>
               </div>
-              <p className="text-gray-900 bg-gray-50 p-4 rounded-md whitespace-pre-wrap">
+              <p className="text-foreground bg-input p-4 rounded-md whitespace-pre-wrap border border-border">
                 {workflow.workflowDescription}
               </p>
             </div>
@@ -234,54 +234,54 @@ const WorkflowDetailPage: React.FC = () => {
             {/* Details Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Created</h4>
-                <p className="text-gray-900">{formatDate(workflow.createdAt)}</p>
+                <h4 className="text-sm font-medium text-muted-foreground">Created</h4>
+                <p className="text-foreground">{formatDate(workflow.createdAt)}</p>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Completed</h4>
-                <p className="text-gray-900">
+                <h4 className="text-sm font-medium text-muted-foreground">Completed</h4>
+                <p className="text-foreground">
                   {workflow.completedAt ? formatDate(workflow.completedAt) : '-'}
                 </p>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Duration</h4>
-                <p className="text-gray-900">{formatDuration(workflow.durationMs)}</p>
+                <h4 className="text-sm font-medium text-muted-foreground">Duration</h4>
+                <p className="text-foreground">{formatDuration(workflow.durationMs)}</p>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Nodes Used</h4>
-                <p className="text-gray-900">{workflow.nodesUsedCount ?? '-'}</p>
+                <h4 className="text-sm font-medium text-muted-foreground">Nodes Used</h4>
+                <p className="text-foreground">{workflow.nodesUsedCount ?? '-'}</p>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-500">AI Tokens Used</h4>
-                <p className="text-gray-900">{workflow.aiTokensUsed?.toLocaleString() ?? '-'}</p>
+                <h4 className="text-sm font-medium text-muted-foreground">AI Tokens Used</h4>
+                <p className="text-foreground">{workflow.aiTokensUsed?.toLocaleString() ?? '-'}</p>
               </div>
             </div>
           </div>
 
           {/* n8n Instance Card */}
           {workflow.n8nInstance && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">n8n Instance</h3>
+            <div className="bg-card rounded-lg shadow p-6 border border-border">
+              <h3 className="text-lg font-medium text-foreground mb-4">n8n Instance</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Name</h4>
-                  <p className="text-gray-900">{workflow.n8nInstance.name}</p>
+                  <h4 className="text-sm font-medium text-muted-foreground">Name</h4>
+                  <p className="text-foreground">{workflow.n8nInstance.name}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">URL</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">URL</h4>
                   <a
                     href={workflow.n8nInstance.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-primary hover:text-secondary transition-colors"
                   >
                     {workflow.n8nInstance.url} ↗
                   </a>
                 </div>
                 {workflow.n8nWorkflowId && (
                   <div>
-                    <h4 className="text-sm font-medium text-gray-500">Workflow ID</h4>
-                    <p className="text-gray-900 font-mono">{workflow.n8nWorkflowId}</p>
+                    <h4 className="text-sm font-medium text-muted-foreground">Workflow ID</h4>
+                    <p className="text-foreground font-mono">{workflow.n8nWorkflowId}</p>
                   </div>
                 )}
               </div>
@@ -290,9 +290,9 @@ const WorkflowDetailPage: React.FC = () => {
 
           {/* Error Message Card */}
           {workflow.status === 'failed' && workflow.errorMessage && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-red-800 mb-2">Error Message</h3>
-              <p className="text-red-700 font-mono text-sm whitespace-pre-wrap">
+            <div className="bg-destructive/10 border border-destructive rounded-lg p-6">
+              <h3 className="text-lg font-medium text-destructive mb-2">Error Message</h3>
+              <p className="text-destructive font-mono text-sm whitespace-pre-wrap">
                 {workflow.errorMessage}
               </p>
             </div>
@@ -300,30 +300,30 @@ const WorkflowDetailPage: React.FC = () => {
 
           {/* Credentials Required Card */}
           {workflow.credentialsRequired && workflow.credentialsRequired.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-yellow-800 mb-4">
+            <div className="bg-warning/10 border border-warning rounded-lg p-6">
+              <h3 className="text-lg font-medium text-warning mb-4">
                 Credentials Required ({workflow.credentialsRequired.length})
               </h3>
               <div className="space-y-3">
                 {workflow.credentialsRequired.map((cred) => (
                   <div
                     key={cred.type}
-                    className="bg-white rounded-md border border-yellow-200 overflow-hidden"
+                    className="bg-card rounded-md border border-warning/50 overflow-hidden"
                   >
                     <button
                       onClick={() => toggleCredential(cred.type)}
-                      className="w-full px-4 py-3 flex justify-between items-center hover:bg-yellow-50 transition-colors"
+                      className="w-full px-4 py-3 flex justify-between items-center hover:bg-warning/10 transition-colors"
                     >
-                      <span className="font-medium text-gray-900">{cred.displayName}</span>
-                      <span className="text-gray-500">
+                      <span className="font-medium text-foreground">{cred.displayName}</span>
+                      <span className="text-muted-foreground">
                         {expandedCredentials.has(cred.type) ? '▼' : '▶'}
                       </span>
                     </button>
                     {expandedCredentials.has(cred.type) && (
-                      <div className="px-4 pb-4 border-t border-yellow-100">
-                        <p className="text-sm text-gray-600 mt-3 mb-3">{cred.instructions}</p>
+                      <div className="px-4 pb-4 border-t border-warning/30">
+                        <p className="text-sm text-muted-foreground mt-3 mb-3">{cred.instructions}</p>
                         {cred.steps && cred.steps.length > 0 && (
-                          <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700 mb-3">
+                          <ol className="list-decimal list-inside space-y-1 text-sm text-foreground mb-3">
                             {cred.steps.map((step, index) => (
                               <li key={index}>{step}</li>
                             ))}
@@ -335,7 +335,7 @@ const WorkflowDetailPage: React.FC = () => {
                               href={cred.documentationUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:text-blue-800"
+                              className="text-sm text-primary hover:text-secondary transition-colors"
                             >
                               Documentation ↗
                             </a>
@@ -345,14 +345,14 @@ const WorkflowDetailPage: React.FC = () => {
                               href={cred.videoUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:text-blue-800"
+                              className="text-sm text-primary hover:text-secondary transition-colors"
                             >
                               Video Guide ↗
                             </a>
                           )}
                         </div>
                         {cred.contactInfo && (
-                          <p className="text-xs text-gray-500 mt-2">{cred.contactInfo}</p>
+                          <p className="text-xs text-muted-foreground mt-2">{cred.contactInfo}</p>
                         )}
                       </div>
                     )}
@@ -364,15 +364,15 @@ const WorkflowDetailPage: React.FC = () => {
 
           {/* Generated Workflow JSON Card */}
           {workflow.generatedWorkflowJson && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-card rounded-lg shadow p-6 border border-border">
               <button
                 onClick={() => setShowJson(!showJson)}
                 className="w-full flex justify-between items-center"
               >
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium text-foreground">
                   Generated Workflow JSON
                 </h3>
-                <span className="text-gray-500 text-sm">
+                <span className="text-muted-foreground text-sm">
                   {showJson ? 'Hide ▲' : 'Show ▼'}
                 </span>
               </button>
@@ -386,7 +386,7 @@ const WorkflowDetailPage: React.FC = () => {
                           JSON.stringify(workflow.generatedWorkflowJson, null, 2)
                         );
                       }}
-                      className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                      className="px-3 py-1 text-sm bg-input hover:bg-border text-foreground rounded-md transition-colors border border-border"
                     >
                       Copy to Clipboard
                     </button>
@@ -403,7 +403,7 @@ const WorkflowDetailPage: React.FC = () => {
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
                       }}
-                      className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                      className="px-3 py-1 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors"
                     >
                       Download JSON
                     </button>

@@ -53,54 +53,54 @@ const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-card rounded-lg shadow-xl p-8 border border-border">
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Forgot Password</h1>
-          <p className="text-gray-600">Enter your email to receive a password reset link</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Forgot Password</h1>
+          <p className="text-muted-foreground">Enter your email to receive a password reset link</p>
         </div>
 
         {message && (
-          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+          <div className="mb-4 p-3 bg-success/10 border border-success text-success rounded">
             {message}
           </div>
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <div className="mb-4 p-3 bg-destructive/10 border border-destructive text-destructive rounded">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email <span className="text-red-500">*</span>
+            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
+              Email <span className="text-destructive">*</span>
             </label>
             <input
               type="email"
               id="email"
               value={email}
               onChange={handleEmailChange}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                emailError ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary ${
+                emailError ? 'border-destructive' : 'border-border'
               }`}
               required
             />
-            {emailError && <p className="mt-1 text-sm text-red-600">{emailError}</p>}
+            {emailError && <p className="mt-1 text-sm text-destructive">{emailError}</p>}
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-glow-blue hover:shadow-glow-blue-lg"
           >
             {isSubmitting ? 'Sending...' : 'Send Reset Link'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <Link to="/login" className="text-sm text-blue-600 hover:text-blue-700">
+          <Link to="/login" className="text-sm text-primary hover:text-secondary transition-colors">
             Back to Login
           </Link>
         </div>
