@@ -65,6 +65,8 @@ const WorkflowCreatePage: React.FC = () => {
 
   // State for workflow
   const [workflowDescription, setWorkflowDescription] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -298,6 +300,7 @@ const WorkflowCreatePage: React.FC = () => {
           description: workflowDescription,
           socketId,
           skipDuplicateCheck: duplicateWarning !== null, // Skip if user already saw warning
+          geminiApiKey: geminiApiKey.trim() || undefined, // Include Gemini API key if provided
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -668,6 +671,56 @@ const WorkflowCreatePage: React.FC = () => {
                       API Integration
                     </button>
                   </div>
+                </div>
+
+                {/* Advanced Options - Gemini API Key */}
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                    className="text-sm text-primary hover:text-secondary flex items-center gap-1 transition-colors"
+                    disabled={generating}
+                  >
+                    <span className="transform transition-transform" style={{ display: 'inline-block', transform: showAdvancedOptions ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                      ▶
+                    </span>
+                    Advanced AI Options
+                  </button>
+
+                  {showAdvancedOptions && (
+                    <div className="mt-3 p-4 bg-primary/10 border border-primary/30 rounded-md">
+                      <div className="space-y-3">
+                        <div>
+                          <label htmlFor="geminiApiKey" className="block text-sm font-medium text-foreground mb-2">
+                            Google Gemini API Key <span className="text-muted-foreground">(optional)</span>
+                          </label>
+                          <input
+                            type="password"
+                            id="geminiApiKey"
+                            value={geminiApiKey}
+                            onChange={(e) => setGeminiApiKey(e.target.value)}
+                            placeholder="AIzaSy..."
+                            className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={generating}
+                          />
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Provide your own Gemini API key for enhanced AI-powered workflow generation.
+                            Without a key, basic rule-based generation will be used.
+                          </p>
+                        </div>
+                        <div className="text-xs text-secondary">
+                          <strong>Tip:</strong> Get your API key from{' '}
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline hover:text-primary"
+                          >
+                            Google AI Studio
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {error && (

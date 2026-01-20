@@ -8,6 +8,7 @@ const generateWorkflowSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters').max(5000, 'Description too long'),
   socketId: z.string().optional(),
   skipDuplicateCheck: z.boolean().optional(),
+  geminiApiKey: z.string().optional(), // Optional custom Gemini API key for AI-powered generation
 });
 
 /**
@@ -23,7 +24,8 @@ export const generateWorkflow = async (req: Request, res: Response): Promise<voi
       validatedData.instanceId,
       validatedData.description,
       validatedData.socketId,
-      validatedData.skipDuplicateCheck
+      validatedData.skipDuplicateCheck,
+      validatedData.geminiApiKey
     );
 
     // Check if duplicate warning was returned

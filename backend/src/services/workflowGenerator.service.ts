@@ -2,6 +2,7 @@ import { PrismaClient, WorkflowStatus } from '@prisma/client';
 import axios from 'axios';
 import { decrypt } from '../utils/encryption';
 import { io } from '../index';
+import { geminiService } from './gemini.service';
 
 const prisma = new PrismaClient();
 
@@ -293,7 +294,8 @@ export class WorkflowGeneratorService {
     instanceId: string,
     description: string,
     socketId?: string,
-    skipDuplicateCheck: boolean = false
+    skipDuplicateCheck: boolean = false,
+    geminiApiKey?: string
   ): Promise<{ generationId: string; duplicateWarning?: { existingId: string; createdAt: Date } }> {
     const startTime = Date.now();
 
@@ -335,7 +337,7 @@ export class WorkflowGeneratorService {
     this.emitProgress(socketId, generation.id, 'Starting workflow generation...', 10);
 
     // Run generation asynchronously
-    this.runGeneration(generation.id, instance, description, socketId, startTime);
+    this.runGeneration(generation.id, instance, description, socketId, startTime, geminiApiKey);
 
     return { generationId: generation.id };
   }
@@ -393,7 +395,8 @@ export class WorkflowGeneratorService {
     instance: { id: string; url: string; apiKeyEncrypted: string },
     description: string,
     socketId: string | undefined,
-    startTime: number
+    startTime: number,
+    geminiApiKey?: string
   ) {
     let createdWorkflowId: string | undefined; // Track created workflow for potential rollback
     let nodesDiscoveredCount: number | undefined;
@@ -423,18 +426,40 @@ export class WorkflowGeneratorService {
         return;
       }
 
-      // Step 2: Analyze description and generate workflow
-      this.emitProgress(socketId, generationId, 'Analyzing description...', 30);
-      await this.delay(300); // Simulate processing time
+      // Step 2: Analyze description and generate workflow using AI
+      this.emitProgress(socketId, generationId, 'Analyzing description with AI...', 30);
 
       if (this.isCancelled(generationId)) {
         this.cancelledGenerations.delete(generationId);
         return;
       }
 
-      this.emitProgress(socketId, generationId, 'Generating workflow structure...', 40);
-      const workflow = this.generateWorkflowFromDescription(description);
-      await this.delay(300);
+      this.emitProgress(socketId, generationId, 'Generating workflow with Gemini AI...', 40);
+
+      // Use Gemini AI if available (custom API key or environment key), otherwise fall back to rule-based generation
+      let workflow: N8nWorkflow;
+      const hasGeminiKey = geminiApiKey || geminiService.isAvailable();
+
+      if (hasGeminiKey) {
+        try {
+          this.emitProgress(socketId, generationId, 'Using Gemini AI to understand your request...', 45);
+          const aiResult = await geminiService.generateWorkflow(
+            description,
+            discoveryResult.nodes,
+            geminiApiKey // Pass custom key if provided
+          );
+          workflow = aiResult.workflow;
+          console.log(`AI generated workflow with ${aiResult.nodeCount} nodes: ${aiResult.explanation}`);
+        } catch (aiError: any) {
+          console.warn('AI generation failed, falling back to rule-based:', aiError.message);
+          this.emitProgress(socketId, generationId, 'AI unavailable, using rule-based generation...', 45);
+          workflow = this.generateWorkflowFromDescription(description);
+        }
+      } else {
+        // Fallback to rule-based generation
+        this.emitProgress(socketId, generationId, 'Generating workflow (no AI key provided)...', 45);
+        workflow = this.generateWorkflowFromDescription(description);
+      }
 
       if (this.isCancelled(generationId)) {
         this.cancelledGenerations.delete(generationId);
@@ -1200,11 +1225,200 @@ export class WorkflowGeneratorService {
   }
 
   /**
+   * Generate a multi-step email processing workflow
+   * Handles: get emails -> filter -> mark -> summarize -> send to Slack
+   */
+  private generateEmailProcessingWorkflow(description: string): N8nWorkflow {
+    const lowerDesc = description.toLowerCase();
+    const workflowName = `Email Processing Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const nodes: WorkflowNode[] = [];
+    const connections: Record<string, WorkflowConnection> = {};
+
+    // Extract sender from description if present (e.g., "from janna trobilo")
+    const fromMatch = description.match(/from\s+([a-zA-Z\s]+?)(?:\s+in|\s+last|\s+next|$)/i);
+    const senderName = fromMatch ? fromMatch[1].trim() : '';
+
+    // Extract days filter if present (e.g., "last 3 days")
+    const daysMatch = description.match(/last\s+(\d+)\s+days?/i);
+    const daysFilter = daysMatch ? parseInt(daysMatch[1]) : 7;
+
+    // Extract Slack channel ID if present (e.g., "C0A1CEBJWJF")
+    const channelMatch = description.match(/C[A-Z0-9]{8,}/i);
+    const slackChannel = channelMatch ? channelMatch[0] : '#general';
+
+    // Node 0: Manual Trigger
+    nodes.push({
+      id: 'node_0',
+      name: 'Start',
+      type: 'n8n-nodes-base.manualTrigger',
+      typeVersion: 1,
+      position: [250, 300],
+      parameters: {},
+    });
+
+    // Node 1: Get Emails from Gmail
+    nodes.push({
+      id: 'node_1',
+      name: 'Get Emails',
+      type: 'n8n-nodes-base.gmail',
+      typeVersion: 2,
+      position: [450, 300],
+      parameters: {
+        operation: 'getAll',
+        resource: 'message',
+        limit: 100,
+        filters: {
+          q: senderName ? `from:${senderName} newer_than:${daysFilter}d` : `newer_than:${daysFilter}d`,
+        },
+        options: {
+          returnAll: true,
+        },
+      },
+    });
+
+    connections['Start'] = {
+      main: [[{ node: 'Get Emails', type: 'main', index: 0 }]],
+    };
+
+    // Node 2: Filter emails by date (additional filtering)
+    nodes.push({
+      id: 'node_2',
+      name: 'Filter by Date',
+      type: 'n8n-nodes-base.filter',
+      typeVersion: 1,
+      position: [650, 300],
+      parameters: {
+        conditions: {
+          boolean: [
+            {
+              value1: '={{ $json.internalDate > Date.now() - (' + daysFilter + ' * 24 * 60 * 60 * 1000) }}',
+              operation: 'isTrue',
+            },
+          ],
+        },
+      },
+    });
+
+    connections['Get Emails'] = {
+      main: [[{ node: 'Filter by Date', type: 'main', index: 0 }]],
+    };
+
+    // Node 3: Mark emails as unread (if requested)
+    if (lowerDesc.includes('mark') && (lowerDesc.includes('unread') || lowerDesc.includes('read'))) {
+      nodes.push({
+        id: 'node_3',
+        name: 'Mark as Unread',
+        type: 'n8n-nodes-base.gmail',
+        typeVersion: 2,
+        position: [850, 300],
+        parameters: {
+          operation: 'markUnread',
+          resource: 'message',
+          messageId: '={{ $json.id }}',
+        },
+      });
+
+      connections['Filter by Date'] = {
+        main: [[{ node: 'Mark as Unread', type: 'main', index: 0 }]],
+      };
+    }
+
+    // Node 4: Aggregate and Summarize content
+    const prevNodeForSummary = nodes[nodes.length - 1].name;
+    nodes.push({
+      id: `node_${nodes.length}`,
+      name: 'Summarize Emails',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [1050, 300],
+      parameters: {
+        mode: 'runOnceForAllItems',
+        jsCode: `// Aggregate all email content for summarization
+const items = $input.all();
+const emailCount = items.length;
+
+// Collect email snippets/bodies
+const emailSummaries = items.map((item, idx) => {
+  const email = item.json;
+  const subject = email.subject || 'No Subject';
+  const snippet = email.snippet || email.textPlain || 'No content';
+  const from = email.from?.emailAddress || email.from || 'Unknown';
+  const date = email.date || new Date(parseInt(email.internalDate)).toISOString();
+
+  return \`Email \${idx + 1}:
+  From: \${from}
+  Subject: \${subject}
+  Date: \${date}
+  Preview: \${snippet.substring(0, 200)}...\`;
+}).join('\\n\\n---\\n\\n');
+
+// Create summary (Note: For AI summarization, use Gemini API in production)
+const summary = \`📧 Email Summary Report
+=========================
+Total emails found: \${emailCount}
+${senderName ? `From: ${senderName}` : ''}
+Time period: Last ${daysFilter} days
+
+\${emailSummaries}
+
+---
+Generated at: \${new Date().toISOString()}\`;
+
+return [{ json: { summary, emailCount, sender: '${senderName}' } }];`,
+      },
+    });
+
+    connections[prevNodeForSummary] = {
+      main: [[{ node: 'Summarize Emails', type: 'main', index: 0 }]],
+    };
+
+    // Node 5: Send to Slack (if requested)
+    if (lowerDesc.includes('slack')) {
+      nodes.push({
+        id: `node_${nodes.length}`,
+        name: 'Send to Slack',
+        type: 'n8n-nodes-base.slack',
+        typeVersion: 2,
+        position: [1250, 300],
+        parameters: {
+          operation: 'post',
+          channel: slackChannel,
+          text: '={{ $json.summary }}',
+          options: {
+            mrkdwn: true,
+          },
+        },
+      });
+
+      connections['Summarize Emails'] = {
+        main: [[{ node: 'Send to Slack', type: 'main', index: 0 }]],
+      };
+    }
+
+    return {
+      name: workflowName,
+      nodes,
+      connections,
+      active: true,
+      settings: {
+        saveManualExecutions: true,
+        callerPolicy: 'workflowsFromSameOwner',
+      },
+    };
+  }
+
+  /**
    * Generate a simple workflow based on description keywords
    * In production, this would use Gemini AI
    */
   private generateWorkflowFromDescription(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
+
+    // Check for multi-step email workflow (emails + process + send somewhere)
+    if ((lowerDesc.includes('email') || lowerDesc.includes('gmail')) &&
+        (lowerDesc.includes('slack') || lowerDesc.includes('summary') || lowerDesc.includes('summarize'))) {
+      return this.generateEmailProcessingWorkflow(description);
+    }
 
     // Check if this is a complex workflow request
     if (this.isComplexWorkflowRequest(description)) {
