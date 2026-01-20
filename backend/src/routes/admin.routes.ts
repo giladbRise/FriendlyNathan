@@ -7,6 +7,7 @@ import {
   updateUser,
   deleteUser,
   getDashboardStats,
+  getAuditLog,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -17,6 +18,9 @@ router.use(requireAdmin);
 
 // Dashboard stats
 router.get('/stats', getDashboardStats);
+
+// Audit log
+router.get('/audit-log', getAuditLog);
 
 // User management
 router.get('/users', getAllUsers);

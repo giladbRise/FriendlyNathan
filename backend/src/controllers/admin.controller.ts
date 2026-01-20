@@ -194,6 +194,91 @@ export const deleteUser = async (req: Request, res: Response) => {
 };
 
 /**
+ * Get all workflow generations (audit log)
+ */
+export const getAuditLog = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+    const skip = (page - 1) * limit;
+
+    // Filters
+    const search = req.query.search as string | undefined;
+    const userId = req.query.userId as string | undefined;
+    const status = req.query.status as string | undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+
+    // Build where clause
+    const where: any = {};
+
+    if (search) {
+      where.workflowDescription = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    if (userId && userId !== 'all') {
+      where.userId = userId;
+    }
+
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
+    }
+
+    const [generations, total] = await Promise.all([
+      prisma.workflowGeneration.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          n8nInstance: {
+            select: {
+              name: true,
+              url: true,
+            },
+          },
+        },
+      }),
+      prisma.workflowGeneration.count({ where }),
+    ]);
+
+    res.json({
+      generations,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error('Get audit log error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
  * Get admin dashboard stats
  */
 export const getDashboardStats = async (_req: Request, res: Response) => {

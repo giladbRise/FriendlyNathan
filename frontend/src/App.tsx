@@ -9,6 +9,7 @@ import WorkflowCreatePage from './pages/WorkflowCreatePage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
+import AdminAuditLog from './pages/AdminAuditLog';
 import InstancesPage from './pages/InstancesPage';
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage';
 import WorkflowDetailPage from './pages/WorkflowDetailPage';
@@ -85,6 +86,14 @@ function App() {
             element={
               <AdminRoute>
                 <AdminUsers />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/audit-log"
+            element={
+              <AdminRoute>
+                <AdminAuditLog />
               </AdminRoute>
             }
           />
