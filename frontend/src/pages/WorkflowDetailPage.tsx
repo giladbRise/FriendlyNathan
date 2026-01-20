@@ -44,6 +44,18 @@ const WorkflowDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [showJson, setShowJson] = useState(false);
   const [expandedCredentials, setExpandedCredentials] = useState<Set<string>>(new Set());
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const copyDescription = async () => {
+    if (!workflow) return;
+    try {
+      await navigator.clipboard.writeText(workflow.workflowDescription);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   useEffect(() => {
     fetchWorkflow();
@@ -266,7 +278,15 @@ const WorkflowDetailPage: React.FC = () => {
 
             {/* Description */}
             <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Description</h3>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-medium text-gray-500">Description</h3>
+                <button
+                  onClick={copyDescription}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  {copySuccess ? '✓ Copied!' : 'Copy Description'}
+                </button>
+              </div>
               <p className="text-gray-900 bg-gray-50 p-4 rounded-md whitespace-pre-wrap">
                 {workflow.workflowDescription}
               </p>

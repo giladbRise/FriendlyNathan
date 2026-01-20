@@ -112,6 +112,19 @@ const WorkflowHistoryPage: React.FC = () => {
 
   const hasActiveFilters = startDate || endDate || statusFilter !== 'all' || searchQuery;
 
+  // Toast state for copy success
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const copyDescription = async (description: string) => {
+    try {
+      await navigator.clipboard.writeText(description);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -157,6 +170,13 @@ const WorkflowHistoryPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Copy Success Toast */}
+      {copySuccess && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-md shadow-lg animate-pulse">
+          Description copied to clipboard!
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -412,6 +432,13 @@ const WorkflowHistoryPage: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end gap-3">
+                              <button
+                                onClick={() => copyDescription(workflow.workflowDescription)}
+                                className="text-gray-600 hover:text-gray-800"
+                                title="Copy description"
+                              >
+                                Copy
+                              </button>
                               <button
                                 onClick={() => navigate(`/workflow/${workflow.id}`)}
                                 className="text-blue-600 hover:text-blue-800"
