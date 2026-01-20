@@ -179,14 +179,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const nodes = response.data || [];
 
         // Format nodes for readability
-        const formattedNodes = nodes.map((node) => ({
-          name: node.name,
-          displayName: node.displayName,
-          description: node.description || '',
-          category: node.group?.[0] || 'uncategorized',
-          version: node.version,
-          requiresCredentials: node.credentials && node.credentials.length > 0,
-        }));
+        // Custom nodes are identified by package name not starting with "n8n-nodes-base"
+        const formattedNodes = nodes.map((node) => {
+          const isCustomNode = !node.name.startsWith('n8n-nodes-base.');
+          return {
+            name: node.name,
+            displayName: node.displayName,
+            description: node.description || '',
+            category: node.group?.[0] || 'uncategorized',
+            version: node.version,
+            requiresCredentials: node.credentials && node.credentials.length > 0,
+            isCustomNode,
+          };
+        });
+
+        const customNodes = formattedNodes.filter(n => n.isCustomNode);
+        const coreNodes = formattedNodes.filter(n => !n.isCustomNode);
 
         return {
           content: [
@@ -195,6 +203,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify({
                 success: true,
                 nodeCount: formattedNodes.length,
+                customNodeCount: customNodes.length,
+                coreNodeCount: coreNodes.length,
                 nodes: formattedNodes,
               }, null, 2),
             },
@@ -228,6 +238,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
+        const isCustomNode = !node.name.startsWith('n8n-nodes-base.');
         return {
           content: [
             {
@@ -241,6 +252,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   version: node.version,
                   category: node.group?.[0] || 'uncategorized',
                   credentials: node.credentials || [],
+                  isCustomNode,
                 },
               }, null, 2),
             },
