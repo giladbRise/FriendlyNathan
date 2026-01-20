@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
 import InstancesPage from './pages/InstancesPage';
+import WorkflowHistoryPage from './pages/WorkflowHistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 
@@ -51,6 +52,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <InstancesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workflow/history"
+            element={
+              <ProtectedRoute>
+                <WorkflowHistoryPage />
               </ProtectedRoute>
             }
           />

@@ -29,6 +29,12 @@ const DashboardPage: React.FC = () => {
                 Create Workflow
               </button>
               <button
+                onClick={() => navigate('/workflow/history')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                History
+              </button>
+              <button
                 onClick={() => navigate('/instances')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
               >
