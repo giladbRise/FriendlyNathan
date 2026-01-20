@@ -4,6 +4,7 @@ import axios from 'axios';
 import Navigation from '../components/Navigation';
 
 interface N8nInstanceInfo {
+  id: string;
   name: string;
   url: string;
 }
@@ -199,7 +200,10 @@ const WorkflowDetailPage: React.FC = () => {
                 {workflow.status === 'failed' && (
                   <button
                     onClick={() => navigate('/workflow/create', {
-                      state: { retryDescription: workflow.workflowDescription }
+                      state: {
+                        retryDescription: workflow.workflowDescription,
+                        retryInstanceId: workflow.n8nInstance?.id,
+                      }
                     })}
                     className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md transition-colors"
                   >

@@ -1422,7 +1422,7 @@ export class WorkflowGeneratorService {
         take: limit,
         include: {
           n8nInstance: {
-            select: { name: true, url: true },
+            select: { id: true, name: true, url: true },
           },
         },
       }),

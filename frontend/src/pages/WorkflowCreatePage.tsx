@@ -36,6 +36,7 @@ interface GenerationResult {
 
 interface LocationState {
   retryDescription?: string;
+  retryInstanceId?: string;
 }
 
 const WorkflowCreatePage: React.FC = () => {
@@ -126,14 +127,23 @@ const WorkflowCreatePage: React.FC = () => {
     fetchInstances();
   }, []);
 
-  // Pre-fill description from retry state
+  // Pre-fill description and instance from retry state
   useEffect(() => {
     if (locationState?.retryDescription) {
       setWorkflowDescription(locationState.retryDescription);
-      // Clear the state so refreshing doesn't re-populate
+    }
+    if (locationState?.retryInstanceId && instances.length > 0) {
+      // Check if the retry instance exists in user's instances
+      const instanceExists = instances.some(inst => inst.id === locationState.retryInstanceId);
+      if (instanceExists) {
+        setSelectedInstanceId(locationState.retryInstanceId);
+      }
+    }
+    // Clear the state so refreshing doesn't re-populate
+    if (locationState?.retryDescription || locationState?.retryInstanceId) {
       window.history.replaceState({}, document.title);
     }
-  }, [locationState]);
+  }, [locationState, instances]);
 
   const fetchInstances = async () => {
     try {
