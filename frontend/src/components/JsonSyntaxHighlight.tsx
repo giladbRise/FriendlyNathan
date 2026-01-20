@@ -12,7 +12,7 @@ const JsonSyntaxHighlight: React.FC<JsonSyntaxHighlightProps> = ({ data, classNa
 
     // Apply syntax highlighting
     return json.replace(
-      /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
       (match) => {
         let cls = 'text-amber-400'; // number
         if (/^"/.test(match)) {
