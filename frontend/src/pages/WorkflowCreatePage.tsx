@@ -18,7 +18,10 @@ interface CredentialRequirement {
   type: string;
   displayName: string;
   instructions: string;
+  steps: string[];
   documentationUrl?: string;
+  videoUrl?: string;
+  contactInfo?: string;
 }
 
 interface GenerationResult {
@@ -54,6 +57,7 @@ const WorkflowCreatePage: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ message: '', progress: 0 });
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
+  const [expandedCredentials, setExpandedCredentials] = useState<Set<string>>(new Set());
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -633,29 +637,93 @@ const WorkflowCreatePage: React.FC = () => {
                           Credentials Required
                         </h4>
                         <p className="text-sm text-yellow-700 mb-4">
-                          This workflow requires the following credentials to be configured in n8n:
+                          This workflow requires the following credentials to be configured in n8n. Click on each credential to see detailed setup instructions.
                         </p>
-                        <div className="space-y-4">
-                          {generationResult.credentials.map((cred, index) => (
-                            <div key={index} className="bg-white p-3 rounded border border-yellow-200">
-                              <h5 className="font-semibold text-yellow-900 mb-1">
-                                {cred.displayName}
-                              </h5>
-                              <p className="text-sm text-yellow-800 mb-2">
-                                {cred.instructions}
-                              </p>
-                              {cred.documentationUrl && (
-                                <a
-                                  href={cred.documentationUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:text-blue-700 underline"
+                        <div className="space-y-3">
+                          {generationResult.credentials.map((cred, index) => {
+                            const isExpanded = expandedCredentials.has(cred.type);
+                            return (
+                              <div key={index} className="bg-white rounded border border-yellow-200 overflow-hidden">
+                                {/* Collapsible Header */}
+                                <button
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedCredentials);
+                                    if (isExpanded) {
+                                      newExpanded.delete(cred.type);
+                                    } else {
+                                      newExpanded.add(cred.type);
+                                    }
+                                    setExpandedCredentials(newExpanded);
+                                  }}
+                                  className="w-full p-3 flex justify-between items-center text-left hover:bg-yellow-50 transition-colors"
                                 >
-                                  View Documentation ↗
-                                </a>
-                              )}
-                            </div>
-                          ))}
+                                  <div>
+                                    <h5 className="font-semibold text-yellow-900">
+                                      {cred.displayName}
+                                    </h5>
+                                    <p className="text-sm text-yellow-700">
+                                      {cred.instructions}
+                                    </p>
+                                  </div>
+                                  <span className="text-yellow-600 text-lg ml-2">
+                                    {isExpanded ? '−' : '+'}
+                                  </span>
+                                </button>
+
+                                {/* Expanded Content */}
+                                {isExpanded && (
+                                  <div className="p-4 pt-0 border-t border-yellow-100">
+                                    {/* Step-by-step instructions */}
+                                    {cred.steps && cred.steps.length > 0 && (
+                                      <div className="mb-4">
+                                        <h6 className="font-medium text-gray-900 mb-2">Step-by-step instructions:</h6>
+                                        <ol className="list-decimal list-inside space-y-1">
+                                          {cred.steps.map((step, stepIndex) => (
+                                            <li key={stepIndex} className="text-sm text-gray-700">
+                                              {step}
+                                            </li>
+                                          ))}
+                                        </ol>
+                                      </div>
+                                    )}
+
+                                    {/* Links section */}
+                                    <div className="flex flex-wrap gap-3">
+                                      {cred.documentationUrl && (
+                                        <a
+                                          href={cred.documentationUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700"
+                                        >
+                                          <span className="mr-1">📖</span> Documentation ↗
+                                        </a>
+                                      )}
+                                      {cred.videoUrl && (
+                                        <a
+                                          href={cred.videoUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center text-sm text-red-600 hover:text-red-700"
+                                        >
+                                          <span className="mr-1">🎬</span> Video Guide ↗
+                                        </a>
+                                      )}
+                                    </div>
+
+                                    {/* Contact info */}
+                                    {cred.contactInfo && (
+                                      <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">Need help?</span> {cred.contactInfo}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

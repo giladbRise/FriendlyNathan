@@ -39,7 +39,10 @@ interface CredentialRequirement {
   type: string;
   displayName: string;
   instructions: string;
+  steps: string[];
   documentationUrl?: string;
+  videoUrl?: string;
+  contactInfo?: string;
 }
 
 // Map of node types to their credential requirements
@@ -47,38 +50,92 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
   'n8n-nodes-base.slack': {
     type: 'slackApi',
     displayName: 'Slack API',
-    instructions: 'Create a Slack app at api.slack.com/apps, then generate an OAuth token with the required scopes (chat:write, channels:read). Add the token to n8n credentials.',
+    instructions: 'Create a Slack app and generate an OAuth token to connect n8n to your Slack workspace.',
+    steps: [
+      'Go to api.slack.com/apps and click "Create New App"',
+      'Choose "From scratch" and name your app',
+      'Under "OAuth & Permissions", add the required scopes (chat:write, channels:read)',
+      'Install the app to your workspace',
+      'Copy the "Bot User OAuth Token" (starts with xoxb-)',
+      'In n8n, create new Slack API credentials and paste the token',
+    ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/slack/',
+    videoUrl: 'https://www.youtube.com/watch?v=n8n-slack-setup',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
   'n8n-nodes-base.googleSheets': {
     type: 'googleSheetsOAuth2Api',
     displayName: 'Google Sheets OAuth2',
-    instructions: 'Create a project in Google Cloud Console, enable the Google Sheets API, create OAuth 2.0 credentials, and configure the OAuth consent screen. Then add the credentials to n8n.',
+    instructions: 'Set up OAuth 2.0 credentials in Google Cloud Console to access Google Sheets.',
+    steps: [
+      'Go to console.cloud.google.com and create a new project',
+      'Enable the Google Sheets API in the API Library',
+      'Go to "Credentials" and click "Create Credentials" > "OAuth client ID"',
+      'Configure the OAuth consent screen (Internal or External)',
+      'Select "Web application" as the application type',
+      'Add n8n callback URL to authorized redirect URIs',
+      'Copy the Client ID and Client Secret',
+      'In n8n, create Google Sheets OAuth2 credentials with these values',
+    ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/google/',
+    videoUrl: 'https://www.youtube.com/watch?v=n8n-google-oauth-setup',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
   'n8n-nodes-base.gmail': {
     type: 'gmailOAuth2',
     displayName: 'Gmail OAuth2',
-    instructions: 'Create a project in Google Cloud Console, enable the Gmail API, create OAuth 2.0 credentials. Configure the OAuth consent screen with email scopes.',
+    instructions: 'Set up OAuth 2.0 credentials in Google Cloud Console to send emails via Gmail.',
+    steps: [
+      'Go to console.cloud.google.com and create or select a project',
+      'Enable the Gmail API in the API Library',
+      'Create OAuth 2.0 credentials (same process as Google Sheets)',
+      'Add gmail.send and gmail.readonly scopes',
+      'In n8n, create Gmail OAuth2 credentials',
+    ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/google/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
   'n8n-nodes-base.emailSend': {
     type: 'smtp',
     displayName: 'SMTP',
-    instructions: 'Configure your SMTP server settings including host, port, username, and password. Common providers include Gmail SMTP, SendGrid, or your company\'s mail server.',
+    instructions: 'Configure SMTP server settings to send emails from n8n.',
+    steps: [
+      'Get your SMTP server hostname and port from your email provider',
+      'Create an app-specific password if using Gmail or similar',
+      'In n8n, create SMTP credentials with host, port, username, and password',
+      'Test the connection by sending a test email',
+    ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/smtp/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
   'n8n-nodes-base.airtable': {
     type: 'airtableApi',
     displayName: 'Airtable API',
-    instructions: 'Go to your Airtable account settings, generate a personal access token with the required scopes, and add it to n8n credentials.',
+    instructions: 'Generate a personal access token from your Airtable account.',
+    steps: [
+      'Go to airtable.com/account and click "Developer hub"',
+      'Click "Create new token" under Personal access tokens',
+      'Give your token a name and select the required scopes',
+      'Add the bases you want to access',
+      'Copy the generated token',
+      'In n8n, create Airtable API credentials and paste the token',
+    ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/airtable/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
   'n8n-nodes-base.notion': {
     type: 'notionApi',
     displayName: 'Notion API',
-    instructions: 'Create an integration at notion.so/my-integrations, copy the integration token, and share your Notion pages with the integration.',
+    instructions: 'Create a Notion integration and share pages with it.',
+    steps: [
+      'Go to notion.so/my-integrations and click "New integration"',
+      'Name your integration and select the workspace',
+      'Copy the "Internal Integration Token"',
+      'In Notion, share the pages you want to access with your integration',
+      'In n8n, create Notion API credentials and paste the token',
+    ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/notion/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
 };
 
