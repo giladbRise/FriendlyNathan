@@ -379,16 +379,35 @@ const WorkflowDetailPage: React.FC = () => {
               {showJson && (
                 <div className="mt-4">
                   <JsonSyntaxHighlight data={workflow.generatedWorkflowJson} />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        JSON.stringify(workflow.generatedWorkflowJson, null, 2)
-                      );
-                    }}
-                    className="mt-2 px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
-                  >
-                    Copy to Clipboard
-                  </button>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          JSON.stringify(workflow.generatedWorkflowJson, null, 2)
+                        );
+                      }}
+                      className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                    >
+                      Copy to Clipboard
+                    </button>
+                    <button
+                      onClick={() => {
+                        const json = JSON.stringify(workflow.generatedWorkflowJson, null, 2);
+                        const blob = new Blob([json], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `workflow-${workflow.id}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                    >
+                      Download JSON
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -647,6 +647,20 @@ const WorkflowCreatePage: React.FC = () => {
                     >
                       Google Sheets + Slack (requires credentials)
                     </button>
+                    <button
+                      onClick={() => setWorkflowDescription('Transform JSON data and filter items based on status field')}
+                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      disabled={generating}
+                    >
+                      Data Transformation
+                    </button>
+                    <button
+                      onClick={() => setWorkflowDescription('Fetch data from REST API endpoint and process the response')}
+                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      disabled={generating}
+                    >
+                      API Integration
+                    </button>
                   </div>
                 </div>
 
