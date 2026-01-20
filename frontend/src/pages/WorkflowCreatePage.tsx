@@ -52,10 +52,13 @@ const WorkflowCreatePage: React.FC = () => {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [showManualEntry, setShowManualEntry] = useState(false);
 
+  // Default RISE n8n URL
+  const DEFAULT_N8N_URL = 'https://n8n.risecodes.com/';
+
   // State for manual entry form
   const [manualForm, setManualForm] = useState({
     name: '',
-    url: '',
+    url: DEFAULT_N8N_URL,
     apiKey: '',
     saveInstance: false,
   });
@@ -218,8 +221,8 @@ const WorkflowCreatePage: React.FC = () => {
     setError('');
     setSuccess('');
 
-    if (!manualForm.name || !manualForm.url || !manualForm.apiKey) {
-      setError('Please fill in all fields');
+    if (!manualForm.url || !manualForm.apiKey) {
+      setError('Please fill in URL and API key');
       return;
     }
 
@@ -250,7 +253,7 @@ const WorkflowCreatePage: React.FC = () => {
       setSelectedInstanceId(response.data.instance.id);
       setManualForm({
         name: '',
-        url: '',
+        url: DEFAULT_N8N_URL,
         apiKey: '',
         saveInstance: false,
       });
@@ -473,7 +476,7 @@ const WorkflowCreatePage: React.FC = () => {
 
                     <div>
                       <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
-                        Instance Name
+                        Instance Name <span className="text-muted-foreground">(optional)</span>
                       </label>
                       <input
                         type="text"
@@ -481,7 +484,7 @@ const WorkflowCreatePage: React.FC = () => {
                         name="name"
                         value={manualForm.name}
                         onChange={handleManualInputChange}
-                        placeholder="e.g., Customer ABC"
+                        placeholder="Auto-generated if left empty"
                         className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                     </div>
@@ -496,9 +499,12 @@ const WorkflowCreatePage: React.FC = () => {
                         name="url"
                         value={manualForm.url}
                         onChange={handleManualInputChange}
-                        placeholder="https://your-n8n-instance.com"
+                        placeholder={DEFAULT_N8N_URL}
                         className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Pre-filled with RISE n8n URL. Change if using a different instance.
+                      </p>
                     </div>
 
                     <div>
