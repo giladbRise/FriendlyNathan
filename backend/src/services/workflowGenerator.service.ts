@@ -5,6 +5,18 @@ import { io } from '../index';
 
 const prisma = new PrismaClient();
 
+// Cache TTL in milliseconds (1 hour)
+const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
+
+interface N8nNode {
+  name: string;
+  displayName: string;
+  description?: string;
+  version: number;
+  group?: string[];
+  credentials?: string[];
+}
+
 interface WorkflowNode {
   id: string;
   name: string;
@@ -161,6 +173,87 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
 export class WorkflowGeneratorService {
   // Track generations that should be cancelled
   private cancelledGenerations: Set<string> = new Set();
+
+  /**
+   * Discover nodes from an n8n instance, using cache if available
+   * Returns nodes and whether they came from cache
+   */
+  async discoverNodes(
+    n8nUrl: string,
+    apiKey: string
+  ): Promise<{ nodes: N8nNode[]; fromCache: boolean; nodeCount: number }> {
+    const baseUrl = n8nUrl.replace(/\/$/, '');
+
+    // Check if we have valid cached nodes
+    const cachedData = await prisma.nodeCache.findUnique({
+      where: { n8nUrl: baseUrl },
+    });
+
+    if (cachedData && new Date() < cachedData.expiresAt) {
+      console.log(`Using cached nodes for ${baseUrl} (${(cachedData.nodesJson as unknown as N8nNode[]).length} nodes)`);
+      const nodes = cachedData.nodesJson as unknown as N8nNode[];
+      return { nodes, fromCache: true, nodeCount: nodes.length };
+    }
+
+    // Fetch nodes from n8n instance
+    try {
+      console.log(`Fetching nodes from ${baseUrl}...`);
+      const response = await axios.get(`${baseUrl}/api/v1/nodes`, {
+        headers: {
+          'X-N8N-API-KEY': apiKey,
+          'Content-Type': 'application/json',
+        },
+        timeout: 15000,
+      });
+
+      const nodes: N8nNode[] = response.data.data || [];
+      console.log(`Discovered ${nodes.length} nodes from ${baseUrl}`);
+
+      // Cache the nodes
+      const expiresAt = new Date(Date.now() + NODE_CACHE_TTL_MS);
+      await prisma.nodeCache.upsert({
+        where: { n8nUrl: baseUrl },
+        update: {
+          nodesJson: nodes as any,
+          cachedAt: new Date(),
+          expiresAt,
+        },
+        create: {
+          n8nUrl: baseUrl,
+          nodesJson: nodes as any,
+          cachedAt: new Date(),
+          expiresAt,
+        },
+      });
+
+      return { nodes, fromCache: false, nodeCount: nodes.length };
+    } catch (error: any) {
+      console.error('Failed to discover nodes:', error.response?.data || error.message);
+
+      // If we have expired cache, use it as fallback
+      if (cachedData) {
+        console.log(`Using expired cache as fallback for ${baseUrl}`);
+        const nodes = cachedData.nodesJson as unknown as N8nNode[];
+        return { nodes, fromCache: true, nodeCount: nodes.length };
+      }
+
+      // Return empty array if no cache available - workflow generation will proceed without node info
+      console.log('No cached nodes available, proceeding without node discovery');
+      return { nodes: [], fromCache: false, nodeCount: 0 };
+    }
+  }
+
+  /**
+   * Clear node cache for a specific n8n instance
+   */
+  async clearNodeCache(n8nUrl: string): Promise<void> {
+    const baseUrl = n8nUrl.replace(/\/$/, '');
+    await prisma.nodeCache.deleteMany({
+      where: { n8nUrl: baseUrl },
+    });
+    console.log(`Cleared node cache for ${baseUrl}`);
+  }
+
   /**
    * Check for recently created duplicate workflows
    */
@@ -303,6 +396,7 @@ export class WorkflowGeneratorService {
     startTime: number
   ) {
     let createdWorkflowId: string | undefined; // Track created workflow for potential rollback
+    let nodesDiscoveredCount: number | undefined;
     const apiKey = decrypt(instance.apiKeyEncrypted);
 
     try {
@@ -312,9 +406,26 @@ export class WorkflowGeneratorService {
         return;
       }
 
-      // Step 1: Analyze description and generate workflow
-      this.emitProgress(socketId, generationId, 'Analyzing description...', 20);
-      await this.delay(500); // Simulate processing time
+      // Step 1: Discover available nodes (with caching)
+      this.emitProgress(socketId, generationId, 'Discovering available nodes...', 15);
+      const discoveryResult = await this.discoverNodes(instance.url, apiKey);
+      nodesDiscoveredCount = discoveryResult.nodeCount;
+
+      // Show different message based on cache status
+      if (discoveryResult.fromCache) {
+        this.emitProgress(socketId, generationId, `Using cached nodes (${discoveryResult.nodeCount} nodes available)`, 20);
+      } else if (discoveryResult.nodeCount > 0) {
+        this.emitProgress(socketId, generationId, `Discovered ${discoveryResult.nodeCount} nodes from n8n instance`, 20);
+      }
+
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
+
+      // Step 2: Analyze description and generate workflow
+      this.emitProgress(socketId, generationId, 'Analyzing description...', 30);
+      await this.delay(300); // Simulate processing time
 
       if (this.isCancelled(generationId)) {
         this.cancelledGenerations.delete(generationId);
@@ -323,16 +434,6 @@ export class WorkflowGeneratorService {
 
       this.emitProgress(socketId, generationId, 'Generating workflow structure...', 40);
       const workflow = this.generateWorkflowFromDescription(description);
-      await this.delay(500);
-
-      if (this.isCancelled(generationId)) {
-        this.cancelledGenerations.delete(generationId);
-        return;
-      }
-
-      // Step 2: Detect required credentials
-      this.emitProgress(socketId, generationId, 'Detecting required credentials...', 50);
-      const credentials = this.detectCredentials(workflow.nodes);
       await this.delay(300);
 
       if (this.isCancelled(generationId)) {
@@ -340,7 +441,17 @@ export class WorkflowGeneratorService {
         return;
       }
 
-      // Step 3: Validate workflow JSON before sending to n8n
+      // Step 3: Detect required credentials
+      this.emitProgress(socketId, generationId, 'Detecting required credentials...', 50);
+      const credentials = this.detectCredentials(workflow.nodes);
+      await this.delay(200);
+
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
+
+      // Step 4: Validate workflow JSON before sending to n8n
       this.emitProgress(socketId, generationId, 'Validating workflow structure...', 55);
       const validationResult = this.validateWorkflowJson(workflow);
       if (!validationResult.valid) {
@@ -354,7 +465,7 @@ export class WorkflowGeneratorService {
       const outputTokens = Math.ceil(JSON.stringify(workflow).length / 4);
       const aiTokensUsed = inputTokens + outputTokens;
 
-      // Step 4: Create workflow in n8n (with automatic retry for transient failures)
+      // Step 5: Create workflow in n8n (with automatic retry for transient failures)
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
 
       const n8nResult = await this.createWorkflowInN8n(instance.url, apiKey, workflow, 3, socketId, generationId);
@@ -366,7 +477,7 @@ export class WorkflowGeneratorService {
       // Track the created workflow ID for potential rollback
       createdWorkflowId = n8nResult.n8nWorkflowId;
 
-      // Step 5: Update generation record with success
+      // Step 6: Update generation record with success
       this.emitProgress(socketId, generationId, 'Workflow created successfully!', 100);
 
       const durationMs = Date.now() - startTime;
@@ -379,6 +490,7 @@ export class WorkflowGeneratorService {
             generatedWorkflowJson: workflow as any,
             n8nWorkflowId: n8nResult.n8nWorkflowId,
             n8nWorkflowUrl: n8nResult.n8nWorkflowUrl,
+            nodesDiscoveredCount: nodesDiscoveredCount ?? null,
             nodesUsedCount: workflow.nodes.length,
             credentialsRequired: credentials.length > 0 ? credentials : null,
             aiTokensUsed,
