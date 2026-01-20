@@ -162,15 +162,61 @@ export class WorkflowGeneratorService {
   // Track generations that should be cancelled
   private cancelledGenerations: Set<string> = new Set();
   /**
+   * Check for recently created duplicate workflows
+   */
+  async checkDuplicate(
+    userId: string,
+    description: string,
+  ): Promise<{ isDuplicate: boolean; existingId?: string; createdAt?: Date }> {
+    // Look for workflows with the same description in the last hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    const existing = await prisma.workflowGeneration.findFirst({
+      where: {
+        userId,
+        workflowDescription: description,
+        status: 'success',
+        createdAt: { gte: oneHourAgo },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing) {
+      return {
+        isDuplicate: true,
+        existingId: existing.id,
+        createdAt: existing.createdAt,
+      };
+    }
+
+    return { isDuplicate: false };
+  }
+
+  /**
    * Generate a workflow from a description
    */
   async generateWorkflow(
     userId: string,
     instanceId: string,
     description: string,
-    socketId?: string
-  ): Promise<{ generationId: string }> {
+    socketId?: string,
+    skipDuplicateCheck: boolean = false
+  ): Promise<{ generationId: string; duplicateWarning?: { existingId: string; createdAt: Date } }> {
     const startTime = Date.now();
+
+    // Check for duplicate unless explicitly skipped
+    if (!skipDuplicateCheck) {
+      const duplicateCheck = await this.checkDuplicate(userId, description);
+      if (duplicateCheck.isDuplicate) {
+        return {
+          generationId: '',
+          duplicateWarning: {
+            existingId: duplicateCheck.existingId!,
+            createdAt: duplicateCheck.createdAt!,
+          },
+        };
+      }
+    }
 
     // Get the n8n instance
     const instance = await prisma.n8nInstance.findFirst({
@@ -291,11 +337,25 @@ export class WorkflowGeneratorService {
         return;
       }
 
-      // Step 3: Create workflow in n8n
+      // Step 3: Validate workflow JSON before sending to n8n
+      this.emitProgress(socketId, generationId, 'Validating workflow structure...', 55);
+      const validationResult = this.validateWorkflowJson(workflow);
+      if (!validationResult.valid) {
+        throw new Error(`Invalid workflow: ${validationResult.error}`);
+      }
+
+      // Estimate AI token usage (simulated - in production this comes from AI API response)
+      // Input tokens: ~1 token per 4 characters of description
+      // Output tokens: ~1 token per 4 characters of workflow JSON
+      const inputTokens = Math.ceil(description.length / 4);
+      const outputTokens = Math.ceil(JSON.stringify(workflow).length / 4);
+      const aiTokensUsed = inputTokens + outputTokens;
+
+      // Step 4: Create workflow in n8n (with automatic retry for transient failures)
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
 
       const apiKey = decrypt(instance.apiKeyEncrypted);
-      const n8nResult = await this.createWorkflowInN8n(instance.url, apiKey, workflow);
+      const n8nResult = await this.createWorkflowInN8n(instance.url, apiKey, workflow, 3, socketId, generationId);
 
       if (!n8nResult.success) {
         throw new Error(n8nResult.error || 'Failed to create workflow in n8n');
@@ -314,6 +374,7 @@ export class WorkflowGeneratorService {
           n8nWorkflowUrl: n8nResult.n8nWorkflowUrl,
           nodesUsedCount: workflow.nodes.length,
           credentialsRequired: credentials.length > 0 ? credentials : null,
+          aiTokensUsed,
           durationMs,
           completedAt: new Date(),
         },
@@ -363,6 +424,59 @@ export class WorkflowGeneratorService {
   /**
    * Detect credentials required by workflow nodes
    */
+  /**
+   * Validate workflow JSON structure before sending to n8n
+   */
+  private validateWorkflowJson(workflow: N8nWorkflow): { valid: boolean; error?: string } {
+    // Check required fields
+    if (!workflow.name || typeof workflow.name !== 'string') {
+      return { valid: false, error: 'Workflow must have a name' };
+    }
+
+    if (!Array.isArray(workflow.nodes) || workflow.nodes.length === 0) {
+      return { valid: false, error: 'Workflow must have at least one node' };
+    }
+
+    if (typeof workflow.connections !== 'object') {
+      return { valid: false, error: 'Workflow must have connections object' };
+    }
+
+    // Validate each node
+    for (const node of workflow.nodes) {
+      if (!node.id || !node.name || !node.type) {
+        return { valid: false, error: `Invalid node: missing required fields (id, name, type)` };
+      }
+
+      if (!Array.isArray(node.position) || node.position.length !== 2) {
+        return { valid: false, error: `Invalid node ${node.name}: position must be [x, y] array` };
+      }
+
+      if (typeof node.parameters !== 'object') {
+        return { valid: false, error: `Invalid node ${node.name}: parameters must be an object` };
+      }
+    }
+
+    // Validate connections reference existing nodes
+    const nodeNames = new Set(workflow.nodes.map(n => n.name));
+    for (const [sourceName, conn] of Object.entries(workflow.connections)) {
+      if (!nodeNames.has(sourceName)) {
+        return { valid: false, error: `Connection references non-existent node: ${sourceName}` };
+      }
+
+      if (conn.main) {
+        for (const branch of conn.main) {
+          for (const target of branch) {
+            if (!nodeNames.has(target.node)) {
+              return { valid: false, error: `Connection references non-existent target node: ${target.node}` };
+            }
+          }
+        }
+      }
+    }
+
+    return { valid: true };
+  }
+
   private detectCredentials(nodes: WorkflowNode[]): CredentialRequirement[] {
     const credentials: CredentialRequirement[] = [];
     const seenTypes = new Set<string>();
@@ -1120,53 +1234,94 @@ export class WorkflowGeneratorService {
   }
 
   /**
-   * Create workflow in the n8n instance via API
+   * Check if an error is a transient error that should be retried
+   */
+  private isTransientError(error: any): boolean {
+    // Network errors (ECONNREFUSED, ETIMEDOUT, etc.)
+    if (!error.response) {
+      return true;
+    }
+    // Server errors (5xx) except 501 Not Implemented
+    if (error.response?.status >= 500 && error.response?.status !== 501) {
+      return true;
+    }
+    // Request timeout
+    if (error.code === 'ECONNABORTED') {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Create workflow in the n8n instance via API with automatic retry for transient failures
    */
   private async createWorkflowInN8n(
     n8nUrl: string,
     apiKey: string,
-    workflow: N8nWorkflow
+    workflow: N8nWorkflow,
+    maxRetries: number = 3,
+    socketId?: string,
+    generationId?: string
   ): Promise<GenerationResult> {
-    try {
-      const baseUrl = n8nUrl.replace(/\/$/, '');
+    const baseUrl = n8nUrl.replace(/\/$/, '');
+    let lastError: any = null;
 
-      const response = await axios.post(
-        `${baseUrl}/api/v1/workflows`,
-        workflow,
-        {
-          headers: {
-            'X-N8N-API-KEY': apiKey,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await axios.post(
+          `${baseUrl}/api/v1/workflows`,
+          workflow,
+          {
+            headers: {
+              'X-N8N-API-KEY': apiKey,
+              'Content-Type': 'application/json',
+            },
+            timeout: 30000,
+          }
+        );
+
+        const workflowId = response.data.id;
+        const workflowUrl = `${baseUrl}/workflow/${workflowId}`;
+
+        return {
+          success: true,
+          workflow,
+          n8nWorkflowId: workflowId,
+          n8nWorkflowUrl: workflowUrl,
+          nodesUsed: workflow.nodes.length,
+        };
+      } catch (error: any) {
+        lastError = error;
+        console.error(`n8n API error (attempt ${attempt}/${maxRetries}):`, error.response?.data || error.message);
+
+        // Don't retry non-transient errors
+        if (!this.isTransientError(error)) {
+          break;
         }
-      );
 
-      const workflowId = response.data.id;
-      const workflowUrl = `${baseUrl}/workflow/${workflowId}`;
-
-      return {
-        success: true,
-        workflow,
-        n8nWorkflowId: workflowId,
-        n8nWorkflowUrl: workflowUrl,
-        nodesUsed: workflow.nodes.length,
-      };
-    } catch (error: any) {
-      console.error('n8n API error:', error.response?.data || error.message);
-
-      if (error.response?.status === 401) {
-        return { success: false, error: 'Invalid n8n API key' };
+        // If we have more retries, emit progress about retry and wait
+        if (attempt < maxRetries) {
+          const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
+          if (socketId && generationId) {
+            this.emitProgress(socketId, generationId, `Retrying... (attempt ${attempt + 1}/${maxRetries})`, 65);
+          }
+          await this.delay(retryDelay);
+        }
       }
-      if (error.response?.status === 403) {
-        return { success: false, error: 'Access denied to n8n instance' };
-      }
-
-      return {
-        success: false,
-        error: error.response?.data?.message || error.message || 'Failed to create workflow in n8n'
-      };
     }
+
+    // All retries exhausted, return error
+    if (lastError.response?.status === 401) {
+      return { success: false, error: 'Invalid n8n API key' };
+    }
+    if (lastError.response?.status === 403) {
+      return { success: false, error: 'Access denied to n8n instance' };
+    }
+
+    return {
+      success: false,
+      error: lastError.response?.data?.message || lastError.message || 'Failed to create workflow in n8n after multiple attempts'
+    };
   }
 
   /**

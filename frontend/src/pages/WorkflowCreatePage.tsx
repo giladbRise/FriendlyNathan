@@ -75,6 +75,7 @@ const WorkflowCreatePage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [validationSuccess, setValidationSuccess] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ existingId: string; createdAt: string } | null>(null);
 
   // Connect to socket.io for real-time updates
   useEffect(() => {
@@ -282,14 +283,26 @@ const WorkflowCreatePage: React.FC = () => {
           instanceId: selectedInstanceId,
           description: workflowDescription,
           socketId,
+          skipDuplicateCheck: duplicateWarning !== null, // Skip if user already saw warning
         },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
 
+      // Check if duplicate warning returned
+      if (response.data.duplicateWarning) {
+        setGenerating(false);
+        setDuplicateWarning({
+          existingId: response.data.duplicateWarning.existingId,
+          createdAt: response.data.duplicateWarning.createdAt,
+        });
+        return;
+      }
+
       // Store the generation ID for potential cancellation
       setCurrentGenerationId(response.data.generationId);
+      setDuplicateWarning(null);
 
       // The result will come through the socket
     } catch (err: any) {
@@ -342,6 +355,7 @@ const WorkflowCreatePage: React.FC = () => {
     setGenerationProgress({ message: '', progress: 0, estimatedTimeRemaining: null });
     setError('');
     setSuccess('');
+    setDuplicateWarning(null);
   };
 
   const formatTimeRemaining = (seconds: number | null): string => {
@@ -628,6 +642,40 @@ const WorkflowCreatePage: React.FC = () => {
                 {error && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
+
+                {/* Duplicate warning */}
+                {duplicateWarning && (
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <h4 className="text-sm font-semibold text-yellow-800 mb-2">Similar Workflow Found</h4>
+                    <p className="text-sm text-yellow-700 mb-3">
+                      You created a workflow with the same description on{' '}
+                      {new Date(duplicateWarning.createdAt).toLocaleString()}.
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setDuplicateWarning(null);
+                          handleGenerateWorkflow();
+                        }}
+                        className="px-3 py-1 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded-md"
+                      >
+                        Create Anyway
+                      </button>
+                      <button
+                        onClick={() => window.open(`/workflow/${duplicateWarning.existingId}`, '_blank')}
+                        className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md"
+                      >
+                        View Existing
+                      </button>
+                      <button
+                        onClick={() => setDuplicateWarning(null)}
+                        className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
 

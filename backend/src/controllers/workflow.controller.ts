@@ -7,6 +7,7 @@ const generateWorkflowSchema = z.object({
   instanceId: z.string().uuid('Invalid instance ID'),
   description: z.string().min(10, 'Description must be at least 10 characters').max(5000, 'Description too long'),
   socketId: z.string().optional(),
+  skipDuplicateCheck: z.boolean().optional(),
 });
 
 /**
@@ -21,8 +22,21 @@ export const generateWorkflow = async (req: Request, res: Response) => {
       userId,
       validatedData.instanceId,
       validatedData.description,
-      validatedData.socketId
+      validatedData.socketId,
+      validatedData.skipDuplicateCheck
     );
+
+    // Check if duplicate warning was returned
+    if (result.duplicateWarning) {
+      return res.status(200).json({
+        message: 'Duplicate workflow detected',
+        duplicateWarning: {
+          existingId: result.duplicateWarning.existingId,
+          createdAt: result.duplicateWarning.createdAt,
+          message: 'A similar workflow was created recently. You can proceed anyway or view the existing one.',
+        },
+      });
+    }
 
     res.status(202).json({
       message: 'Workflow generation started',

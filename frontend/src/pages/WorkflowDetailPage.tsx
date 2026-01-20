@@ -25,6 +25,7 @@ interface WorkflowGeneration {
   n8nWorkflowId: string | null;
   n8nWorkflowUrl: string | null;
   nodesUsedCount: number | null;
+  aiTokensUsed: number | null;
   durationMs: number | null;
   errorMessage: string | null;
   createdAt: string;
@@ -243,6 +244,10 @@ const WorkflowDetailPage: React.FC = () => {
               <div>
                 <h4 className="text-sm font-medium text-gray-500">Nodes Used</h4>
                 <p className="text-gray-900">{workflow.nodesUsedCount ?? '-'}</p>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">AI Tokens Used</h4>
+                <p className="text-gray-900">{workflow.aiTokensUsed?.toLocaleString() ?? '-'}</p>
               </div>
             </div>
           </div>
