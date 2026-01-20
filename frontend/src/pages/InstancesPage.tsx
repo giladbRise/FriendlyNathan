@@ -13,6 +13,12 @@ interface N8nInstance {
   lastUsedAt: string | null;
 }
 
+interface EditFormData {
+  name: string;
+  url: string;
+  apiKey: string;
+}
+
 const InstancesPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -22,6 +28,13 @@ const InstancesPage: React.FC = () => {
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Edit modal state
+  const [editingInstance, setEditingInstance] = useState<N8nInstance | null>(null);
+  const [editForm, setEditForm] = useState<EditFormData>({ name: '', url: '', apiKey: '' });
+  const [editError, setEditError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     fetchInstances();
@@ -88,6 +101,88 @@ const InstancesPage: React.FC = () => {
       setError(err.response?.data?.error || 'Failed to delete instance');
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const handleEdit = (instance: N8nInstance) => {
+    setEditingInstance(instance);
+    setEditForm({
+      name: instance.name,
+      url: instance.url,
+      apiKey: '', // Don't pre-populate API key for security
+    });
+    setEditError('');
+    setShowApiKey(false);
+  };
+
+  const handleCloseEdit = () => {
+    setEditingInstance(null);
+    setEditForm({ name: '', url: '', apiKey: '' });
+    setEditError('');
+    setShowApiKey(false);
+  };
+
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({ ...prev, [name]: value }));
+    setEditError('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingInstance) return;
+
+    setEditError('');
+
+    // Validate required fields
+    if (!editForm.name.trim()) {
+      setEditError('Instance name is required');
+      return;
+    }
+
+    if (!editForm.url.trim()) {
+      setEditError('URL is required');
+      return;
+    }
+
+    // Build update data - only include non-empty fields
+    const updateData: { name?: string; url?: string; apiKey?: string } = {};
+
+    if (editForm.name !== editingInstance.name) {
+      updateData.name = editForm.name;
+    }
+
+    if (editForm.url !== editingInstance.url) {
+      updateData.url = editForm.url;
+    }
+
+    if (editForm.apiKey) {
+      updateData.apiKey = editForm.apiKey;
+    }
+
+    // Check if anything changed
+    if (Object.keys(updateData).length === 0) {
+      setEditError('No changes to save');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const token = localStorage.getItem('token');
+
+      await axios.put(
+        `http://localhost:3000/api/n8n-instances/${editingInstance.id}`,
+        updateData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess('Instance updated successfully!');
+      handleCloseEdit();
+      await fetchInstances();
+    } catch (err: any) {
+      console.error('Error updating instance:', err);
+      setEditError(err.response?.data?.error || 'Failed to update instance');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -244,6 +339,13 @@ const InstancesPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleEdit(instance)}
+                              disabled={updating === instance.id}
+                              className="text-gray-600 hover:text-gray-800 disabled:text-gray-400"
+                            >
+                              Edit
+                            </button>
                             {!instance.isDefault && (
                               <button
                                 onClick={() => handleSetDefault(instance.id)}
@@ -271,6 +373,96 @@ const InstancesPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Edit Modal */}
+      {editingInstance && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Edit Instance
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Instance Name
+                  </label>
+                  <input
+                    type="text"
+                    id="edit-name"
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="edit-url" className="block text-sm font-medium text-gray-700 mb-1">
+                    n8n URL
+                  </label>
+                  <input
+                    type="url"
+                    id="edit-url"
+                    name="url"
+                    value={editForm.url}
+                    onChange={handleEditInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="edit-apiKey" className="block text-sm font-medium text-gray-700 mb-1">
+                    API Key <span className="text-gray-500 font-normal">(leave empty to keep current)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      id="edit-apiKey"
+                      name="apiKey"
+                      value={editForm.apiKey}
+                      onChange={handleEditInputChange}
+                      placeholder="Enter new API key"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-16"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      {showApiKey ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
+
+                {editError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-800">{editError}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={handleCloseEdit}
+                  disabled={saving}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors disabled:bg-gray-400"
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
