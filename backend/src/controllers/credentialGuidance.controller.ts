@@ -56,7 +56,7 @@ export const getAllTemplates = async (req: Request, res: Response) => {
 /**
  * Get single credential guidance template by ID
  */
-export const getTemplateById = async (req: Request, res: Response) => {
+export const getTemplateById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -65,7 +65,8 @@ export const getTemplateById = async (req: Request, res: Response) => {
     });
 
     if (!template) {
-      return res.status(404).json({ error: 'Template not found' });
+      res.status(404).json({ error: 'Template not found' });
+      return;
     }
 
     res.json({ template });
@@ -78,7 +79,7 @@ export const getTemplateById = async (req: Request, res: Response) => {
 /**
  * Get credential guidance template by credential type
  */
-export const getTemplateByType = async (req: Request, res: Response) => {
+export const getTemplateByType = async (req: Request, res: Response): Promise<void> => {
   try {
     const { type } = req.params;
 
@@ -87,7 +88,8 @@ export const getTemplateByType = async (req: Request, res: Response) => {
     });
 
     if (!template) {
-      return res.status(404).json({ error: 'Template not found for this credential type' });
+      res.status(404).json({ error: 'Template not found for this credential type' });
+      return;
     }
 
     res.json({ template });
@@ -100,7 +102,7 @@ export const getTemplateByType = async (req: Request, res: Response) => {
 /**
  * Create new credential guidance template (admin only)
  */
-export const createTemplate = async (req: Request, res: Response) => {
+export const createTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       credentialType,
@@ -114,9 +116,10 @@ export const createTemplate = async (req: Request, res: Response) => {
 
     // Validation
     if (!credentialType || !displayName || !instructionsMarkdown) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'credentialType, displayName, and instructionsMarkdown are required',
       });
+      return;
     }
 
     // Check if credential type already exists
@@ -125,9 +128,10 @@ export const createTemplate = async (req: Request, res: Response) => {
     });
 
     if (existingTemplate) {
-      return res.status(409).json({
+      res.status(409).json({
         error: 'A template with this credential type already exists',
       });
+      return;
     }
 
     const template = await prisma.credentialGuidanceTemplate.create({
@@ -155,7 +159,7 @@ export const createTemplate = async (req: Request, res: Response) => {
 /**
  * Update credential guidance template (admin only)
  */
-export const updateTemplate = async (req: Request, res: Response) => {
+export const updateTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const {
@@ -174,7 +178,8 @@ export const updateTemplate = async (req: Request, res: Response) => {
     });
 
     if (!existingTemplate) {
-      return res.status(404).json({ error: 'Template not found' });
+      res.status(404).json({ error: 'Template not found' });
+      return;
     }
 
     // If changing credential type, check for conflicts
@@ -184,9 +189,10 @@ export const updateTemplate = async (req: Request, res: Response) => {
       });
 
       if (conflictTemplate) {
-        return res.status(409).json({
+        res.status(409).json({
           error: 'A template with this credential type already exists',
         });
+        return;
       }
     }
 
@@ -216,7 +222,7 @@ export const updateTemplate = async (req: Request, res: Response) => {
 /**
  * Delete credential guidance template (admin only)
  */
-export const deleteTemplate = async (req: Request, res: Response) => {
+export const deleteTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -226,7 +232,8 @@ export const deleteTemplate = async (req: Request, res: Response) => {
     });
 
     if (!existingTemplate) {
-      return res.status(404).json({ error: 'Template not found' });
+      res.status(404).json({ error: 'Template not found' });
+      return;
     }
 
     await prisma.credentialGuidanceTemplate.delete({

@@ -21,7 +21,7 @@ const resetPasswordSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number'),
 });
 
-export const requestPasswordReset = async (req: Request, res: Response) => {
+export const requestPasswordReset = async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = requestResetSchema.parse(req.body);
 
@@ -35,9 +35,10 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
     // Always return success message (security: don't reveal if email exists)
     if (!user) {
-      return res.json({
+      res.json({
         message: 'If that email exists, a password reset link has been sent.',
       });
+      return;
     }
 
     // Generate reset token
@@ -70,10 +71,11 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Request password reset error:', error);
@@ -81,7 +83,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
   }
 };
 
-export const resetPassword = async (req: Request, res: Response) => {
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = resetPasswordSchema.parse(req.body);
 
@@ -92,17 +94,20 @@ export const resetPassword = async (req: Request, res: Response) => {
     });
 
     if (!resetToken) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
+      res.status(400).json({ error: 'Invalid or expired reset token' });
+      return;
     }
 
     // Check if token is expired
     if (resetToken.expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' });
+      res.status(400).json({ error: 'Reset token has expired' });
+      return;
     }
 
     // Check if token was already used
     if (resetToken.used) {
-      return res.status(400).json({ error: 'Reset token has already been used' });
+      res.status(400).json({ error: 'Reset token has already been used' });
+      return;
     }
 
     // Hash new password
@@ -123,10 +128,11 @@ export const resetPassword = async (req: Request, res: Response) => {
     res.json({ message: 'Password reset successful' });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Reset password error:', error);

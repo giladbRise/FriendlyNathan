@@ -492,7 +492,7 @@ export class WorkflowGeneratorService {
             n8nWorkflowUrl: n8nResult.n8nWorkflowUrl,
             nodesDiscoveredCount: nodesDiscoveredCount ?? null,
             nodesUsedCount: workflow.nodes.length,
-            credentialsRequired: credentials.length > 0 ? credentials : null,
+            credentialsRequired: credentials.length > 0 ? (credentials as any) : undefined,
             aiTokensUsed,
             durationMs,
             completedAt: new Date(),
@@ -502,7 +502,7 @@ export class WorkflowGeneratorService {
         // Database update failed after workflow was created in n8n
         // Attempt rollback by deleting the workflow from n8n
         console.error('Database update failed, attempting rollback:', dbError);
-        await this.rollbackWorkflow(instance.url, apiKey, createdWorkflowId);
+        await this.rollbackWorkflow(instance.url, apiKey, createdWorkflowId ?? '');
         throw new Error('Failed to save workflow record. The workflow has been rolled back.');
       }
 
@@ -686,7 +686,7 @@ export class WorkflowGeneratorService {
   /**
    * Generate a complex multi-node workflow with 10+ nodes
    */
-  private generateComplexWorkflow(description: string): N8nWorkflow {
+  private generateComplexWorkflow(_description: string): N8nWorkflow {
     const workflowName = `Complex Workflow - ${new Date().toISOString().slice(0, 10)}`;
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};

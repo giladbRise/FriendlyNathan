@@ -3,12 +3,13 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).userId;
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const user = await prisma.user.findUnique({
@@ -17,7 +18,8 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     });
 
     if (!user || user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+      res.status(403).json({ error: 'Admin access required' });
+      return;
     }
 
     next();

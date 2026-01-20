@@ -39,7 +39,7 @@ const updateProfileSchema = z.object({
   lastName: z.string().min(1, 'Last name is required').max(100, 'Last name too long'),
 });
 
-export const register = async (req: Request, res: Response) => {
+export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate input
     const validatedData = registerSchema.parse(req.body);
@@ -53,7 +53,8 @@ export const register = async (req: Request, res: Response) => {
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'Email already registered' });
+      res.status(400).json({ error: 'Email already registered' });
+      return;
     }
 
     // Hash password
@@ -82,7 +83,7 @@ export const register = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: '24h' }
     );
 
     res.status(201).json({
@@ -92,10 +93,11 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Registration error:', error);
@@ -103,7 +105,7 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate input
     const validatedData = loginSchema.parse(req.body);
@@ -117,12 +119,14 @@ export const login = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
     }
 
     // Check if user is active
     if (!user.isActive) {
-      return res.status(403).json({ error: 'Account is inactive' });
+      res.status(403).json({ error: 'Account is inactive' });
+      return;
     }
 
     // Verify password
@@ -132,7 +136,8 @@ export const login = async (req: Request, res: Response) => {
     );
 
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
     }
 
     // Update last login
@@ -145,7 +150,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: '24h' }
     );
 
     res.json({
@@ -163,10 +168,11 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Login error:', error);
@@ -174,7 +180,7 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-export const getCurrentUser = async (req: Request, res: Response) => {
+export const getCurrentUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
 
@@ -193,7 +199,8 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     res.json({ user });
@@ -203,7 +210,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
   }
 };
 
-export const changePassword = async (req: Request, res: Response) => {
+export const changePassword = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const validatedData = changePasswordSchema.parse(req.body);
@@ -214,7 +221,8 @@ export const changePassword = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     // Verify current password
@@ -224,7 +232,8 @@ export const changePassword = async (req: Request, res: Response) => {
     );
 
     if (!isCurrentPasswordValid) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
+      res.status(400).json({ error: 'Current password is incorrect' });
+      return;
     }
 
     // Check if new password is different from current
@@ -234,7 +243,8 @@ export const changePassword = async (req: Request, res: Response) => {
     );
 
     if (isSamePassword) {
-      return res.status(400).json({ error: 'New password must be different from current password' });
+      res.status(400).json({ error: 'New password must be different from current password' });
+      return;
     }
 
     // Hash new password
@@ -249,10 +259,11 @@ export const changePassword = async (req: Request, res: Response) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Change password error:', error);
@@ -263,7 +274,7 @@ export const changePassword = async (req: Request, res: Response) => {
 /**
  * Refresh JWT token - issues a new token with extended expiration
  */
-export const refreshToken = async (req: Request, res: Response) => {
+export const refreshToken = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
 
@@ -279,18 +290,20 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     if (!user.isActive) {
-      return res.status(403).json({ error: 'Account is inactive' });
+      res.status(403).json({ error: 'Account is inactive' });
+      return;
     }
 
     // Generate new JWT token with fresh expiration
     const newToken = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: '24h' }
     );
 
     res.json({
@@ -303,7 +316,7 @@ export const refreshToken = async (req: Request, res: Response) => {
   }
 };
 
-export const updateProfile = async (req: Request, res: Response) => {
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const validatedData = updateProfileSchema.parse(req.body);
@@ -314,7 +327,8 @@ export const updateProfile = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     // Update profile
@@ -342,10 +356,11 @@ export const updateProfile = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Update profile error:', error);

@@ -77,7 +77,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 /**
  * Get user by ID (admin only)
  */
-export const getUserById = async (req: Request, res: Response) => {
+export const getUserById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -102,7 +102,8 @@ export const getUserById = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     res.json({ user });
@@ -115,7 +116,7 @@ export const getUserById = async (req: Request, res: Response) => {
 /**
  * Update user (admin only)
  */
-export const updateUser = async (req: Request, res: Response) => {
+export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { firstName, lastName, role, isActive } = req.body;
@@ -126,13 +127,15 @@ export const updateUser = async (req: Request, res: Response) => {
     });
 
     if (!existingUser) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     // Prevent admin from demoting themselves
     const adminId = (req as any).userId;
     if (id === adminId && role && role !== 'admin') {
-      return res.status(400).json({ error: 'Cannot demote yourself from admin' });
+      res.status(400).json({ error: 'Cannot demote yourself from admin' });
+      return;
     }
 
     // Prevent deactivating the last admin
@@ -141,7 +144,8 @@ export const updateUser = async (req: Request, res: Response) => {
         where: { role: 'admin', isActive: true },
       });
       if (activeAdminCount <= 1) {
-        return res.status(400).json({ error: 'Cannot deactivate last admin' });
+        res.status(400).json({ error: 'Cannot deactivate last admin' });
+        return;
       }
     }
 
@@ -151,7 +155,8 @@ export const updateUser = async (req: Request, res: Response) => {
         where: { role: 'admin' },
       });
       if (adminCount <= 1) {
-        return res.status(400).json({ error: 'Cannot demote last admin' });
+        res.status(400).json({ error: 'Cannot demote last admin' });
+        return;
       }
     }
 
@@ -188,7 +193,7 @@ export const updateUser = async (req: Request, res: Response) => {
 /**
  * Delete user (admin only)
  */
-export const deleteUser = async (req: Request, res: Response) => {
+export const deleteUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -198,13 +203,15 @@ export const deleteUser = async (req: Request, res: Response) => {
     });
 
     if (!existingUser) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     // Prevent admin from deleting themselves
     const adminId = (req as any).userId;
     if (id === adminId) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
+      res.status(400).json({ error: 'Cannot delete your own account' });
+      return;
     }
 
     // Prevent deleting the last admin
@@ -213,7 +220,8 @@ export const deleteUser = async (req: Request, res: Response) => {
         where: { role: 'admin' },
       });
       if (adminCount <= 1) {
-        return res.status(400).json({ error: 'Cannot delete last admin' });
+        res.status(400).json({ error: 'Cannot delete last admin' });
+        return;
       }
     }
 

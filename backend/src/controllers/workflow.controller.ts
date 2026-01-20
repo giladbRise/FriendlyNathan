@@ -13,7 +13,7 @@ const generateWorkflowSchema = z.object({
 /**
  * Generate a workflow from description
  */
-export const generateWorkflow = async (req: Request, res: Response) => {
+export const generateWorkflow = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const validatedData = generateWorkflowSchema.parse(req.body);
@@ -28,7 +28,7 @@ export const generateWorkflow = async (req: Request, res: Response) => {
 
     // Check if duplicate warning was returned
     if (result.duplicateWarning) {
-      return res.status(200).json({
+      res.status(200).json({
         message: 'Duplicate workflow detected',
         duplicateWarning: {
           existingId: result.duplicateWarning.existingId,
@@ -36,6 +36,7 @@ export const generateWorkflow = async (req: Request, res: Response) => {
           message: 'A similar workflow was created recently. You can proceed anyway or view the existing one.',
         },
       });
+      return;
     }
 
     res.status(202).json({
@@ -44,15 +45,17 @@ export const generateWorkflow = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     if (error instanceof Error) {
       if (error.message === 'n8n instance not found') {
-        return res.status(404).json({ error: 'n8n instance not found' });
+        res.status(404).json({ error: 'n8n instance not found' });
+        return;
       }
     }
 
@@ -64,7 +67,7 @@ export const generateWorkflow = async (req: Request, res: Response) => {
 /**
  * Cancel an in-progress workflow generation
  */
-export const cancelGeneration = async (req: Request, res: Response) => {
+export const cancelGeneration = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
@@ -76,10 +79,12 @@ export const cancelGeneration = async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'Generation not found') {
-        return res.status(404).json({ error: 'Workflow generation not found' });
+        res.status(404).json({ error: 'Workflow generation not found' });
+        return;
       }
       if (error.message === 'Generation is not in progress') {
-        return res.status(400).json({ error: 'Generation is not in progress' });
+        res.status(400).json({ error: 'Generation is not in progress' });
+        return;
       }
     }
 
@@ -91,7 +96,7 @@ export const cancelGeneration = async (req: Request, res: Response) => {
 /**
  * Get workflow generation by ID
  */
-export const getGeneration = async (req: Request, res: Response) => {
+export const getGeneration = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
@@ -99,7 +104,8 @@ export const getGeneration = async (req: Request, res: Response) => {
     const generation = await workflowGeneratorService.getGeneration(id, userId);
 
     if (!generation) {
-      return res.status(404).json({ error: 'Workflow generation not found' });
+      res.status(404).json({ error: 'Workflow generation not found' });
+      return;
     }
 
     res.json({ generation });

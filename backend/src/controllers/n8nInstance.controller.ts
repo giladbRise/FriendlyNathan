@@ -99,7 +99,7 @@ export const getInstances = async (req: Request, res: Response) => {
 /**
  * Get a single n8n instance by ID
  */
-export const getInstance = async (req: Request, res: Response) => {
+export const getInstance = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
@@ -121,7 +121,8 @@ export const getInstance = async (req: Request, res: Response) => {
     });
 
     if (!instance) {
-      return res.status(404).json({ error: 'Instance not found' });
+      res.status(404).json({ error: 'Instance not found' });
+      return;
     }
 
     res.json({ instance });
@@ -134,7 +135,7 @@ export const getInstance = async (req: Request, res: Response) => {
 /**
  * Create a new n8n instance
  */
-export const createInstance = async (req: Request, res: Response) => {
+export const createInstance = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const validatedData = createInstanceSchema.parse(req.body);
@@ -142,7 +143,8 @@ export const createInstance = async (req: Request, res: Response) => {
     // Validate n8n connection
     const validation = await validateN8nConnection(validatedData.url, validatedData.apiKey);
     if (!validation.valid) {
-      return res.status(400).json({ error: validation.error || 'Invalid n8n instance' });
+      res.status(400).json({ error: validation.error || 'Invalid n8n instance' });
+      return;
     }
 
     // If this is set as default, unset other defaults
@@ -182,10 +184,11 @@ export const createInstance = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Create instance error:', error);
@@ -196,7 +199,7 @@ export const createInstance = async (req: Request, res: Response) => {
 /**
  * Update an existing n8n instance
  */
-export const updateInstance = async (req: Request, res: Response) => {
+export const updateInstance = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
@@ -208,7 +211,8 @@ export const updateInstance = async (req: Request, res: Response) => {
     });
 
     if (!existingInstance) {
-      return res.status(404).json({ error: 'Instance not found' });
+      res.status(404).json({ error: 'Instance not found' });
+      return;
     }
 
     // If URL or API key changed, validate the new connection
@@ -218,7 +222,8 @@ export const updateInstance = async (req: Request, res: Response) => {
 
       const validation = await validateN8nConnection(urlToValidate, apiKeyToValidate);
       if (!validation.valid) {
-        return res.status(400).json({ error: validation.error || 'Invalid n8n instance' });
+        res.status(400).json({ error: validation.error || 'Invalid n8n instance' });
+        return;
       }
     }
 
@@ -258,10 +263,11 @@ export const updateInstance = async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Update instance error:', error);
@@ -272,7 +278,7 @@ export const updateInstance = async (req: Request, res: Response) => {
 /**
  * Delete an n8n instance
  */
-export const deleteInstance = async (req: Request, res: Response) => {
+export const deleteInstance = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
@@ -283,7 +289,8 @@ export const deleteInstance = async (req: Request, res: Response) => {
     });
 
     if (!existingInstance) {
-      return res.status(404).json({ error: 'Instance not found' });
+      res.status(404).json({ error: 'Instance not found' });
+      return;
     }
 
     // Delete instance
@@ -301,7 +308,7 @@ export const deleteInstance = async (req: Request, res: Response) => {
 /**
  * Validate n8n instance connection
  */
-export const validateInstance = async (req: Request, res: Response) => {
+export const validateInstance = async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = validateInstanceSchema.parse(req.body);
 
@@ -314,10 +321,11 @@ export const validateInstance = async (req: Request, res: Response) => {
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         details: error.errors,
       });
+      return;
     }
 
     console.error('Validate instance error:', error);
