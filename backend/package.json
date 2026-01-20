@@ -32,7 +32,6 @@
     "socket.io": "^4.6.1",
     "zod": "^3.22.4",
     "@google/generative-ai": "^0.1.3",
-    "n8n-mcp": "^1.0.0",
     "axios": "^1.6.5"
   },
   "devDependencies": {
