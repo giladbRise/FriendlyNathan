@@ -560,9 +560,20 @@ const WorkflowCreatePage: React.FC = () => {
                   <p className="text-sm text-gray-500">
                     {workflowDescription.length} characters
                   </p>
-                  <p className="text-sm text-gray-500">
-                    Minimum 10 characters required
-                  </p>
+                  <div className="flex items-center gap-4">
+                    {workflowDescription.length > 0 && (
+                      <button
+                        onClick={() => setWorkflowDescription('')}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                        disabled={generating}
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <p className="text-sm text-gray-500">
+                      Minimum 10 characters required
+                    </p>
+                  </div>
                 </div>
 
                 {/* Example prompts */}
