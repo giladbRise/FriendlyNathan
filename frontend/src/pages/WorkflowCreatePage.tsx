@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 
@@ -34,10 +34,18 @@ interface GenerationResult {
   credentials?: CredentialRequirement[];
 }
 
+interface LocationState {
+  retryDescription?: string;
+}
+
 const WorkflowCreatePage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const socketRef = useRef<Socket | null>(null);
+
+  // Check for retry description from navigation state
+  const locationState = location.state as LocationState | null;
 
   // State for n8n instances
   const [instances, setInstances] = useState<N8nInstance[]>([]);
@@ -102,6 +110,15 @@ const WorkflowCreatePage: React.FC = () => {
   useEffect(() => {
     fetchInstances();
   }, []);
+
+  // Pre-fill description from retry state
+  useEffect(() => {
+    if (locationState?.retryDescription) {
+      setWorkflowDescription(locationState.retryDescription);
+      // Clear the state so refreshing doesn't re-populate
+      window.history.replaceState({}, document.title);
+    }
+  }, [locationState]);
 
   const fetchInstances = async () => {
     try {

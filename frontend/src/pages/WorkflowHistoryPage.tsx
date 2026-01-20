@@ -428,6 +428,16 @@ const WorkflowHistoryPage: React.FC = () => {
                                   Open in n8n ↗
                                 </a>
                               )}
+                              {workflow.status === 'failed' && (
+                                <button
+                                  onClick={() => navigate('/workflow/create', {
+                                    state: { retryDescription: workflow.workflowDescription }
+                                  })}
+                                  className="text-orange-600 hover:text-orange-800"
+                                >
+                                  Retry
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

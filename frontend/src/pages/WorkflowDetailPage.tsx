@@ -251,6 +251,16 @@ const WorkflowDetailPage: React.FC = () => {
                     Open in n8n ↗
                   </a>
                 )}
+                {workflow.status === 'failed' && (
+                  <button
+                    onClick={() => navigate('/workflow/create', {
+                      state: { retryDescription: workflow.workflowDescription }
+                    })}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md transition-colors"
+                  >
+                    Retry Generation
+                  </button>
+                )}
               </div>
             </div>
 
