@@ -12,6 +12,9 @@ interface User {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  _count?: {
+    workflowGenerations: number;
+  };
 }
 
 interface UsersResponse {
@@ -293,6 +296,9 @@ const AdminUsers: React.FC = () => {
                           Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Workflows
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Created
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -334,6 +340,9 @@ const AdminUsers: React.FC = () => {
                             >
                               {u.isActive ? 'Active' : 'Inactive'}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {u._count?.workflowGenerations ?? 0}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {formatDate(u.createdAt)}

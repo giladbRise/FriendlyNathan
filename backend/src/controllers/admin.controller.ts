@@ -48,6 +48,11 @@ export const getAllUsers = async (req: Request, res: Response) => {
           isActive: true,
           createdAt: true,
           updatedAt: true,
+          _count: {
+            select: {
+              workflowGenerations: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -130,6 +135,26 @@ export const updateUser = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Cannot demote yourself from admin' });
     }
 
+    // Prevent deactivating the last admin
+    if (isActive === false && existingUser.role === 'admin') {
+      const activeAdminCount = await prisma.user.count({
+        where: { role: 'admin', isActive: true },
+      });
+      if (activeAdminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot deactivate last admin' });
+      }
+    }
+
+    // Prevent demoting the last admin
+    if (role && role !== 'admin' && existingUser.role === 'admin') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'admin' },
+      });
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot demote last admin' });
+      }
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
@@ -180,6 +205,16 @@ export const deleteUser = async (req: Request, res: Response) => {
     const adminId = (req as any).userId;
     if (id === adminId) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    // Prevent deleting the last admin
+    if (existingUser.role === 'admin') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'admin' },
+      });
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot delete last admin' });
+      }
     }
 
     await prisma.user.delete({
