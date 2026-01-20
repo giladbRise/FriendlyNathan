@@ -265,6 +265,36 @@ const WorkflowCreatePage: React.FC = () => {
                       </select>
                     </div>
 
+                    {/* Display selected instance details */}
+                    {selectedInstanceId && (() => {
+                      const selectedInstance = instances.find(inst => inst.id === selectedInstanceId);
+                      if (!selectedInstance) return null;
+                      return (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                          <h4 className="text-sm font-semibold text-blue-900 mb-2">Selected Instance</h4>
+                          <div className="space-y-1">
+                            <p className="text-sm text-blue-800">
+                              <span className="font-medium">Name:</span> {selectedInstance.name}
+                            </p>
+                            <p className="text-sm text-blue-800">
+                              <span className="font-medium">URL:</span> {selectedInstance.url}
+                            </p>
+                            <p className="text-sm text-blue-800">
+                              <span className="font-medium">API Key:</span> ••••••••••••• (stored securely)
+                            </p>
+                            {selectedInstance.isDefault && (
+                              <p className="text-xs text-blue-600 mt-1">✓ Default instance</p>
+                            )}
+                            {selectedInstance.lastUsedAt && (
+                              <p className="text-xs text-blue-600">
+                                Last used: {new Date(selectedInstance.lastUsedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <button
                       onClick={() => setShowManualEntry(true)}
                       className="text-blue-600 hover:text-blue-700 text-sm font-medium"
