@@ -63,14 +63,14 @@ const Navigation: React.FC = () => {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav className="bg-card shadow-sm border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
             {/* Mobile menu button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden mr-2 p-2 rounded-md text-gray-600 hover:bg-gray-100"
+              className="md:hidden mr-2 p-2 rounded-md text-muted-foreground hover:bg-muted"
               aria-expanded={mobileMenuOpen}
               aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             >
@@ -87,10 +87,10 @@ const Navigation: React.FC = () => {
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               {/* RISE Logo */}
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">R</span>
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/70 rounded-lg flex items-center justify-center shadow-glow-blue">
+                <span className="text-primary-foreground font-bold text-sm">R</span>
               </div>
-              <h1 className="text-lg md:text-xl font-bold text-gray-900 truncate">
+              <h1 className="text-lg md:text-xl font-bold text-foreground truncate">
                 RISE n8n Workflow Builder
               </h1>
             </button>
@@ -108,8 +108,8 @@ const Navigation: React.FC = () => {
                   onClick={() => navigate(item.path)}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     active
-                      ? 'text-blue-700 bg-blue-100 hover:bg-blue-200'
-                      : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+                      ? 'text-primary bg-primary/20 hover:bg-primary/30'
+                      : 'text-muted-foreground bg-muted hover:bg-muted/80'
                   }`}
                 >
                   {item.label}
@@ -121,14 +121,14 @@ const Navigation: React.FC = () => {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors"
                 aria-expanded={userMenuOpen}
                 aria-haspopup="true"
               >
-                <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
+                <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
                   {getUserInitials()}
                 </span>
-                <span className="hidden sm:block max-w-[120px] truncate">
+                <span className="hidden sm:block max-w-[120px] truncate text-foreground">
                   {user?.firstName || user?.email}
                 </span>
                 <svg
@@ -143,22 +143,22 @@ const Navigation: React.FC = () => {
 
               {/* Dropdown Menu */}
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">
+                <div className="absolute right-0 mt-2 w-48 bg-card rounded-md shadow-lg py-1 z-50 border border-border">
+                  <div className="px-4 py-2 border-b border-border">
+                    <p className="text-sm font-medium text-foreground">
                       {user?.firstName} {user?.lastName}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                   </div>
                   <button
                     onClick={handleProfileClick}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
                   >
                     Profile
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                   >
                     Logout
                   </button>
@@ -172,29 +172,29 @@ const Navigation: React.FC = () => {
             <div ref={userMenuRef} className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center p-1 rounded-full bg-blue-600"
+                className="flex items-center p-1 rounded-full bg-primary"
               >
-                <span className="w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-medium">
+                <span className="w-8 h-8 rounded-full text-primary-foreground flex items-center justify-center text-sm font-medium">
                   {getUserInitials()}
                 </span>
               </button>
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">
+                <div className="absolute right-0 mt-2 w-48 bg-card rounded-md shadow-lg py-1 z-50 border border-border">
+                  <div className="px-4 py-2 border-b border-border">
+                    <p className="text-sm font-medium text-foreground">
                       {user?.firstName} {user?.lastName}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                   </div>
                   <button
                     onClick={handleProfileClick}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted"
                   >
                     Profile
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10"
                   >
                     Logout
                   </button>
@@ -206,7 +206,7 @@ const Navigation: React.FC = () => {
 
         {/* Mobile navigation menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-2 border-t border-gray-200">
+          <div className="md:hidden py-2 border-t border-border">
             {navItems.map((item) => {
               if (item.adminOnly && user?.role !== 'admin') return null;
               const active = isActive(item.path);
@@ -219,8 +219,8 @@ const Navigation: React.FC = () => {
                   }}
                   className={`block w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
                     active
-                      ? 'text-blue-700 bg-blue-50'
-                      : 'text-gray-700 hover:bg-gray-50'
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:bg-muted'
                   }`}
                 >
                   {item.label}

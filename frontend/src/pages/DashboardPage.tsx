@@ -57,11 +57,11 @@ const DashboardPage: React.FC = () => {
 
   const getStatusColor = (status: RecentActivity['status']) => {
     switch (status) {
-      case 'success': return 'text-green-600 bg-green-100';
-      case 'failed': return 'text-red-600 bg-red-100';
-      case 'in_progress': return 'text-blue-600 bg-blue-100';
-      case 'cancelled': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'success': return 'text-green-400 bg-green-500/20';
+      case 'failed': return 'text-red-400 bg-red-500/20';
+      case 'in_progress': return 'text-blue-400 bg-blue-500/20';
+      case 'cancelled': return 'text-yellow-400 bg-yellow-500/20';
+      default: return 'text-muted-foreground bg-muted';
     }
   };
 
@@ -76,34 +76,34 @@ const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
 
-      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 outline-none">
+      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 outline-none flex-1 w-full">
         <div className="space-y-6">
           {/* Welcome Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <div className="bg-card rounded-lg shadow p-6 border border-border">
+            <h2 className="text-2xl font-bold text-foreground mb-4">
               Welcome, {user?.firstName || user?.email}!
             </h2>
-            <p className="text-gray-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               You have successfully logged in to the RISE n8n Workflow Builder.
             </p>
             <button
               onClick={() => navigate('/workflow/create')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-md transition-colors shadow-glow-blue hover:shadow-glow-blue-lg"
             >
               Create New Workflow
             </button>
           </div>
 
           {/* Recent Activity Section */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-card rounded-lg shadow p-6 border border-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+              <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
               <button
                 onClick={() => navigate('/workflow/history')}
-                className="text-sm text-blue-600 hover:text-blue-700"
+                className="text-sm text-primary hover:text-secondary transition-colors"
               >
                 View All →
               </button>
@@ -117,29 +117,29 @@ const DashboardPage: React.FC = () => {
               </div>
             ) : recentActivity.length === 0 ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-gray-500 mb-2">No recent activity</p>
-                <p className="text-sm text-gray-400">Your workflow generations will appear here</p>
+                <p className="text-muted-foreground mb-2">No recent activity</p>
+                <p className="text-sm text-muted-foreground/60">Your workflow generations will appear here</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentActivity.map((activity) => (
                   <div
                     key={activity.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3 bg-muted rounded-md hover:bg-muted/80 cursor-pointer transition-colors"
                     onClick={() => navigate(`/workflow/${activity.id}`)}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {activity.workflowDescription.length > 60
                           ? activity.workflowDescription.substring(0, 60) + '...'
                           : activity.workflowDescription}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         {formatRelativeTime(activity.createdAt)}
                       </p>
                     </div>
@@ -154,26 +154,26 @@ const DashboardPage: React.FC = () => {
 
           {/* Quick Stats Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg shadow p-4">
-              <h4 className="text-sm font-medium text-gray-500">Total Workflows</h4>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="bg-card rounded-lg shadow p-4 border border-border">
+              <h4 className="text-sm font-medium text-muted-foreground">Total Workflows</h4>
+              <p className="text-2xl font-bold text-foreground">
                 {recentActivity.length > 0 ? '—' : '0'}
               </p>
-              <p className="text-xs text-gray-400">View history for complete count</p>
+              <p className="text-xs text-muted-foreground/60">View history for complete count</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <h4 className="text-sm font-medium text-gray-500">Successful</h4>
-              <p className="text-2xl font-bold text-green-600">
+            <div className="bg-card rounded-lg shadow p-4 border border-border">
+              <h4 className="text-sm font-medium text-muted-foreground">Successful</h4>
+              <p className="text-2xl font-bold text-green-400">
                 {recentActivity.filter(a => a.status === 'success').length}
               </p>
-              <p className="text-xs text-gray-400">In recent activity</p>
+              <p className="text-xs text-muted-foreground/60">In recent activity</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <h4 className="text-sm font-medium text-gray-500">Failed</h4>
-              <p className="text-2xl font-bold text-red-600">
+            <div className="bg-card rounded-lg shadow p-4 border border-border">
+              <h4 className="text-sm font-medium text-muted-foreground">Failed</h4>
+              <p className="text-2xl font-bold text-red-400">
                 {recentActivity.filter(a => a.status === 'failed').length}
               </p>
-              <p className="text-xs text-gray-400">In recent activity</p>
+              <p className="text-xs text-muted-foreground/60">In recent activity</p>
             </div>
           </div>
         </div>

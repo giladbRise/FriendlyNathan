@@ -381,38 +381,38 @@ const WorkflowCreatePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Workflow</h2>
-            <p className="text-gray-600">
+            <h2 className="text-2xl font-bold text-foreground mb-2">Create Workflow</h2>
+            <p className="text-muted-foreground">
               Generate n8n workflows using AI-powered natural language descriptions
             </p>
           </div>
 
           {/* n8n Instance Selection */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">n8n Instance</h3>
+          <div className="bg-card rounded-lg shadow p-6 border border-border">
+            <h3 className="text-lg font-semibold text-foreground mb-4">n8n Instance</h3>
 
             {loadingInstances ? (
-              <div className="text-gray-600">Loading instances...</div>
+              <div className="text-muted-foreground">Loading instances...</div>
             ) : (
               <>
                 {instances.length > 0 && !showManualEntry && (
                   <div className="space-y-4">
                     <div>
-                      <label htmlFor="instance-select" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="instance-select" className="block text-sm font-medium text-foreground mb-2">
                         Select Saved Instance
                       </label>
                       <select
                         id="instance-select"
                         value={selectedInstanceId}
                         onChange={(e) => setSelectedInstanceId(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                         disabled={generating}
                       >
                         <option value="">-- Select an instance --</option>
@@ -429,20 +429,20 @@ const WorkflowCreatePage: React.FC = () => {
                       const selectedInstance = instances.find(inst => inst.id === selectedInstanceId);
                       if (!selectedInstance) return null;
                       return (
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-                          <h4 className="text-sm font-semibold text-blue-900 mb-2">Selected Instance</h4>
+                        <div className="p-4 bg-primary/10 border border-primary/30 rounded-md">
+                          <h4 className="text-sm font-semibold text-primary mb-2">Selected Instance</h4>
                           <div className="space-y-1">
-                            <p className="text-sm text-blue-800">
+                            <p className="text-sm text-foreground">
                               <span className="font-medium">Name:</span> {selectedInstance.name}
                             </p>
-                            <p className="text-sm text-blue-800">
+                            <p className="text-sm text-foreground">
                               <span className="font-medium">URL:</span> {selectedInstance.url}
                             </p>
-                            <p className="text-sm text-blue-800">
+                            <p className="text-sm text-foreground">
                               <span className="font-medium">API Key:</span> ••••••••••••• (stored securely)
                             </p>
                             {selectedInstance.isDefault && (
-                              <p className="text-xs text-blue-600 mt-1">✓ Default instance</p>
+                              <p className="text-xs text-primary mt-1">✓ Default instance</p>
                             )}
                           </div>
                         </div>
@@ -451,7 +451,7 @@ const WorkflowCreatePage: React.FC = () => {
 
                     <button
                       onClick={() => setShowManualEntry(true)}
-                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                      className="text-primary hover:text-secondary text-sm font-medium transition-colors"
                       disabled={generating}
                     >
                       + Add New Instance
@@ -465,14 +465,14 @@ const WorkflowCreatePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowManualEntry(false)}
-                        className="text-sm text-gray-600 hover:text-gray-800 mb-2"
+                        className="text-sm text-muted-foreground hover:text-foreground mb-2 transition-colors"
                       >
                         ← Back to saved instances
                       </button>
                     )}
 
                     <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
                         Instance Name
                       </label>
                       <input
@@ -482,12 +482,12 @@ const WorkflowCreatePage: React.FC = () => {
                         value={manualForm.name}
                         onChange={handleManualInputChange}
                         placeholder="e.g., Customer ABC"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="url" className="block text-sm font-medium text-foreground mb-2">
                         n8n URL
                       </label>
                       <input
@@ -497,12 +497,12 @@ const WorkflowCreatePage: React.FC = () => {
                         value={manualForm.url}
                         onChange={handleManualInputChange}
                         placeholder="https://your-n8n-instance.com"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="apiKey" className="block text-sm font-medium text-foreground mb-2">
                         API Key
                       </label>
                       <div className="relative">
@@ -513,12 +513,12 @@ const WorkflowCreatePage: React.FC = () => {
                           value={manualForm.apiKey}
                           onChange={handleManualInputChange}
                           placeholder="Enter your n8n API key"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-24"
+                          className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent pr-24"
                         />
                         <button
                           type="button"
                           onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-blue-600 hover:text-blue-700"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-primary hover:text-secondary transition-colors"
                         >
                           {showApiKey ? 'Hide' : 'Show'}
                         </button>
@@ -532,28 +532,28 @@ const WorkflowCreatePage: React.FC = () => {
                         name="saveInstance"
                         checked={manualForm.saveInstance}
                         onChange={handleManualInputChange}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="h-4 w-4 text-primary border-border rounded focus:ring-primary bg-input"
                       />
-                      <label htmlFor="saveInstance" className="ml-2 text-sm text-gray-700">
+                      <label htmlFor="saveInstance" className="ml-2 text-sm text-foreground">
                         Save this instance for future use
                       </label>
                     </div>
 
                     {error && !generating && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                        <p className="text-sm text-red-800">{error}</p>
+                      <div className="p-3 bg-destructive/10 border border-destructive rounded-md">
+                        <p className="text-sm text-destructive">{error}</p>
                       </div>
                     )}
 
                     {success && (
-                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                        <p className="text-sm text-green-800">{success}</p>
+                      <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-md">
+                        <p className="text-sm text-green-400">{success}</p>
                       </div>
                     )}
 
                     {validationSuccess && (
-                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                        <p className="text-sm text-green-800">{validationSuccess}</p>
+                      <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-md">
+                        <p className="text-sm text-green-400">{validationSuccess}</p>
                       </div>
                     )}
 
@@ -562,14 +562,14 @@ const WorkflowCreatePage: React.FC = () => {
                         type="button"
                         onClick={handleValidateInstance}
                         disabled={validating || loading}
-                        className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-md transition-colors disabled:bg-gray-400"
+                        className="flex-1 px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-medium rounded-md transition-colors disabled:opacity-50"
                       >
                         {validating ? 'Validating...' : 'Validate'}
                       </button>
                       <button
                         type="submit"
                         disabled={loading || validating}
-                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors disabled:bg-gray-400"
+                        className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-md transition-colors disabled:opacity-50"
                       >
                         {loading ? 'Saving...' : 'Save Instance'}
                       </button>
@@ -581,8 +581,8 @@ const WorkflowCreatePage: React.FC = () => {
           </div>
 
           {/* Workflow Description */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Description</h3>
+          <div className="bg-card rounded-lg shadow p-6 border border-border">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Workflow Description</h3>
 
             {!generationResult ? (
               <>
@@ -591,25 +591,25 @@ const WorkflowCreatePage: React.FC = () => {
                   onChange={(e) => setWorkflowDescription(e.target.value)}
                   placeholder="Describe the workflow you want to create. For example: 'Send a webhook POST request to https://example.com/hook with static JSON data' or 'Send a Slack message to #general channel'"
                   rows={6}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                   disabled={generating}
                 />
 
                 <div className="mt-2 flex justify-between items-center">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     {workflowDescription.length} characters
                   </p>
                   <div className="flex items-center gap-4">
                     {workflowDescription.length > 0 && (
                       <button
                         onClick={() => setWorkflowDescription('')}
-                        className="text-sm text-gray-500 hover:text-gray-700"
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                         disabled={generating}
                       >
                         Clear
                       </button>
                     )}
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Minimum 10 characters required
                     </p>
                   </div>
@@ -617,46 +617,46 @@ const WorkflowCreatePage: React.FC = () => {
 
                 {/* Example prompts */}
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Example prompts:</p>
+                  <p className="text-sm font-medium text-foreground mb-2">Example prompts:</p>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setWorkflowDescription('Send a webhook POST request to https://example.com/hook with static JSON data')}
-                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      className="text-xs px-3 py-1 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
                       disabled={generating}
                     >
                       HTTP Request
                     </button>
                     <button
                       onClick={() => setWorkflowDescription('Send a Slack message to #general channel with a greeting')}
-                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      className="text-xs px-3 py-1 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
                       disabled={generating}
                     >
                       Slack Message
                     </button>
                     <button
                       onClick={() => setWorkflowDescription('Send an email notification to recipient@example.com with a summary')}
-                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      className="text-xs px-3 py-1 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
                       disabled={generating}
                     >
                       Send Email
                     </button>
                     <button
                       onClick={() => setWorkflowDescription('Get data from Google Sheets and send to Slack')}
-                      className="text-xs px-3 py-1 bg-yellow-100 hover:bg-yellow-200 rounded-full text-yellow-800"
+                      className="text-xs px-3 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 rounded-full text-yellow-400 transition-colors"
                       disabled={generating}
                     >
                       Google Sheets + Slack (requires credentials)
                     </button>
                     <button
                       onClick={() => setWorkflowDescription('Transform JSON data and filter items based on status field')}
-                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      className="text-xs px-3 py-1 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
                       disabled={generating}
                     >
                       Data Transformation
                     </button>
                     <button
                       onClick={() => setWorkflowDescription('Fetch data from REST API endpoint and process the response')}
-                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700"
+                      className="text-xs px-3 py-1 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
                       disabled={generating}
                     >
                       API Integration
@@ -665,16 +665,16 @@ const WorkflowCreatePage: React.FC = () => {
                 </div>
 
                 {error && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-sm text-red-800">{error}</p>
+                  <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                    <p className="text-sm text-destructive">{error}</p>
                   </div>
                 )}
 
                 {/* Duplicate warning */}
                 {duplicateWarning && (
-                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <h4 className="text-sm font-semibold text-yellow-800 mb-2">Similar Workflow Found</h4>
-                    <p className="text-sm text-yellow-700 mb-3">
+                  <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
+                    <h4 className="text-sm font-semibold text-yellow-400 mb-2">Similar Workflow Found</h4>
+                    <p className="text-sm text-yellow-300 mb-3">
                       You created a workflow with the same description on{' '}
                       {new Date(duplicateWarning.createdAt).toLocaleString()}.
                     </p>
@@ -684,19 +684,19 @@ const WorkflowCreatePage: React.FC = () => {
                           setDuplicateWarning(null);
                           handleGenerateWorkflow();
                         }}
-                        className="px-3 py-1 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded-md"
+                        className="px-3 py-1 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition-colors"
                       >
                         Create Anyway
                       </button>
                       <button
                         onClick={() => window.open(`/workflow/${duplicateWarning.existingId}`, '_blank')}
-                        className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md"
+                        className="px-3 py-1 text-sm bg-muted hover:bg-muted/80 text-foreground rounded-md transition-colors"
                       >
                         View Existing
                       </button>
                       <button
                         onClick={() => setDuplicateWarning(null)}
-                        className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
+                        className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Cancel
                       </button>
@@ -708,24 +708,24 @@ const WorkflowCreatePage: React.FC = () => {
                 {generating && (
                   <div className="mt-4 space-y-3">
                     <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium text-blue-700">{generationProgress.message}</p>
-                      <p className="text-sm text-gray-500">{generationProgress.progress}%</p>
+                      <p className="text-sm font-medium text-primary">{generationProgress.message}</p>
+                      <p className="text-sm text-muted-foreground">{generationProgress.progress}%</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-muted rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
                         style={{ width: `${generationProgress.progress}%` }}
                       />
                     </div>
                     {generationProgress.estimatedTimeRemaining !== null && generationProgress.estimatedTimeRemaining > 0 && (
-                      <p className="text-xs text-gray-500 text-center">
+                      <p className="text-xs text-muted-foreground text-center">
                         {formatTimeRemaining(generationProgress.estimatedTimeRemaining)}
                       </p>
                     )}
                     <button
                       onClick={handleCancelGeneration}
                       disabled={cancelling}
-                      className="w-full px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-md transition-colors disabled:opacity-50"
+                      className="w-full px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive font-medium rounded-md transition-colors disabled:opacity-50"
                     >
                       {cancelling ? 'Cancelling...' : 'Cancel Generation'}
                     </button>
@@ -735,7 +735,7 @@ const WorkflowCreatePage: React.FC = () => {
                 <button
                   onClick={handleGenerateWorkflow}
                   disabled={generating || !selectedInstanceId || workflowDescription.length < 10}
-                  className="mt-4 w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-all shadow-glow-blue hover:shadow-glow-blue-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
+                  className="mt-4 w-full px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-md transition-all shadow-glow-blue hover:shadow-glow-blue-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 >
                   {generating ? 'Generating Workflow...' : 'Generate Workflow'}
                 </button>
@@ -745,7 +745,7 @@ const WorkflowCreatePage: React.FC = () => {
               <div className="space-y-4">
                 {generationResult.success ? (
                   <>
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-md animate-success-pop">
+                    <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-md animate-success-pop">
                       <div className="flex items-start gap-3">
                         {/* Animated Checkmark */}
                         <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center animate-checkmark">
@@ -754,12 +754,12 @@ const WorkflowCreatePage: React.FC = () => {
                           </svg>
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-lg font-semibold text-green-800 mb-2">Workflow Created Successfully!</h4>
+                          <h4 className="text-lg font-semibold text-green-400 mb-2">Workflow Created Successfully!</h4>
                           <div className="space-y-2 animate-fade-in-up">
-                            <p className="text-sm text-green-700">
+                            <p className="text-sm text-green-300">
                               <span className="font-medium">Workflow ID:</span> {generationResult.n8nWorkflowId}
                             </p>
-                            <p className="text-sm text-green-700">
+                            <p className="text-sm text-green-300">
                               <span className="font-medium">Nodes Created:</span> {generationResult.nodesUsed}
                             </p>
                           </div>
@@ -769,11 +769,11 @@ const WorkflowCreatePage: React.FC = () => {
 
                     {/* Credentials Required Section */}
                     {generationResult.credentials && generationResult.credentials.length > 0 && (
-                      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                        <h4 className="text-lg font-semibold text-yellow-800 mb-3">
+                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
+                        <h4 className="text-lg font-semibold text-yellow-400 mb-3">
                           Credentials Required
                         </h4>
-                        <p className="text-sm text-yellow-700 mb-4">
+                        <p className="text-sm text-yellow-300 mb-4">
                           This workflow requires the following credentials to be configured in n8n. Click on each credential to see detailed setup instructions.
                         </p>
                         <div className="space-y-3">

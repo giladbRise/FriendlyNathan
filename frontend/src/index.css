@@ -26,26 +26,47 @@
     --radius: 0.5rem;
   }
 
+  /* Dark Futuristic Theme - RISE n8n Workflow Builder */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    /* #0A0E27 - Very dark blue-black background */
+    --background: 230 58% 10%;
+    /* Bright white text */
+    --foreground: 0 0% 100%;
+
+    /* #1A1F3A - Dark blue-grey for cards and panels */
+    --card: 230 38% 16%;
+    --card-foreground: 0 0% 100%;
+
+    /* #1A1F3A - Dark blue-grey for popovers */
+    --popover: 230 38% 16%;
+    --popover-foreground: 0 0% 100%;
+
+    /* #0066FF - Deep electric blue primary */
+    --primary: 220 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* #00D9FF - Cyan accent for secondary */
+    --secondary: 190 100% 50%;
+    --secondary-foreground: 230 58% 10%;
+
+    /* Muted - slightly lighter than background */
+    --muted: 230 38% 20%;
+    /* #A0AEC0 - Light grey-blue for muted text */
+    --muted-foreground: 215 19% 69%;
+
+    /* Accent - cyan */
+    --accent: 190 100% 50%;
+    --accent-foreground: 230 58% 10%;
+
+    /* #FF3366 - Bright red for destructive */
+    --destructive: 345 100% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border - slightly visible on dark background */
+    --border: 230 30% 25%;
+    --input: 230 30% 20%;
+    /* Ring - electric blue */
+    --ring: 220 100% 50%;
   }
 }
 
@@ -55,5 +76,30 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Custom utility classes for the futuristic theme */
+@layer utilities {
+  .text-cyan {
+    color: #00D9FF;
+  }
+  .bg-surface {
+    background-color: #1A1F3A;
+  }
+  .border-glow {
+    border-color: rgba(0, 217, 255, 0.3);
+  }
+  .text-success {
+    color: #00FF88;
+  }
+  .text-error {
+    color: #FF3366;
+  }
+  .bg-success {
+    background-color: #00FF88;
+  }
+  .bg-error {
+    background-color: #FF3366;
   }
 }
