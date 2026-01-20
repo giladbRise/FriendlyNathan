@@ -250,7 +250,7 @@ export class PublicWorkflowService {
     n8nApiKey: string,
     description: string,
     socketId: string | undefined,
-    startTime: number,
+    _startTime: number,
     geminiApiKey?: string
   ) {
     try {

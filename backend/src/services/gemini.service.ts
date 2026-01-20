@@ -9,6 +9,25 @@ interface N8nNode {
   credentials?: string[];
 }
 
+interface NodeProperty {
+  name: string;
+  displayName: string;
+  type: string;
+  default?: any;
+  description?: string;
+  required?: boolean;
+  options?: Array<{ name: string; value: string; description?: string }>;
+}
+
+interface NodeTypeDetails {
+  name: string;
+  displayName: string;
+  description?: string;
+  version: number;
+  properties?: NodeProperty[];
+  credentials?: Array<{ name: string; required?: boolean }>;
+}
+
 interface WorkflowNode {
   id: string;
   name: string;
@@ -90,7 +109,8 @@ export class GeminiService {
   async generateWorkflow(
     description: string,
     availableNodes: N8nNode[],
-    customApiKey?: string
+    customApiKey?: string,
+    nodeTypeDetails?: Map<string, NodeTypeDetails>
   ): Promise<GeneratedWorkflow> {
     // Use custom API key if provided (for per-request key support)
     let model = this.model;
@@ -110,8 +130,8 @@ export class GeminiService {
       throw new Error('Gemini AI not available. Please provide a valid API key.');
     }
 
-    // Build the prompt with context about available nodes
-    const prompt = this.buildPrompt(description, availableNodes);
+    // Build the prompt with context about available nodes and their configurations
+    const prompt = this.buildPrompt(description, availableNodes, nodeTypeDetails);
 
     try {
       const result = await model.generateContent(prompt);
@@ -134,8 +154,13 @@ export class GeminiService {
 
   /**
    * Build the prompt for Gemini with context about n8n workflows
+   * Enhanced with detailed node configurations for better parameter accuracy (Feature #269)
    */
-  private buildPrompt(description: string, availableNodes: N8nNode[]): string {
+  private buildPrompt(
+    description: string,
+    availableNodes: N8nNode[],
+    nodeTypeDetails?: Map<string, NodeTypeDetails>
+  ): string {
     // Create a condensed list of common/useful node types
     const commonNodes = [
       'n8n-nodes-base.manualTrigger',
@@ -178,6 +203,35 @@ export class GeminiService {
           .join('\n')
       : commonNodes.map(n => `- ${n}`).join('\n');
 
+    // Build detailed node configuration section (Feature #269)
+    let nodeConfigSection = '';
+    if (nodeTypeDetails && nodeTypeDetails.size > 0) {
+      nodeConfigSection = `\n## Node Configuration Reference (IMPORTANT - use these exact parameter names):\n`;
+      for (const [nodeType, details] of nodeTypeDetails) {
+        nodeConfigSection += `\n### ${details.displayName} (${nodeType})`;
+        if (details.description) {
+          nodeConfigSection += `\n${details.description}`;
+        }
+        if (details.properties && details.properties.length > 0) {
+          nodeConfigSection += `\nParameters:`;
+          for (const prop of details.properties.slice(0, 10)) { // Limit to 10 most important
+            let propLine = `\n- ${prop.name}: ${prop.displayName} (${prop.type})`;
+            if (prop.required) propLine += ' [REQUIRED]';
+            if (prop.default !== undefined) propLine += ` [default: ${JSON.stringify(prop.default)}]`;
+            if (prop.description) propLine += ` - ${prop.description.slice(0, 100)}`;
+            if (prop.options && prop.options.length > 0) {
+              propLine += `\n  Options: ${prop.options.map(o => `"${o.value}"`).join(', ')}`;
+            }
+            nodeConfigSection += propLine;
+          }
+        }
+        if (details.credentials && details.credentials.length > 0) {
+          nodeConfigSection += `\nCredentials needed: ${details.credentials.map(c => c.name).join(', ')}`;
+        }
+        nodeConfigSection += '\n';
+      }
+    }
+
     return `You are an expert n8n workflow generator. Your task is to create a complete n8n workflow JSON based on the user's description.
 
 ## User Request:
@@ -185,7 +239,7 @@ export class GeminiService {
 
 ## Available n8n Nodes (partial list):
 ${nodeContext}
-
+${nodeConfigSection}
 ## Instructions:
 1. Analyze the user's request carefully and understand ALL the steps they need
 2. Create a complete workflow that implements ALL requested functionality
@@ -195,6 +249,8 @@ ${nodeContext}
 6. For summarization with AI, use OpenAI node or Code node with AI API call
 7. For Slack, use the Slack node with proper channel configuration
 8. Position nodes horizontally with 200px spacing starting at x=250
+9. **CRITICAL: Use the EXACT parameter names from the Node Configuration Reference above**
+10. For options/enums, use the exact values listed (e.g., "post" not "POST" for Slack operation)
 
 ## Important Rules:
 - ALWAYS create ALL nodes needed to complete the ENTIRE request
@@ -202,6 +258,7 @@ ${nodeContext}
 - Use realistic parameter values based on the description
 - For slack channel IDs mentioned (like C0A1CEBJWJF), use them directly
 - For email filtering (like "from janna trobilo last 3 days"), configure the appropriate query parameters
+- **Use the correct parameter names as specified in the Node Configuration Reference**
 
 ## Response Format:
 Return ONLY a valid JSON object with this structure (no markdown, no explanations outside JSON):

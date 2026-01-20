@@ -9,6 +9,9 @@ const prisma = new PrismaClient();
 // Cache TTL in milliseconds (1 hour)
 const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
 
+// Node type details cache TTL (4 hours - these don't change often)
+const NODE_TYPES_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+
 interface N8nNode {
   name: string;
   displayName: string;
@@ -17,6 +20,28 @@ interface N8nNode {
   group?: string[];
   credentials?: string[];
 }
+
+interface NodeProperty {
+  name: string;
+  displayName: string;
+  type: string;
+  default?: any;
+  description?: string;
+  required?: boolean;
+  options?: Array<{ name: string; value: string; description?: string }>;
+}
+
+interface NodeTypeDetails {
+  name: string;
+  displayName: string;
+  description?: string;
+  version: number;
+  properties?: NodeProperty[];
+  credentials?: Array<{ name: string; required?: boolean }>;
+}
+
+// In-memory cache for node type details
+const nodeTypeDetailsCache: Map<string, { details: Map<string, NodeTypeDetails>; expiresAt: number }> = new Map();
 
 interface WorkflowNode {
   id: string;
@@ -252,7 +277,367 @@ export class WorkflowGeneratorService {
     await prisma.nodeCache.deleteMany({
       where: { n8nUrl: baseUrl },
     });
+    // Also clear in-memory node type details cache
+    nodeTypeDetailsCache.delete(baseUrl);
     console.log(`Cleared node cache for ${baseUrl}`);
+  }
+
+  /**
+   * Fetch detailed node type information including parameters/properties
+   * This helps the AI generate workflows with correct node configurations
+   */
+  async fetchNodeTypeDetails(
+    n8nUrl: string,
+    apiKey: string,
+    nodeTypes: string[]
+  ): Promise<Map<string, NodeTypeDetails>> {
+    const baseUrl = n8nUrl.replace(/\/$/, '');
+    const now = Date.now();
+
+    // Check in-memory cache first
+    const cachedEntry = nodeTypeDetailsCache.get(baseUrl);
+    if (cachedEntry && cachedEntry.expiresAt > now) {
+      console.log(`Using cached node type details for ${baseUrl}`);
+      // Filter to only requested node types
+      const filteredDetails = new Map<string, NodeTypeDetails>();
+      for (const nodeType of nodeTypes) {
+        const details = cachedEntry.details.get(nodeType);
+        if (details) {
+          filteredDetails.set(nodeType, details);
+        }
+      }
+      return filteredDetails;
+    }
+
+    // Fetch node type details from n8n API
+    const nodeTypeDetailsMap = new Map<string, NodeTypeDetails>();
+
+    try {
+      console.log(`Fetching node type details from ${baseUrl}...`);
+
+      // n8n provides node type details via /api/v1/node-types endpoint
+      // This returns detailed information about each node including its properties/parameters
+      const response = await axios.get(`${baseUrl}/api/v1/node-types`, {
+        headers: {
+          'X-N8N-API-KEY': apiKey,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000, // Longer timeout as this is a larger response
+      });
+
+      const nodeTypesData = response.data.data || response.data || [];
+
+      // Process and store node type details
+      for (const nodeType of nodeTypesData) {
+        if (!nodeType.name) continue;
+
+        const details: NodeTypeDetails = {
+          name: nodeType.name,
+          displayName: nodeType.displayName || nodeType.name,
+          description: nodeType.description,
+          version: nodeType.version || 1,
+          properties: this.extractNodeProperties(nodeType.properties || []),
+          credentials: nodeType.credentials || [],
+        };
+
+        nodeTypeDetailsMap.set(nodeType.name, details);
+      }
+
+      // Cache all node type details
+      nodeTypeDetailsCache.set(baseUrl, {
+        details: nodeTypeDetailsMap,
+        expiresAt: now + NODE_TYPES_CACHE_TTL_MS,
+      });
+
+      console.log(`Cached ${nodeTypeDetailsMap.size} node type details for ${baseUrl}`);
+
+      // Return only the requested node types
+      const filteredDetails = new Map<string, NodeTypeDetails>();
+      for (const nodeType of nodeTypes) {
+        const details = nodeTypeDetailsMap.get(nodeType);
+        if (details) {
+          filteredDetails.set(nodeType, details);
+        }
+      }
+
+      return filteredDetails;
+    } catch (error: any) {
+      console.warn('Failed to fetch node type details:', error.response?.status || error.message);
+
+      // Fall back to basic built-in node configurations
+      return this.getBuiltInNodeConfigs(nodeTypes);
+    }
+  }
+
+  /**
+   * Extract relevant properties from n8n node schema
+   */
+  private extractNodeProperties(properties: any[]): NodeProperty[] {
+    if (!Array.isArray(properties)) return [];
+
+    return properties
+      .filter((prop: any) => prop.name && prop.displayName)
+      .slice(0, 20) // Limit to first 20 properties to keep context manageable
+      .map((prop: any) => ({
+        name: prop.name,
+        displayName: prop.displayName,
+        type: prop.type || 'string',
+        default: prop.default,
+        description: prop.description?.slice(0, 200), // Truncate long descriptions
+        required: prop.required || false,
+        options: prop.options?.slice(0, 10)?.map((opt: any) => ({
+          name: opt.name || opt.value,
+          value: opt.value,
+          description: opt.description?.slice(0, 100),
+        })),
+      }));
+  }
+
+  /**
+   * Get built-in node configurations for common nodes
+   * Used as fallback when n8n API doesn't return detailed info
+   */
+  private getBuiltInNodeConfigs(nodeTypes: string[]): Map<string, NodeTypeDetails> {
+    const builtIn = new Map<string, NodeTypeDetails>();
+
+    const configs: Record<string, NodeTypeDetails> = {
+      'n8n-nodes-base.httpRequest': {
+        name: 'n8n-nodes-base.httpRequest',
+        displayName: 'HTTP Request',
+        description: 'Make HTTP requests to any URL',
+        version: 4,
+        properties: [
+          { name: 'method', displayName: 'Method', type: 'options', options: [
+            { name: 'GET', value: 'GET' }, { name: 'POST', value: 'POST' },
+            { name: 'PUT', value: 'PUT' }, { name: 'DELETE', value: 'DELETE' },
+            { name: 'PATCH', value: 'PATCH' }, { name: 'HEAD', value: 'HEAD' },
+          ]},
+          { name: 'url', displayName: 'URL', type: 'string', required: true },
+          { name: 'sendBody', displayName: 'Send Body', type: 'boolean', default: false },
+          { name: 'bodyParameters', displayName: 'Body Parameters', type: 'fixedCollection' },
+          { name: 'sendHeaders', displayName: 'Send Headers', type: 'boolean', default: false },
+          { name: 'headerParameters', displayName: 'Header Parameters', type: 'fixedCollection' },
+          { name: 'sendQuery', displayName: 'Send Query Parameters', type: 'boolean', default: false },
+          { name: 'queryParameters', displayName: 'Query Parameters', type: 'fixedCollection' },
+        ],
+      },
+      'n8n-nodes-base.slack': {
+        name: 'n8n-nodes-base.slack',
+        displayName: 'Slack',
+        description: 'Send messages and interact with Slack',
+        version: 2,
+        properties: [
+          { name: 'resource', displayName: 'Resource', type: 'options', options: [
+            { name: 'Message', value: 'message' }, { name: 'Channel', value: 'channel' },
+            { name: 'File', value: 'file' }, { name: 'Reaction', value: 'reaction' },
+            { name: 'User', value: 'user' },
+          ]},
+          { name: 'operation', displayName: 'Operation', type: 'options', options: [
+            { name: 'Post', value: 'post' }, { name: 'Update', value: 'update' },
+            { name: 'Delete', value: 'delete' }, { name: 'Get Permalink', value: 'getPermalink' },
+          ]},
+          { name: 'channel', displayName: 'Channel', type: 'string', required: true, description: 'Channel ID (e.g., C0123456789) or name (e.g., #general)' },
+          { name: 'text', displayName: 'Text', type: 'string', required: true },
+          { name: 'attachments', displayName: 'Attachments', type: 'json' },
+          { name: 'blocksUi', displayName: 'Blocks', type: 'fixedCollection' },
+        ],
+        credentials: [{ name: 'slackApi', required: true }],
+      },
+      'n8n-nodes-base.gmail': {
+        name: 'n8n-nodes-base.gmail',
+        displayName: 'Gmail',
+        description: 'Send and receive emails through Gmail',
+        version: 2,
+        properties: [
+          { name: 'resource', displayName: 'Resource', type: 'options', options: [
+            { name: 'Message', value: 'message' }, { name: 'Thread', value: 'thread' },
+            { name: 'Label', value: 'label' }, { name: 'Draft', value: 'draft' },
+          ]},
+          { name: 'operation', displayName: 'Operation', type: 'options', options: [
+            { name: 'Get All', value: 'getAll' }, { name: 'Get', value: 'get' },
+            { name: 'Send', value: 'send' }, { name: 'Delete', value: 'delete' },
+            { name: 'Mark as Read', value: 'markRead' }, { name: 'Mark as Unread', value: 'markUnread' },
+            { name: 'Add Labels', value: 'addLabels' }, { name: 'Remove Labels', value: 'removeLabels' },
+          ]},
+          { name: 'limit', displayName: 'Limit', type: 'number', default: 50 },
+          { name: 'filters', displayName: 'Filters', type: 'collection', description: 'Query filter (e.g., from:user@example.com newer_than:3d)' },
+          { name: 'labelIds', displayName: 'Label IDs', type: 'multiOptions' },
+        ],
+        credentials: [{ name: 'gmailOAuth2', required: true }],
+      },
+      'n8n-nodes-base.googleSheets': {
+        name: 'n8n-nodes-base.googleSheets',
+        displayName: 'Google Sheets',
+        description: 'Read and write data to Google Sheets',
+        version: 4,
+        properties: [
+          { name: 'operation', displayName: 'Operation', type: 'options', options: [
+            { name: 'Read', value: 'read' }, { name: 'Append', value: 'append' },
+            { name: 'Update', value: 'update' }, { name: 'Clear', value: 'clear' },
+            { name: 'Delete', value: 'delete' },
+          ]},
+          { name: 'documentId', displayName: 'Spreadsheet ID', type: 'resourceLocator', required: true },
+          { name: 'sheetName', displayName: 'Sheet Name', type: 'resourceLocator', required: true },
+          { name: 'range', displayName: 'Range', type: 'string', description: 'Cell range (e.g., A1:D10)' },
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+        credentials: [{ name: 'googleSheetsOAuth2Api', required: true }],
+      },
+      'n8n-nodes-base.set': {
+        name: 'n8n-nodes-base.set',
+        displayName: 'Set',
+        description: 'Set and modify data fields',
+        version: 3,
+        properties: [
+          { name: 'mode', displayName: 'Mode', type: 'options', options: [
+            { name: 'Manual', value: 'manual' }, { name: 'Raw JSON', value: 'raw' },
+          ]},
+          { name: 'duplicateItem', displayName: 'Duplicate Item', type: 'boolean', default: false },
+          { name: 'assignments', displayName: 'Assignments', type: 'fixedCollection' },
+        ],
+      },
+      'n8n-nodes-base.if': {
+        name: 'n8n-nodes-base.if',
+        displayName: 'IF',
+        description: 'Route data based on conditions',
+        version: 1,
+        properties: [
+          { name: 'conditions', displayName: 'Conditions', type: 'fixedCollection', description: 'Define conditions using boolean, number, or string comparisons' },
+          { name: 'combineOperation', displayName: 'Combine', type: 'options', options: [
+            { name: 'AND', value: 'and' }, { name: 'OR', value: 'or' },
+          ]},
+        ],
+      },
+      'n8n-nodes-base.code': {
+        name: 'n8n-nodes-base.code',
+        displayName: 'Code',
+        description: 'Execute custom JavaScript code',
+        version: 2,
+        properties: [
+          { name: 'mode', displayName: 'Mode', type: 'options', options: [
+            { name: 'Run Once for All Items', value: 'runOnceForAllItems' },
+            { name: 'Run Once for Each Item', value: 'runOnceForEachItem' },
+          ]},
+          { name: 'jsCode', displayName: 'JavaScript Code', type: 'string', description: 'Use $input.all() to get all items, return array of { json: {...} } objects' },
+        ],
+      },
+      'n8n-nodes-base.filter': {
+        name: 'n8n-nodes-base.filter',
+        displayName: 'Filter',
+        description: 'Filter items based on conditions',
+        version: 1,
+        properties: [
+          { name: 'conditions', displayName: 'Conditions', type: 'fixedCollection' },
+          { name: 'combineOperation', displayName: 'Combine', type: 'options', options: [
+            { name: 'AND', value: 'and' }, { name: 'OR', value: 'or' },
+          ]},
+        ],
+      },
+      'n8n-nodes-base.webhook': {
+        name: 'n8n-nodes-base.webhook',
+        displayName: 'Webhook',
+        description: 'Create webhooks to trigger workflows via HTTP requests',
+        version: 1,
+        properties: [
+          { name: 'httpMethod', displayName: 'HTTP Method', type: 'options', options: [
+            { name: 'GET', value: 'GET' }, { name: 'POST', value: 'POST' },
+            { name: 'DELETE', value: 'DELETE' }, { name: 'PUT', value: 'PUT' },
+          ]},
+          { name: 'path', displayName: 'Path', type: 'string', required: true },
+          { name: 'responseMode', displayName: 'Respond', type: 'options', options: [
+            { name: 'Immediately', value: 'onReceived' },
+            { name: 'When Last Node Finishes', value: 'lastNode' },
+          ]},
+        ],
+      },
+      'n8n-nodes-base.emailSend': {
+        name: 'n8n-nodes-base.emailSend',
+        displayName: 'Send Email',
+        description: 'Send emails via SMTP',
+        version: 2,
+        properties: [
+          { name: 'fromEmail', displayName: 'From Email', type: 'string', required: true },
+          { name: 'toEmail', displayName: 'To Email', type: 'string', required: true },
+          { name: 'subject', displayName: 'Subject', type: 'string', required: true },
+          { name: 'text', displayName: 'Text', type: 'string' },
+          { name: 'html', displayName: 'HTML', type: 'string' },
+          { name: 'attachments', displayName: 'Attachments', type: 'string' },
+        ],
+        credentials: [{ name: 'smtp', required: true }],
+      },
+    };
+
+    for (const nodeType of nodeTypes) {
+      const config = configs[nodeType];
+      if (config) {
+        builtIn.set(nodeType, config);
+      }
+    }
+
+    return builtIn;
+  }
+
+  /**
+   * Detect which node types are likely needed based on description keywords
+   * This helps us fetch relevant node configurations before AI generation
+   */
+  private detectRelevantNodeTypes(description: string): string[] {
+    const lowerDesc = description.toLowerCase();
+    const nodeTypes: Set<string> = new Set();
+
+    // Always include common utility nodes
+    nodeTypes.add('n8n-nodes-base.manualTrigger');
+    nodeTypes.add('n8n-nodes-base.set');
+
+    // Keyword to node type mapping
+    const keywordMap: Array<{ keywords: string[]; nodeType: string }> = [
+      { keywords: ['webhook', 'http trigger', 'incoming'], nodeType: 'n8n-nodes-base.webhook' },
+      { keywords: ['http', 'request', 'api call', 'fetch', 'url'], nodeType: 'n8n-nodes-base.httpRequest' },
+      { keywords: ['slack', 'message slack'], nodeType: 'n8n-nodes-base.slack' },
+      { keywords: ['email', 'gmail', 'inbox', 'mail'], nodeType: 'n8n-nodes-base.gmail' },
+      { keywords: ['send email', 'smtp', 'mail send'], nodeType: 'n8n-nodes-base.emailSend' },
+      { keywords: ['google sheet', 'spreadsheet', 'sheets'], nodeType: 'n8n-nodes-base.googleSheets' },
+      { keywords: ['airtable'], nodeType: 'n8n-nodes-base.airtable' },
+      { keywords: ['notion'], nodeType: 'n8n-nodes-base.notion' },
+      { keywords: ['if', 'condition', 'branch', 'when'], nodeType: 'n8n-nodes-base.if' },
+      { keywords: ['switch', 'multiple branch', 'route'], nodeType: 'n8n-nodes-base.switch' },
+      { keywords: ['loop', 'each', 'iterate', 'batch'], nodeType: 'n8n-nodes-base.splitInBatches' },
+      { keywords: ['filter', 'remove', 'exclude', 'only'], nodeType: 'n8n-nodes-base.filter' },
+      { keywords: ['code', 'javascript', 'script', 'custom'], nodeType: 'n8n-nodes-base.code' },
+      { keywords: ['schedule', 'cron', 'timer', 'every day', 'every hour'], nodeType: 'n8n-nodes-base.schedule' },
+      { keywords: ['merge', 'combine', 'join'], nodeType: 'n8n-nodes-base.merge' },
+      { keywords: ['wait', 'delay', 'pause'], nodeType: 'n8n-nodes-base.wait' },
+      { keywords: ['summarize', 'aggregate', 'count', 'sum'], nodeType: 'n8n-nodes-base.summarize' },
+      { keywords: ['openai', 'gpt', 'chatgpt'], nodeType: 'n8n-nodes-base.openAi' },
+      { keywords: ['postgres', 'postgresql', 'database'], nodeType: 'n8n-nodes-base.postgres' },
+      { keywords: ['mysql', 'database'], nodeType: 'n8n-nodes-base.mySql' },
+      { keywords: ['mongodb', 'mongo'], nodeType: 'n8n-nodes-base.mongoDb' },
+      { keywords: ['redis'], nodeType: 'n8n-nodes-base.redis' },
+      { keywords: ['aws', 's3', 'bucket'], nodeType: 'n8n-nodes-base.awsS3' },
+      { keywords: ['discord'], nodeType: 'n8n-nodes-base.discord' },
+      { keywords: ['telegram'], nodeType: 'n8n-nodes-base.telegram' },
+      { keywords: ['twitter', 'tweet', 'x.com'], nodeType: 'n8n-nodes-base.twitter' },
+      { keywords: ['github', 'repo', 'repository'], nodeType: 'n8n-nodes-base.github' },
+      { keywords: ['jira', 'issue', 'ticket'], nodeType: 'n8n-nodes-base.jira' },
+      { keywords: ['trello', 'board', 'card'], nodeType: 'n8n-nodes-base.trello' },
+      { keywords: ['asana', 'task'], nodeType: 'n8n-nodes-base.asana' },
+      { keywords: ['hubspot', 'crm', 'contact'], nodeType: 'n8n-nodes-base.hubspot' },
+      { keywords: ['salesforce'], nodeType: 'n8n-nodes-base.salesforce' },
+      { keywords: ['stripe', 'payment'], nodeType: 'n8n-nodes-base.stripe' },
+      { keywords: ['twilio', 'sms', 'text message'], nodeType: 'n8n-nodes-base.twilio' },
+    ];
+
+    // Match keywords in description
+    for (const { keywords, nodeType } of keywordMap) {
+      for (const keyword of keywords) {
+        if (lowerDesc.includes(keyword)) {
+          nodeTypes.add(nodeType);
+          break;
+        }
+      }
+    }
+
+    return Array.from(nodeTypes);
   }
 
   /**
@@ -426,8 +811,22 @@ export class WorkflowGeneratorService {
         return;
       }
 
-      // Step 2: Analyze description and generate workflow using AI
+      // Step 2: Analyze description and fetch relevant node configurations
       this.emitProgress(socketId, generationId, 'Analyzing description with AI...', 30);
+
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
+
+      // Detect which node types are likely needed based on the description
+      const relevantNodeTypes = this.detectRelevantNodeTypes(description);
+      console.log(`Detected relevant node types: ${relevantNodeTypes.join(', ')}`);
+
+      // Fetch detailed node configurations for those types (Feature #269)
+      this.emitProgress(socketId, generationId, 'Fetching node configurations...', 35);
+      const nodeTypeDetails = await this.fetchNodeTypeDetails(instance.url, apiKey, relevantNodeTypes);
+      console.log(`Fetched ${nodeTypeDetails.size} node type configurations`);
 
       if (this.isCancelled(generationId)) {
         this.cancelledGenerations.delete(generationId);
@@ -446,7 +845,8 @@ export class WorkflowGeneratorService {
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
-            geminiApiKey // Pass custom key if provided
+            geminiApiKey, // Pass custom key if provided
+            nodeTypeDetails // Pass node configurations to AI
           );
           workflow = aiResult.workflow;
           console.log(`AI generated workflow with ${aiResult.nodeCount} nodes: ${aiResult.explanation}`);
