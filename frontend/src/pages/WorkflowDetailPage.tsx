@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import Footer from '../components/Footer';
+import JsonSyntaxHighlight from '../components/JsonSyntaxHighlight';
 
 interface N8nInstanceInfo {
   id: string;
@@ -158,11 +160,11 @@ const WorkflowDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navigation />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         <div className="space-y-6">
           {/* Back Button & Title */}
           <div className="flex items-center gap-4">
@@ -376,9 +378,7 @@ const WorkflowDetailPage: React.FC = () => {
               </button>
               {showJson && (
                 <div className="mt-4">
-                  <pre className="bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto text-sm max-h-96 overflow-y-auto">
-                    {JSON.stringify(workflow.generatedWorkflowJson, null, 2)}
-                  </pre>
+                  <JsonSyntaxHighlight data={workflow.generatedWorkflowJson} />
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(
@@ -395,6 +395,8 @@ const WorkflowDetailPage: React.FC = () => {
           )}
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 };

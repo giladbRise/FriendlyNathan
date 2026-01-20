@@ -115,7 +115,11 @@ const RegisterPage: React.FC = () => {
         )}
 
         {errors.general && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <div
+            className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded"
+            role="alert"
+            aria-live="assertive"
+          >
             {errors.general}
           </div>
         )}

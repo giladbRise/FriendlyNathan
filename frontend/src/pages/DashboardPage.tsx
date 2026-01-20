@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import Navigation from '../components/Navigation';
+import Footer from '../components/Footer';
+import { SkeletonActivityItem } from '../components/Skeleton';
 
 interface RecentActivity {
   id: string;
@@ -74,10 +76,10 @@ const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navigation />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 outline-none">
         <div className="space-y-6">
           {/* Welcome Section */}
           <div className="bg-white rounded-lg shadow p-6">
@@ -108,9 +110,21 @@ const DashboardPage: React.FC = () => {
             </div>
 
             {loading ? (
-              <p className="text-gray-500">Loading recent activity...</p>
+              <div className="space-y-3">
+                <SkeletonActivityItem />
+                <SkeletonActivityItem />
+                <SkeletonActivityItem />
+              </div>
             ) : recentActivity.length === 0 ? (
-              <p className="text-gray-500">No recent workflow generations yet.</p>
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-gray-500 mb-2">No recent activity</p>
+                <p className="text-sm text-gray-400">Your workflow generations will appear here</p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {recentActivity.map((activity) => (
@@ -164,6 +178,8 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 };

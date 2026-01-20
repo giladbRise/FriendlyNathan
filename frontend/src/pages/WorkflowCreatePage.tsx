@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 import Navigation from '../components/Navigation';
+import Footer from '../components/Footer';
 
 interface N8nInstance {
   id: string;
@@ -380,11 +381,11 @@ const WorkflowCreatePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navigation />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Workflow</h2>
@@ -720,7 +721,7 @@ const WorkflowCreatePage: React.FC = () => {
                 <button
                   onClick={handleGenerateWorkflow}
                   disabled={generating || !selectedInstanceId || workflowDescription.length < 10}
-                  className="mt-4 w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="mt-4 w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-all shadow-glow-blue hover:shadow-glow-blue-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
                 >
                   {generating ? 'Generating Workflow...' : 'Generate Workflow'}
                 </button>
@@ -730,15 +731,25 @@ const WorkflowCreatePage: React.FC = () => {
               <div className="space-y-4">
                 {generationResult.success ? (
                   <>
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                      <h4 className="text-lg font-semibold text-green-800 mb-2">Workflow Created Successfully!</h4>
-                      <div className="space-y-2">
-                        <p className="text-sm text-green-700">
-                          <span className="font-medium">Workflow ID:</span> {generationResult.n8nWorkflowId}
-                        </p>
-                        <p className="text-sm text-green-700">
-                          <span className="font-medium">Nodes Created:</span> {generationResult.nodesUsed}
-                        </p>
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-md animate-success-pop">
+                      <div className="flex items-start gap-3">
+                        {/* Animated Checkmark */}
+                        <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center animate-checkmark">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-lg font-semibold text-green-800 mb-2">Workflow Created Successfully!</h4>
+                          <div className="space-y-2 animate-fade-in-up">
+                            <p className="text-sm text-green-700">
+                              <span className="font-medium">Workflow ID:</span> {generationResult.n8nWorkflowId}
+                            </p>
+                            <p className="text-sm text-green-700">
+                              <span className="font-medium">Nodes Created:</span> {generationResult.nodesUsed}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -844,7 +855,7 @@ const WorkflowCreatePage: React.FC = () => {
                       href={generationResult.n8nWorkflowUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-colors"
+                      className="inline-flex items-center justify-center w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-all shadow-glow-blue hover:shadow-glow-blue-lg"
                     >
                       View Workflow in n8n ↗
                     </a>
@@ -876,6 +887,8 @@ const WorkflowCreatePage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 };
