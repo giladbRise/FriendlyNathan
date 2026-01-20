@@ -411,24 +411,24 @@ const WorkflowHistoryPage: React.FC = () => {
                             {formatDuration(workflow.durationMs)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {workflow.status === 'success' && workflow.n8nWorkflowUrl && (
-                              <a
-                                href={workflow.n8nWorkflowUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <div className="flex justify-end gap-3">
+                              <button
+                                onClick={() => navigate(`/workflow/${workflow.id}`)}
                                 className="text-blue-600 hover:text-blue-800"
                               >
-                                View in n8n ↗
-                              </a>
-                            )}
-                            {workflow.status === 'failed' && workflow.errorMessage && (
-                              <span
-                                title={workflow.errorMessage}
-                                className="text-red-600 cursor-help"
-                              >
-                                View Error
-                              </span>
-                            )}
+                                View Details
+                              </button>
+                              {workflow.status === 'success' && workflow.n8nWorkflowUrl && (
+                                <a
+                                  href={workflow.n8nWorkflowUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-green-600 hover:text-green-800"
+                                >
+                                  Open in n8n ↗
+                                </a>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
