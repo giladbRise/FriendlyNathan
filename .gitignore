@@ -1,0 +1,99 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Production
+build/
+dist/
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Prisma
+backend/prisma/migrations/dev.db
+backend/prisma/migrations/dev.db-journal
+
+# Build artifacts
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# IDE
+.vscode-test/
+*.code-workspace
+
+# Runtime
+.pnp.*
+.yarn/
+
+# Lock files (keep only one package manager)
+# Uncomment the one you're NOT using:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Secrets and sensitive data
+*.pem
+*.key
+*.cert
+*.crt
+
+# Backup files
+*.bak
+*.backup
+
+# Features database (keep in repo but ignore local changes)
+# features.db
+
+# Agent and progress tracking
+claude-progress.txt
+.agent.lock

@@ -1,0 +1,120 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  employee
+  admin
+}
+
+enum WorkflowStatus {
+  pending
+  in_progress
+  success
+  failed
+  cancelled
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique @db.VarChar(255)
+  passwordHash      String   @map("password_hash")
+  role              UserRole @default(employee)
+  firstName         String?  @map("first_name") @db.VarChar(100)
+  lastName          String?  @map("last_name") @db.VarChar(100)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  lastLoginAt       DateTime? @map("last_login_at")
+
+  // Relations
+  n8nInstances       N8nInstance[]
+  workflowGenerations WorkflowGeneration[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model N8nInstance {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  name            String   @db.VarChar(255)
+  url             String   @db.VarChar(500)
+  apiKeyEncrypted String   @map("api_key_encrypted")
+  isDefault       Boolean  @default(false) @map("is_default")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  lastUsedAt      DateTime? @map("last_used_at")
+
+  // Relations
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflowGenerations WorkflowGeneration[]
+
+  @@index([userId])
+  @@map("n8n_instances")
+}
+
+model WorkflowGeneration {
+  id                    String          @id @default(uuid())
+  userId                String          @map("user_id")
+  n8nInstanceId         String?         @map("n8n_instance_id")
+  n8nUrl                String          @map("n8n_url") @db.VarChar(500)
+  workflowDescription   String          @map("workflow_description") @db.Text
+  generatedWorkflowJson Json?           @map("generated_workflow_json")
+  n8nWorkflowId         String?         @map("n8n_workflow_id") @db.VarChar(255)
+  n8nWorkflowUrl        String?         @map("n8n_workflow_url") @db.VarChar(500)
+  status                WorkflowStatus  @default(pending)
+  errorMessage          String?         @map("error_message") @db.Text
+  nodesDiscoveredCount  Int?            @map("nodes_discovered_count")
+  nodesUsedCount        Int?            @map("nodes_used_count")
+  credentialsRequired   Json?           @map("credentials_required")
+  aiTokensUsed          Int?            @map("ai_tokens_used")
+  durationMs            Int?            @map("duration_ms")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  completedAt           DateTime?       @map("completed_at")
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  n8nInstance N8nInstance? @relation(fields: [n8nInstanceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("workflow_generations")
+}
+
+model CredentialGuidanceTemplate {
+  id                 String   @id @default(uuid())
+  credentialType     String   @unique @map("credential_type") @db.VarChar(255)
+  displayName        String   @map("display_name") @db.VarChar(255)
+  instructionsMarkdown String @map("instructions_markdown") @db.Text
+  videoUrl           String?  @map("video_url") @db.VarChar(500)
+  documentationUrl   String?  @map("documentation_url") @db.VarChar(500)
+  contactInfo        String?  @map("contact_info") @db.VarChar(255)
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([credentialType])
+  @@map("credential_guidance_templates")
+}
+
+model NodeCache {
+  id         String   @id @default(uuid())
+  n8nUrl     String   @unique @map("n8n_url") @db.VarChar(500)
+  nodesJson  Json     @map("nodes_json")
+  cachedAt   DateTime @default(now()) @map("cached_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@index([n8nUrl])
+  @@index([expiresAt])
+  @@map("node_cache")
+}

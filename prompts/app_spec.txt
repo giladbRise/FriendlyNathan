@@ -1,0 +1,855 @@
+<project_specification>
+  <project_name>RISE n8n Workflow AI Builder</project_name>
+
+  <overview>
+    A production-ready AI-powered web application that enables RISE employees to create n8n workflows through natural language descriptions. The system uses Google Gemini 3 Flash Preview to intelligently analyze available n8n nodes, generate optimal workflows, and create them directly in customer n8n instances via API. It provides comprehensive guidance for credentials, handles edge cases gracefully, and delivers seamless, working workflows ready for validation.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React 18+ with TypeScript</framework>
+      <styling>Tailwind CSS with shadcn/ui components</styling>
+      <state_management>React Context API with hooks</state_management>
+      <build_tool>Vite</build_tool>
+      <real_time>WebSocket client for live updates</real_time>
+    </frontend>
+    <backend>
+      <runtime>Node.js 20+ with Express</runtime>
+      <language>TypeScript</language>
+      <database>PostgreSQL 15+</database>
+      <orm>Prisma</orm>
+      <authentication>JWT with bcrypt for password hashing</authentication>
+      <real_time>Socket.io for WebSocket connections</real_time>
+      <ai_integration>Google Gemini 3 Flash Preview API</ai_integration>
+      <mcp_server>n8n-mcp package running as service</mcp_server>
+    </backend>
+    <communication>
+      <api>RESTful API with JSON</api>
+      <websockets>Socket.io for real-time workflow generation updates</websockets>
+    </communication>
+    <deployment>
+      <containerization>Docker and Docker Compose</containerization>
+      <environment>Environment variables for configuration</environment>
+      <proxy>Nginx reverse proxy (optional)</proxy>
+    </deployment>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Node.js 20+ installed
+      - PostgreSQL 15+ installed and running
+      - Google Cloud account with Gemini API access
+      - n8n instance URL and API key for testing
+      - npm or yarn package manager
+      - Docker and Docker Compose (for production deployment)
+    </environment_setup>
+  </prerequisites>
+
+  <feature_count>260</feature_count>
+
+  <security_and_access_control>
+    <user_roles>
+      <role name="employee">
+        <permissions>
+          - Can create workflows for any customer n8n instance
+          - Can view their own workflow history
+          - Can access their profile and settings
+          - Can input customer n8n URL and API keys
+          - Can view credential guidance and instructions
+          - Cannot access admin dashboard
+          - Cannot view other employees' workflow history
+          - Cannot modify system settings
+        </permissions>
+        <protected_routes>
+          - /dashboard (authenticated users only)
+          - /workflow/create (authenticated users only)
+          - /workflow/history (authenticated users only)
+          - /profile (authenticated users only)
+        </protected_routes>
+      </role>
+      <role name="admin">
+        <permissions>
+          - All employee permissions
+          - Can access admin dashboard
+          - Can view company-wide workflow audit log
+          - Can view all employees' workflow creation activity
+          - Can manage user accounts (activate/deactivate)
+          - Can view system statistics and usage metrics
+          - Can manage credential guidance templates
+          - Cannot delete workflows (audit integrity)
+        </permissions>
+        <protected_routes>
+          - /admin/* (admin only)
+          - All employee routes
+        </protected_routes>
+      </role>
+    </user_roles>
+    <authentication>
+      <method>Email/password with JWT tokens</method>
+      <session_timeout>24 hours with refresh token (7 days)</session_timeout>
+      <password_requirements>Minimum 8 characters, at least one uppercase, one lowercase, one number</password_requirements>
+      <future_enhancements>Google SSO for RISE workspace accounts</future_enhancements>
+    </authentication>
+    <sensitive_operations>
+      - n8n API keys are encrypted at rest in database
+      - API keys never logged or exposed in UI
+      - Session token required for all API calls
+      - Rate limiting on workflow creation (prevent abuse)
+      - Audit log for all workflow creation attempts
+    </sensitive_operations>
+    <api_key_handling>
+      <storage>User can choose to save API keys (encrypted) or enter per-session</storage>
+      <validation>Backend validates API key before workflow generation</validation>
+      <encryption>AES-256 encryption for stored API keys</encryption>
+    </api_key_handling>
+  </security_and_access_control>
+
+  <core_features>
+    <authentication_and_user_management>
+      - User registration with email verification
+      - Secure login with JWT tokens
+      - Password reset via email
+      - User profile management
+      - Role assignment (employee/admin)
+      - Session management with auto-refresh
+      - Logout functionality
+      - Password change with current password verification
+      - Account activation/deactivation (admin)
+      - User list view (admin)
+    </authentication_and_user_management>
+
+    <workflow_input_and_processing>
+      - Large text area for workflow description input
+      - Character count indicator
+      - Clear/reset input button
+      - Example prompts for common workflows
+      - n8n instance URL input with validation
+      - n8n API key input (masked) with toggle visibility
+      - Option to save n8n credentials for future use
+      - Quick-select from saved n8n instances
+      - Input validation before submission
+      - "Generate Workflow" primary action button
+    </workflow_input_and_processing>
+
+    <n8n_node_discovery_and_analysis>
+      - Fetch available nodes from target n8n instance via API
+      - Cache node list per instance (with TTL)
+      - Parse node capabilities and parameters
+      - Identify custom vs. core nodes
+      - Detect node version compatibility
+      - Build searchable node database
+      - Handle API errors gracefully (fallback to core nodes)
+      - Display discovered node count to user
+    </n8n_node_discovery_and_analysis>
+
+    <ai_workflow_generation>
+      - Send workflow description to Gemini 3 Flash Preview
+      - Provide available nodes context to AI
+      - AI analyzes user intent and requirements
+      - AI selects optimal nodes for workflow
+      - AI generates n8n workflow JSON structure
+      - AI configures node parameters
+      - AI establishes node connections
+      - AI validates workflow logic
+      - AI detects missing credentials requirements
+      - AI suggests alternatives if workflow not feasible
+      - Streaming response for real-time progress
+      - Retry logic for AI API failures
+      - Token usage tracking
+      - Context management for complex workflows
+      - Multi-step reasoning for complex automations
+    </ai_workflow_generation>
+
+    <credential_detection_and_guidance>
+      - Parse generated workflow for credential requirements
+      - Identify credential types (OAuth, API key, username/password)
+      - Display credential requirements before creation
+      - Provide step-by-step setup instructions per credential type
+      - Link to n8n credential documentation
+      - Show visual guides (screenshots/videos) for common credentials
+      - "Ask admin" contact info for enterprise credentials
+      - Mark optional vs. required credentials
+      - Allow user to confirm credentials are ready
+      - Store credential guidance templates (admin editable)
+    </credential_detection_and_guidance>
+
+    <workflow_creation_and_api_integration>
+      - Validate generated workflow JSON
+      - Create workflow via n8n API POST request
+      - Handle API authentication errors
+      - Handle rate limiting
+      - Parse n8n API response
+      - Extract workflow ID and URL
+      - Activate workflow by default (configurable)
+      - Handle partial creation failures
+      - Rollback on error (if possible)
+      - Return direct link to workflow in n8n
+      - Display success confirmation with workflow details
+      - Show created node count and connections
+      - Error messages with actionable next steps
+    </workflow_creation_and_api_integration>
+
+    <history_and_audit_logging>
+      - Save each workflow generation attempt to database
+      - Store: user, timestamp, description, n8n instance, status, workflow ID
+      - User's personal workflow history view
+      - Search/filter history by date, status, instance
+      - Re-run previous workflow generation
+      - Copy previous workflow description
+      - Admin audit log with all company activity
+      - Export audit log to CSV (admin)
+      - Workflow success/failure statistics
+      - Never delete history (audit integrity)
+    </history_and_audit_logging>
+
+    <error_handling_and_edge_cases>
+      - Invalid n8n API key detection with clear message
+      - Expired API key handling
+      - Network timeout handling with retry
+      - n8n instance unreachable error
+      - AI API failure with fallback message
+      - Malformed workflow JSON validation
+      - Empty workflow description validation
+      - Duplicate workflow detection warning
+      - Rate limit exceeded message
+      - Database connection error handling
+      - Partial workflow creation rollback
+      - User-friendly error messages for all scenarios
+      - Error logging for debugging
+      - Automatic retry for transient failures
+    </error_handling_and_edge_cases>
+
+    <ui_ux_and_real_time_updates>
+      - Real-time progress indicator during generation
+      - Step-by-step status updates ("Discovering nodes...", "Generating workflow...", "Creating in n8n...")
+      - Progress percentage or spinner
+      - Estimated time remaining
+      - WebSocket connection for live updates
+      - Loading states for all async operations
+      - Success animations and confirmations
+      - Smooth transitions between states
+      - Responsive design (desktop-first, mobile-friendly)
+      - Keyboard shortcuts for common actions
+      - Toast notifications for background events
+      - Dark futuristic theme with RISE branding
+      - Clean, minimal interface
+      - Accessible UI (ARIA labels, keyboard navigation)
+    </ui_ux_and_real_time_updates>
+
+    <admin_dashboard>
+      - System statistics overview (total workflows, success rate, active users)
+      - Recent workflow activity feed
+      - User management table
+      - Activate/deactivate user accounts
+      - View user workflow history
+      - Company-wide audit log with filters
+      - Credential guidance template editor
+      - System health indicators
+      - AI API usage metrics
+      - Export reports
+    </admin_dashboard>
+  </core_features>
+
+  <database_schema>
+    <tables>
+      <users>
+        - id (UUID, primary key)
+        - email (string, unique, indexed)
+        - password_hash (string)
+        - role (enum: employee, admin)
+        - first_name (string, optional)
+        - last_name (string, optional)
+        - is_active (boolean, default true)
+        - created_at (timestamp)
+        - updated_at (timestamp)
+        - last_login_at (timestamp, optional)
+      </users>
+
+      <n8n_instances>
+        - id (UUID, primary key)
+        - user_id (UUID, foreign key to users)
+        - name (string, user-defined label)
+        - url (string)
+        - api_key_encrypted (string)
+        - is_default (boolean)
+        - created_at (timestamp)
+        - updated_at (timestamp)
+        - last_used_at (timestamp, optional)
+      </n8n_instances>
+
+      <workflow_generations>
+        - id (UUID, primary key)
+        - user_id (UUID, foreign key to users)
+        - n8n_instance_id (UUID, foreign key to n8n_instances, optional)
+        - n8n_url (string, denormalized for audit)
+        - workflow_description (text)
+        - generated_workflow_json (jsonb, optional)
+        - n8n_workflow_id (string, optional)
+        - n8n_workflow_url (string, optional)
+        - status (enum: pending, in_progress, success, failed)
+        - error_message (text, optional)
+        - nodes_discovered_count (integer, optional)
+        - nodes_used_count (integer, optional)
+        - credentials_required (jsonb, optional)
+        - ai_tokens_used (integer, optional)
+        - duration_ms (integer, optional)
+        - created_at (timestamp)
+        - completed_at (timestamp, optional)
+      </workflow_generations>
+
+      <credential_guidance_templates>
+        - id (UUID, primary key)
+        - credential_type (string, e.g., "googleSheetsOAuth2Api")
+        - display_name (string, e.g., "Google Sheets")
+        - instructions_markdown (text)
+        - video_url (string, optional)
+        - documentation_url (string, optional)
+        - contact_info (string, optional, e.g., "Ask @admin")
+        - is_active (boolean)
+        - created_at (timestamp)
+        - updated_at (timestamp)
+      </credential_guidance_templates>
+
+      <node_cache>
+        - id (UUID, primary key)
+        - n8n_url (string, indexed)
+        - nodes_json (jsonb)
+        - cached_at (timestamp)
+        - expires_at (timestamp)
+      </node_cache>
+    </tables>
+
+    <relationships>
+      - users 1:N n8n_instances (one user can save multiple n8n instances)
+      - users 1:N workflow_generations (one user creates many workflows)
+      - n8n_instances 1:N workflow_generations (one instance can have many workflows created)
+    </relationships>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <authentication>
+      - POST /api/auth/register - Register new user
+      - POST /api/auth/login - Login and receive JWT
+      - POST /api/auth/logout - Logout and invalidate token
+      - POST /api/auth/refresh - Refresh JWT token
+      - POST /api/auth/forgot-password - Request password reset
+      - POST /api/auth/reset-password - Reset password with token
+      - GET /api/auth/me - Get current user profile
+      - PUT /api/auth/me - Update current user profile
+      - PUT /api/auth/change-password - Change password
+    </authentication>
+
+    <n8n_instances>
+      - GET /api/n8n-instances - List user's saved n8n instances
+      - POST /api/n8n-instances - Save new n8n instance
+      - PUT /api/n8n-instances/:id - Update n8n instance
+      - DELETE /api/n8n-instances/:id - Delete n8n instance
+      - POST /api/n8n-instances/validate - Validate n8n URL and API key
+    </n8n_instances>
+
+    <workflow_generation>
+      - POST /api/workflows/generate - Generate and create workflow
+      - GET /api/workflows/history - Get user's workflow history
+      - GET /api/workflows/:id - Get specific workflow generation details
+      - POST /api/workflows/:id/retry - Retry failed workflow generation
+      - POST /api/nodes/discover - Discover available nodes from n8n instance
+    </workflow_generation>
+
+    <credential_guidance>
+      - GET /api/credentials/guidance/:type - Get guidance for credential type
+      - GET /api/credentials/guidance - List all credential guidance templates
+      - POST /api/credentials/guidance - Create guidance template (admin)
+      - PUT /api/credentials/guidance/:id - Update guidance template (admin)
+      - DELETE /api/credentials/guidance/:id - Delete guidance template (admin)
+    </credential_guidance>
+
+    <admin>
+      - GET /api/admin/users - List all users
+      - PUT /api/admin/users/:id/activate - Activate user
+      - PUT /api/admin/users/:id/deactivate - Deactivate user
+      - GET /api/admin/audit-log - Get company-wide audit log with filters
+      - GET /api/admin/statistics - Get system statistics
+      - GET /api/admin/export/audit-log - Export audit log as CSV
+    </admin>
+
+    <websocket_events>
+      - workflow:progress - Real-time workflow generation progress updates
+      - workflow:complete - Workflow generation completed
+      - workflow:error - Workflow generation failed
+    </websocket_events>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <main_structure>
+      - Top navigation bar with RISE logo, user menu, and logout
+      - Sidebar navigation (Dashboard, Create Workflow, History, [Admin for admins])
+      - Main content area with page-specific content
+      - Footer with version and support links
+    </main_structure>
+
+    <key_pages>
+      <login_page>
+        - Centered card with RISE branding
+        - Email and password inputs
+        - Login button
+        - Forgot password link
+        - Register link
+      </login_page>
+
+      <dashboard_page>
+        - Welcome message with user name
+        - Quick stats cards (workflows created, success rate, recent activity)
+        - Recent workflow generations list (last 5)
+        - Quick action: "Create New Workflow" button
+        - Saved n8n instances quick select
+      </dashboard_page>
+
+      <create_workflow_page>
+        - Large, prominent text area for workflow description
+        - n8n instance selection (saved instances dropdown or manual entry)
+        - n8n URL and API key inputs (if manual)
+        - "Save this instance" checkbox
+        - Example prompts section (collapsible)
+        - Large "Generate Workflow" button
+        - Real-time progress section (appears during generation)
+        - Success result card with workflow link and details
+        - Error display area with actionable guidance
+      </create_workflow_page>
+
+      <history_page>
+        - Filter controls (date range, status, n8n instance)
+        - Search bar
+        - Table/list of workflow generations
+        - Columns: Date, Description (truncated), Status, n8n Instance, Actions
+        - Actions: View Details, Retry, Copy Description
+        - Pagination
+      </history_page>
+
+      <workflow_detail_page>
+        - Full workflow description
+        - Status badge
+        - Timestamp
+        - n8n instance info
+        - Nodes discovered/used counts
+        - Credentials required list (if any)
+        - Generated workflow JSON (collapsible, read-only)
+        - Link to view in n8n (if successful)
+        - Error details (if failed)
+        - Retry button (if failed)
+      </workflow_detail_page>
+
+      <admin_dashboard_page>
+        - System statistics overview cards
+        - User management table with activate/deactivate actions
+        - Audit log table with advanced filters
+        - Credential guidance templates management
+        - Export buttons
+      </admin_dashboard_page>
+    </key_pages>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      - Primary: Deep electric blue (#0066FF) for RISE branding
+      - Secondary: Cyan accent (#00D9FF) for highlights and hover states
+      - Background: Very dark blue-black (#0A0E27) for futuristic feel
+      - Surface: Dark blue-grey (#1A1F3A) for cards and panels
+      - Text Primary: Bright white (#FFFFFF) for main content
+      - Text Secondary: Light grey-blue (#A0AEC0) for secondary text
+      - Success: Vibrant green (#00FF88)
+      - Error: Bright red (#FF3366)
+      - Warning: Amber (#FFA500)
+    </color_palette>
+
+    <typography>
+      - Primary Font: Inter or Geist Sans (modern, clean, tech-forward)
+      - Monospace Font: JetBrains Mono or Fira Code (for code/JSON display)
+      - Heading sizes: Large (2.5rem), Medium (1.75rem), Small (1.25rem)
+      - Body text: 1rem with 1.5 line height
+      - UI elements: 0.875rem
+    </typography>
+
+    <ui_components>
+      - shadcn/ui components styled with futuristic dark theme
+      - Subtle glow effects on interactive elements
+      - Smooth animations (0.2s ease transitions)
+      - Gradient accents for emphasis
+      - Glass morphism for overlays and modals
+      - Rounded corners (0.5rem standard)
+      - Subtle box shadows with blue tint
+    </ui_components>
+
+    <visual_elements>
+      - Progress indicators with animated gradients
+      - Status badges with glowing borders
+      - Icon set: Lucide React (consistent, modern)
+      - Subtle animated background (particles or gradient mesh)
+      - Loading spinners with brand colors
+    </visual_elements>
+  </design_system>
+
+  <mcp_integration>
+    <architecture>
+      - Backend runs n8n-mcp server as a child process or service
+      - MCP server configured with environment variables (N8N_API_URL, N8N_API_KEY per request)
+      - Gemini AI communicates with MCP server using Model Context Protocol
+      - MCP provides tools for: listing nodes, getting node details, creating workflows
+      - Backend manages MCP server lifecycle and error handling
+    </architecture>
+
+    <mcp_tools_used>
+      - n8n_list_nodes: Discover available nodes in target instance
+      - n8n_get_node: Get detailed node information
+      - n8n_create_workflow: Create workflow in n8n instance
+      - n8n_activate_workflow: Activate created workflow
+    </mcp_tools_used>
+
+    <session_management>
+      - Each workflow generation gets a unique session ID
+      - MCP server instance reused across requests (pooling)
+      - API keys passed dynamically per request (not hardcoded)
+      - Timeout handling for long-running AI operations
+    </session_management>
+  </mcp_integration>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Project Setup and Database</title>
+      <tasks>
+        - Initialize Node.js project with TypeScript
+        - Set up project structure (backend, frontend, shared)
+        - Configure PostgreSQL database
+        - Set up Prisma ORM with schema
+        - Create database migrations
+        - Set up environment variable management
+        - Configure ESLint and Prettier
+        - Initialize Git repository with .gitignore
+      </tasks>
+    </step>
+
+    <step number="2">
+      <title>Backend Core and Authentication</title>
+      <tasks>
+        - Set up Express server with TypeScript
+        - Implement authentication endpoints (register, login, logout, refresh)
+        - Implement JWT token generation and verification middleware
+        - Implement password hashing with bcrypt
+        - Create user model and database operations
+        - Implement role-based access control middleware
+        - Set up error handling middleware
+        - Configure CORS for frontend access
+      </tasks>
+    </step>
+
+    <step number="3">
+      <title>n8n Instance Management</title>
+      <tasks>
+        - Create n8n_instances table and model
+        - Implement AES-256 encryption for API keys
+        - Create n8n instance CRUD endpoints
+        - Implement n8n API key validation endpoint
+        - Create n8n API client wrapper
+        - Implement node discovery caching logic
+        - Test n8n API integration with test instance
+      </tasks>
+    </step>
+
+    <step number="4">
+      <title>MCP Server Integration</title>
+      <tasks>
+        - Install and configure n8n-mcp package
+        - Create MCP server wrapper service
+        - Implement MCP server lifecycle management
+        - Create MCP tool invocation functions
+        - Implement dynamic n8n instance configuration
+        - Test MCP server with various n8n instances
+        - Implement error handling for MCP failures
+      </tasks>
+    </step>
+
+    <step number="5">
+      <title>Gemini AI Integration</title>
+      <tasks>
+        - Set up Google Gemini API client
+        - Implement Gemini 3 Flash Preview model configuration
+        - Create prompt templates for workflow generation
+        - Implement streaming response handling
+        - Create AI service with retry logic
+        - Implement context management for complex workflows
+        - Test AI workflow generation with various prompts
+        - Implement token usage tracking
+      </tasks>
+    </step>
+
+    <step number="6">
+      <title>Workflow Generation Pipeline</title>
+      <tasks>
+        - Create workflow_generations table and model
+        - Implement workflow generation orchestration service
+        - Integrate node discovery, AI generation, and n8n creation
+        - Implement credential detection logic
+        - Create workflow validation before creation
+        - Implement workflow creation via n8n API
+        - Add rollback logic for failed creations
+        - Create workflow generation endpoints
+      </tasks>
+    </step>
+
+    <step number="7">
+      <title>Real-time Updates with WebSockets</title>
+      <tasks>
+        - Set up Socket.io server
+        - Implement authentication for WebSocket connections
+        - Create workflow progress event emitters
+        - Implement progress tracking in generation pipeline
+        - Test real-time updates end-to-end
+      </tasks>
+    </step>
+
+    <step number="8">
+      <title>Credential Guidance System</title>
+      <tasks>
+        - Create credential_guidance_templates table and model
+        - Seed database with common credential types (Google, Slack, etc.)
+        - Implement credential guidance CRUD endpoints
+        - Create credential detection from workflow JSON
+        - Implement guidance retrieval and display logic
+        - Add admin management endpoints for templates
+      </tasks>
+    </step>
+
+    <step number="9">
+      <title>History and Audit Logging</title>
+      <tasks>
+        - Implement workflow history endpoints with filtering
+        - Create pagination for history views
+        - Implement retry workflow generation
+        - Create admin audit log endpoint with advanced filters
+        - Implement CSV export for audit logs
+        - Add statistics calculation endpoints
+      </tasks>
+    </step>
+
+    <step number="10">
+      <title>Admin Dashboard Backend</title>
+      <tasks>
+        - Implement admin-only middleware
+        - Create user management endpoints
+        - Implement user activation/deactivation
+        - Create system statistics aggregation
+        - Implement admin audit log access
+        - Add credential guidance template management
+      </tasks>
+    </step>
+
+    <step number="11">
+      <title>Frontend Setup and Design System</title>
+      <tasks>
+        - Initialize React project with Vite and TypeScript
+        - Install and configure Tailwind CSS
+        - Install and configure shadcn/ui
+        - Create design system tokens (colors, typography, spacing)
+        - Implement dark futuristic theme
+        - Create reusable component library (Button, Card, Input, etc.)
+        - Set up React Router for navigation
+        - Configure Axios for API calls
+      </tasks>
+    </step>
+
+    <step number="12">
+      <title>Frontend Authentication</title>
+      <tasks>
+        - Create authentication context and provider
+        - Implement login page UI
+        - Implement registration page UI
+        - Implement forgot password flow UI
+        - Create protected route wrapper
+        - Implement JWT token storage and refresh logic
+        - Create user profile page
+        - Implement logout functionality
+      </tasks>
+    </step>
+
+    <step number="13">
+      <title>Dashboard and Navigation</title>
+      <tasks>
+        - Create main layout with sidebar and top nav
+        - Implement dashboard page with statistics
+        - Create quick action cards
+        - Implement recent workflow list
+        - Add navigation menu with role-based visibility
+        - Create user menu dropdown
+      </tasks>
+    </step>
+
+    <step number="14">
+      <title>Create Workflow Page</title>
+      <tasks>
+        - Create workflow description input area
+        - Implement n8n instance selection (saved or manual)
+        - Create n8n URL and API key inputs with validation
+        - Implement "Save instance" checkbox functionality
+        - Create example prompts section
+        - Implement "Generate Workflow" button with loading state
+        - Set up WebSocket connection for real-time updates
+        - Create progress indicator component
+        - Implement success result display with workflow link
+        - Create error display with actionable messages
+        - Add credential guidance modal/section
+      </tasks>
+    </step>
+
+    <step number="15">
+      <title>Workflow History and Details</title>
+      <tasks>
+        - Create history page with filtering controls
+        - Implement workflow generations table/list
+        - Add pagination controls
+        - Create workflow detail page
+        - Display full workflow information and JSON
+        - Implement retry functionality
+        - Add copy description feature
+      </tasks>
+    </step>
+
+    <step number="16">
+      <title>Admin Dashboard Frontend</title>
+      <tasks>
+        - Create admin dashboard layout
+        - Implement system statistics display
+        - Create user management table
+        - Implement user activation/deactivation UI
+        - Create audit log table with filters
+        - Implement credential guidance template management UI
+        - Add export functionality for audit logs
+      </tasks>
+    </step>
+
+    <step number="17">
+      <title>Error Handling and Edge Cases</title>
+      <tasks>
+        - Implement comprehensive error boundaries
+        - Create user-friendly error messages for all scenarios
+        - Add retry logic for transient failures
+        - Implement validation for all user inputs
+        - Add loading states for all async operations
+        - Create fallback UI for failed states
+        - Test all error scenarios end-to-end
+      </tasks>
+    </step>
+
+    <step number="18">
+      <title>UI Polish and Animations</title>
+      <tasks>
+        - Add smooth transitions and animations
+        - Implement success animations
+        - Add loading spinners and progress indicators
+        - Create toast notification system
+        - Implement keyboard shortcuts
+        - Add tooltips for UI elements
+        - Ensure responsive design for mobile
+        - Test accessibility (ARIA labels, keyboard navigation)
+      </tasks>
+    </step>
+
+    <step number="19">
+      <title>Testing and Quality Assurance</title>
+      <tasks>
+        - Write unit tests for backend services
+        - Write integration tests for API endpoints
+        - Create end-to-end tests for critical user flows
+        - Test with various n8n instances and workflows
+        - Perform security testing (SQL injection, XSS, etc.)
+        - Test error handling and edge cases
+        - Performance testing for AI generation
+        - Load testing for concurrent users
+      </tasks>
+    </step>
+
+    <step number="20">
+      <title>Docker and Deployment</title>
+      <tasks>
+        - Create Dockerfile for backend
+        - Create Dockerfile for frontend
+        - Create docker-compose.yml with all services
+        - Configure environment variables for production
+        - Set up Nginx reverse proxy (optional)
+        - Create deployment documentation
+        - Set up logging and monitoring
+        - Create backup strategy for database
+        - Document deployment process
+      </tasks>
+    </step>
+
+    <step number="21">
+      <title>Documentation and Handoff</title>
+      <tasks>
+        - Write comprehensive README with setup instructions
+        - Document API endpoints
+        - Create user guide for RISE employees
+        - Document admin features
+        - Create troubleshooting guide
+        - Document environment variables
+        - Add code comments for complex logic
+        - Create maintenance guide
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - User can describe a workflow in natural language and receive a working n8n workflow
+      - System successfully discovers nodes from any n8n instance
+      - AI generates valid, semantically correct workflows
+      - Workflows are created directly in customer n8n instances
+      - Users receive direct link to view workflow in n8n
+      - Credential requirements are detected and guidance is provided
+      - All error scenarios are handled gracefully with clear messages
+      - Admin can view audit logs and manage users
+      - System handles concurrent workflow generations
+    </functionality>
+
+    <user_experience>
+      - Clean, intuitive interface that non-technical RISE employees can use
+      - Real-time progress updates during workflow generation
+      - Fast response times (workflow generation < 30 seconds for typical workflows)
+      - Helpful error messages with actionable next steps
+      - Smooth animations and transitions
+      - Mobile-friendly responsive design
+      - Accessible UI meeting WCAG standards
+    </user_experience>
+
+    <technical_quality>
+      - Secure authentication and authorization
+      - Encrypted storage of sensitive data (API keys)
+      - Comprehensive error handling and logging
+      - Clean, maintainable code with TypeScript
+      - Database migrations for schema management
+      - API rate limiting and abuse prevention
+      - Proper separation of concerns (services, controllers, models)
+      - Environment-based configuration
+    </technical_quality>
+
+    <design_polish>
+      - Futuristic dark theme consistent throughout
+      - RISE branding integrated tastefully
+      - Professional, modern UI components
+      - Consistent spacing, typography, and colors
+      - Subtle animations and micro-interactions
+      - Loading states for all async operations
+      - Success/error feedback for all actions
+      - Polished, production-ready appearance
+    </design_polish>
+
+    <deployment_readiness>
+      - Docker containers for easy deployment
+      - Docker Compose for full stack orchestration
+      - Environment variable configuration
+      - Database backup and restore procedures
+      - Logging and monitoring setup
+      - Comprehensive documentation
+      - Security best practices implemented
+      - Ready for production deployment on RISE servers
+    </deployment_readiness>
+  </success_criteria>
+</project_specification>
