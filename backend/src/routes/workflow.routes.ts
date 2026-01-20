@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
+import { workflowGenerationLimiter } from '../middleware/rateLimiter';
 import {
   generateWorkflow,
   getGeneration,
@@ -12,7 +13,8 @@ const router = Router();
 router.use(authenticate);
 
 // POST /api/workflows/generate - Generate a workflow from description
-router.post('/generate', generateWorkflow);
+// Apply rate limiting to prevent abuse
+router.post('/generate', workflowGenerationLimiter, generateWorkflow);
 
 // GET /api/workflows/history - Get user's workflow history
 router.get('/history', getHistory);

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Navigation from '../components/Navigation';
 
 const ProfilePage: React.FC = () => {
-  const { user, logout, updateUser } = useAuth();
-  const navigate = useNavigate();
+  const { user, updateUser } = useAuth();
 
   const [profileData, setProfileData] = useState({
     firstName: user?.firstName || '',
@@ -151,49 +150,9 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                RISE n8n Workflow Builder
-              </h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-              >
-                Dashboard
-              </button>
-              {user?.role === 'admin' && (
-                <button
-                  onClick={() => navigate('/admin')}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                >
-                  Admin
-                </button>
-              )}
-              <span className="text-sm text-gray-700">
-                {user?.email}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow p-6 mb-6">
