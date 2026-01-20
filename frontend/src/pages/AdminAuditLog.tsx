@@ -68,6 +68,9 @@ const AdminAuditLog: React.FC = () => {
   // Users list for filter dropdown
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
 
+  // Export state
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => {
     fetchAuditLog();
   }, [page, searchQuery, statusFilter, userFilter, startDate, endDate]);
@@ -146,6 +149,65 @@ const AdminAuditLog: React.FC = () => {
   };
 
   const hasActiveFilters = searchQuery || statusFilter !== 'all' || userFilter !== 'all' || startDate || endDate;
+
+  const exportToCSV = async () => {
+    try {
+      setExporting(true);
+      const token = localStorage.getItem('token');
+
+      // Fetch all data matching current filters (up to 1000 rows)
+      const params = new URLSearchParams();
+      params.append('limit', '1000');
+      if (searchQuery) params.append('search', searchQuery);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (userFilter !== 'all') params.append('userId', userFilter);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      const response = await axios.get<AuditLogResponse>(
+        `http://localhost:3000/api/admin/audit-log?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = response.data.generations;
+
+      // Create CSV content
+      const headers = ['Date', 'User', 'Email', 'Description', 'Status', 'n8n Instance', 'Duration (ms)', 'Workflow ID'];
+      const rows = data.map((gen) => [
+        new Date(gen.createdAt).toISOString(),
+        getUserDisplay(gen.user),
+        gen.user.email,
+        `"${gen.workflowDescription.replace(/"/g, '""')}"`,
+        gen.status,
+        gen.n8nInstance?.name || '',
+        gen.durationMs?.toString() || '',
+        gen.n8nWorkflowId || '',
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row) => row.join(',')),
+      ].join('\n');
+
+      // Download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `audit-log-${new Date().toISOString().slice(0, 10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Error exporting CSV:', err);
+      alert('Failed to export CSV');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -249,16 +311,25 @@ const AdminAuditLog: React.FC = () => {
                 View all workflow generation activity across all users
               </p>
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                showFilters || hasActiveFilters
-                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {hasActiveFilters ? '✓ Filters Active' : 'Filters'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  showFilters || hasActiveFilters
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {hasActiveFilters ? '✓ Filters Active' : 'Filters'}
+              </button>
+              <button
+                onClick={exportToCSV}
+                disabled={exporting || loading}
+                className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+              >
+                {exporting ? 'Exporting...' : 'Export to CSV'}
+              </button>
+            </div>
           </div>
 
           {/* Search Bar */}
