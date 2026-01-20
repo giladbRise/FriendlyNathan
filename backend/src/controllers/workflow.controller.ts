@@ -48,6 +48,33 @@ export const generateWorkflow = async (req: Request, res: Response) => {
 };
 
 /**
+ * Cancel an in-progress workflow generation
+ */
+export const cancelGeneration = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { id } = req.params;
+    const { socketId } = req.body;
+
+    await workflowGeneratorService.cancelGeneration(id, userId, socketId);
+
+    res.json({ message: 'Workflow generation cancelled', generationId: id });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Generation not found') {
+        return res.status(404).json({ error: 'Workflow generation not found' });
+      }
+      if (error.message === 'Generation is not in progress') {
+        return res.status(400).json({ error: 'Generation is not in progress' });
+      }
+    }
+
+    console.error('Cancel generation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
  * Get workflow generation by ID
  */
 export const getGeneration = async (req: Request, res: Response) => {

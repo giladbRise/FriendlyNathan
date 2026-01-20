@@ -61,7 +61,9 @@ const WorkflowCreatePage: React.FC = () => {
   // State for workflow
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState({ message: '', progress: 0 });
+  const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState({ message: '', progress: 0, estimatedTimeRemaining: null as number | null });
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [expandedCredentials, setExpandedCredentials] = useState<Set<string>>(new Set());
 
@@ -84,19 +86,33 @@ const WorkflowCreatePage: React.FC = () => {
 
     socketRef.current.on('workflow:progress', (data) => {
       console.log('Progress:', data);
-      setGenerationProgress({ message: data.message, progress: data.progress });
+      setGenerationProgress({
+        message: data.message,
+        progress: data.progress,
+        estimatedTimeRemaining: data.estimatedTimeRemaining ?? null,
+      });
     });
 
     socketRef.current.on('workflow:complete', (data: GenerationResult) => {
       console.log('Complete:', data);
       setGenerating(false);
+      setCurrentGenerationId(null);
       setGenerationResult(data);
     });
 
     socketRef.current.on('workflow:error', (data) => {
       console.log('Error:', data);
       setGenerating(false);
+      setCurrentGenerationId(null);
       setError(data.error || 'Workflow generation failed');
+    });
+
+    socketRef.current.on('workflow:cancelled', (data) => {
+      console.log('Cancelled:', data);
+      setGenerating(false);
+      setCancelling(false);
+      setCurrentGenerationId(null);
+      setSuccess('Workflow generation cancelled');
     });
 
     return () => {
@@ -255,12 +271,12 @@ const WorkflowCreatePage: React.FC = () => {
 
     try {
       setGenerating(true);
-      setGenerationProgress({ message: 'Starting...', progress: 0 });
+      setGenerationProgress({ message: 'Starting...', progress: 0, estimatedTimeRemaining: null });
 
       const token = localStorage.getItem('token');
       const socketId = socketRef.current?.id;
 
-      await axios.post(
+      const response = await axios.post(
         'http://localhost:3000/api/workflows/generate',
         {
           instanceId: selectedInstanceId,
@@ -271,6 +287,9 @@ const WorkflowCreatePage: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+
+      // Store the generation ID for potential cancellation
+      setCurrentGenerationId(response.data.generationId);
 
       // The result will come through the socket
     } catch (err: any) {
@@ -291,12 +310,49 @@ const WorkflowCreatePage: React.FC = () => {
     }
   };
 
+  const handleCancelGeneration = async () => {
+    if (!currentGenerationId) return;
+
+    try {
+      setCancelling(true);
+      const token = localStorage.getItem('token');
+      const socketId = socketRef.current?.id;
+
+      await axios.post(
+        `http://localhost:3000/api/workflows/${currentGenerationId}/cancel`,
+        { socketId },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // The cancellation confirmation will come through the socket
+    } catch (err: any) {
+      console.error('Error cancelling workflow:', err);
+      setCancelling(false);
+      setError(err.response?.data?.error || 'Failed to cancel workflow generation');
+    }
+  };
+
   const handleNewWorkflow = () => {
     setWorkflowDescription('');
     setGenerationResult(null);
-    setGenerationProgress({ message: '', progress: 0 });
+    setCurrentGenerationId(null);
+    setCancelling(false);
+    setGenerationProgress({ message: '', progress: 0, estimatedTimeRemaining: null });
     setError('');
     setSuccess('');
+  };
+
+  const formatTimeRemaining = (seconds: number | null): string => {
+    if (seconds === null || seconds <= 0) return '';
+    if (seconds === 1) return '~1 second remaining';
+    if (seconds < 60) return `~${seconds} seconds remaining`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSecs = seconds % 60;
+    if (minutes === 1 && remainingSecs === 0) return '~1 minute remaining';
+    if (remainingSecs === 0) return `~${minutes} minutes remaining`;
+    return `~${minutes}m ${remainingSecs}s remaining`;
   };
 
   return (
@@ -577,7 +633,7 @@ const WorkflowCreatePage: React.FC = () => {
 
                 {/* Progress indicator */}
                 {generating && (
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-4 space-y-3">
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-medium text-blue-700">{generationProgress.message}</p>
                       <p className="text-sm text-gray-500">{generationProgress.progress}%</p>
@@ -588,6 +644,18 @@ const WorkflowCreatePage: React.FC = () => {
                         style={{ width: `${generationProgress.progress}%` }}
                       />
                     </div>
+                    {generationProgress.estimatedTimeRemaining !== null && generationProgress.estimatedTimeRemaining > 0 && (
+                      <p className="text-xs text-gray-500 text-center">
+                        {formatTimeRemaining(generationProgress.estimatedTimeRemaining)}
+                      </p>
+                    )}
+                    <button
+                      onClick={handleCancelGeneration}
+                      disabled={cancelling}
+                      className="w-full px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-md transition-colors disabled:opacity-50"
+                    >
+                      {cancelling ? 'Cancelling...' : 'Cancel Generation'}
+                    </button>
                   </div>
                 )}
 

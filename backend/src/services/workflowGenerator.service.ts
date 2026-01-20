@@ -108,6 +108,20 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/smtp/',
     contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
+  'n8n-nodes-base.httpRequest': {
+    type: 'httpBasicAuth',
+    displayName: 'HTTP Basic Authentication',
+    instructions: 'Configure username and password for HTTP Basic Auth endpoints.',
+    steps: [
+      'Obtain your username and password from the service provider',
+      'IMPORTANT: Never use personal passwords - create service-specific credentials',
+      'In n8n, create "HTTP Basic Auth" credentials',
+      'Enter your username and password',
+      'Use these credentials in your HTTP Request node',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/httprequest/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
   'n8n-nodes-base.airtable': {
     type: 'airtableApi',
     displayName: 'Airtable API',
@@ -145,6 +159,8 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
  * For now, it generates a simple workflow based on keywords in the description
  */
 export class WorkflowGeneratorService {
+  // Track generations that should be cancelled
+  private cancelledGenerations: Set<string> = new Set();
   /**
    * Generate a workflow from a description
    */
@@ -185,6 +201,54 @@ export class WorkflowGeneratorService {
     return { generationId: generation.id };
   }
 
+  /**
+   * Cancel an in-progress workflow generation
+   */
+  async cancelGeneration(generationId: string, userId: string, socketId?: string): Promise<boolean> {
+    // Verify the generation exists and belongs to the user
+    const generation = await prisma.workflowGeneration.findFirst({
+      where: { id: generationId, userId },
+    });
+
+    if (!generation) {
+      throw new Error('Generation not found');
+    }
+
+    if (generation.status !== 'in_progress') {
+      throw new Error('Generation is not in progress');
+    }
+
+    // Mark as cancelled
+    this.cancelledGenerations.add(generationId);
+
+    // Update database status
+    await prisma.workflowGeneration.update({
+      where: { id: generationId },
+      data: {
+        status: 'cancelled',
+        completedAt: new Date(),
+        errorMessage: 'Cancelled by user',
+      },
+    });
+
+    // Emit cancellation event via socket
+    if (socketId) {
+      io.to(socketId).emit('workflow:cancelled', {
+        generationId,
+        message: 'Workflow generation cancelled',
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if a generation has been cancelled
+   */
+  private isCancelled(generationId: string): boolean {
+    return this.cancelledGenerations.has(generationId);
+  }
+
   private async runGeneration(
     generationId: string,
     instance: { id: string; url: string; apiKeyEncrypted: string },
@@ -193,18 +257,39 @@ export class WorkflowGeneratorService {
     startTime: number
   ) {
     try {
+      // Check for cancellation before each step
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
+
       // Step 1: Analyze description and generate workflow
       this.emitProgress(socketId, generationId, 'Analyzing description...', 20);
       await this.delay(500); // Simulate processing time
+
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
 
       this.emitProgress(socketId, generationId, 'Generating workflow structure...', 40);
       const workflow = this.generateWorkflowFromDescription(description);
       await this.delay(500);
 
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
+
       // Step 2: Detect required credentials
       this.emitProgress(socketId, generationId, 'Detecting required credentials...', 50);
       const credentials = this.detectCredentials(workflow.nodes);
       await this.delay(300);
+
+      if (this.isCancelled(generationId)) {
+        this.cancelledGenerations.delete(generationId);
+        return;
+      }
 
       // Step 3: Create workflow in n8n
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
@@ -294,11 +379,570 @@ export class WorkflowGeneratorService {
   }
 
   /**
+   * Check if description requires a complex multi-node workflow
+   */
+  private isComplexWorkflowRequest(description: string): boolean {
+    const lowerDesc = description.toLowerCase();
+
+    // Count how many different services/operations are mentioned
+    const services = [
+      'webhook', 'google sheets', 'spreadsheet', 'slack', 'email', 'airtable',
+      'notion', 'http', 'request', 'conditional', 'branch', 'if', 'switch',
+      'filter', 'transform', 'process', 'multiple', 'log'
+    ];
+
+    let mentionedServices = 0;
+    for (const service of services) {
+      if (lowerDesc.includes(service)) {
+        mentionedServices++;
+      }
+    }
+
+    // If 4+ services/operations mentioned, consider it complex
+    return mentionedServices >= 4 || lowerDesc.includes('complex');
+  }
+
+  /**
+   * Generate a complex multi-node workflow with 10+ nodes
+   */
+  private generateComplexWorkflow(description: string): N8nWorkflow {
+    const workflowName = `Complex Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const nodes: WorkflowNode[] = [];
+    const connections: Record<string, WorkflowConnection> = {};
+
+    // Node 0: Webhook Trigger
+    nodes.push({
+      id: 'node_0',
+      name: 'Webhook Trigger',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 1,
+      position: [250, 300],
+      parameters: {
+        httpMethod: 'POST',
+        path: 'workflow-trigger',
+        responseMode: 'onReceived',
+        responseData: 'allEntries',
+      },
+    });
+
+    // Node 1: Google Sheets - Fetch data
+    nodes.push({
+      id: 'node_1',
+      name: 'Google Sheets',
+      type: 'n8n-nodes-base.googleSheets',
+      typeVersion: 4,
+      position: [450, 300],
+      parameters: {
+        operation: 'read',
+        documentId: { __rl: true, mode: 'id', value: '' },
+        sheetName: { __rl: true, mode: 'name', value: 'Sheet1' },
+      },
+    });
+
+    // Node 2: Set - Add metadata
+    nodes.push({
+      id: 'node_2',
+      name: 'Add Metadata',
+      type: 'n8n-nodes-base.set',
+      typeVersion: 3,
+      position: [650, 300],
+      parameters: {
+        mode: 'manual',
+        duplicateItem: false,
+        assignments: {
+          assignments: [
+            { id: 'a1', name: 'processedAt', value: '={{ $now.toISO() }}', type: 'string' },
+            { id: 'a2', name: 'source', value: 'Google Sheets', type: 'string' },
+          ],
+        },
+      },
+    });
+
+    // Node 3: IF - Conditional branch
+    nodes.push({
+      id: 'node_3',
+      name: 'Check Condition',
+      type: 'n8n-nodes-base.if',
+      typeVersion: 1,
+      position: [850, 300],
+      parameters: {
+        conditions: {
+          boolean: [
+            {
+              value1: '={{ $json.status }}',
+              operation: 'equals',
+              value2: 'active',
+            },
+          ],
+        },
+      },
+    });
+
+    // Node 4: Slack - Send success message (true branch)
+    nodes.push({
+      id: 'node_4',
+      name: 'Slack Success',
+      type: 'n8n-nodes-base.slack',
+      typeVersion: 2,
+      position: [1050, 200],
+      parameters: {
+        operation: 'post',
+        channel: '#success',
+        text: '✅ Process completed successfully: {{ $json.name }}',
+      },
+    });
+
+    // Node 5: Email - Send notification (true branch)
+    nodes.push({
+      id: 'node_5',
+      name: 'Email Success',
+      type: 'n8n-nodes-base.emailSend',
+      typeVersion: 2,
+      position: [1250, 200],
+      parameters: {
+        fromEmail: 'workflow@example.com',
+        toEmail: 'team@example.com',
+        subject: 'Workflow Success Notification',
+        text: 'The workflow completed successfully.',
+      },
+    });
+
+    // Node 6: Slack - Send error message (false branch)
+    nodes.push({
+      id: 'node_6',
+      name: 'Slack Error',
+      type: 'n8n-nodes-base.slack',
+      typeVersion: 2,
+      position: [1050, 400],
+      parameters: {
+        operation: 'post',
+        channel: '#errors',
+        text: '❌ Process failed: {{ $json.name }}',
+      },
+    });
+
+    // Node 7: Email - Send error notification (false branch)
+    nodes.push({
+      id: 'node_7',
+      name: 'Email Error',
+      type: 'n8n-nodes-base.emailSend',
+      typeVersion: 2,
+      position: [1250, 400],
+      parameters: {
+        fromEmail: 'workflow@example.com',
+        toEmail: 'admin@example.com',
+        subject: 'Workflow Error Notification',
+        text: 'The workflow encountered an error.',
+      },
+    });
+
+    // Node 8: Airtable - Log success (merge from success branch)
+    nodes.push({
+      id: 'node_8',
+      name: 'Log to Airtable',
+      type: 'n8n-nodes-base.airtable',
+      typeVersion: 2,
+      position: [1450, 200],
+      parameters: {
+        operation: 'append',
+        application: { __rl: true, mode: 'id', value: '' },
+        table: { __rl: true, mode: 'name', value: 'Workflow Logs' },
+        options: {},
+      },
+    });
+
+    // Node 9: Set - Prepare final status
+    nodes.push({
+      id: 'node_9',
+      name: 'Final Status',
+      type: 'n8n-nodes-base.set',
+      typeVersion: 3,
+      position: [1650, 200],
+      parameters: {
+        mode: 'manual',
+        duplicateItem: false,
+        assignments: {
+          assignments: [
+            { id: 'f1', name: 'completedAt', value: '={{ $now.toISO() }}', type: 'string' },
+            { id: 'f2', name: 'status', value: 'completed', type: 'string' },
+          ],
+        },
+      },
+    });
+
+    // Node 10: HTTP Request - Callback
+    nodes.push({
+      id: 'node_10',
+      name: 'Callback',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4,
+      position: [1850, 200],
+      parameters: {
+        method: 'POST',
+        url: 'https://example.com/callback',
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            { name: 'status', value: '={{ $json.status }}' },
+            { name: 'completedAt', value: '={{ $json.completedAt }}' },
+          ],
+        },
+      },
+    });
+
+    // Define connections for the complex workflow
+    connections['Webhook Trigger'] = {
+      main: [[{ node: 'Google Sheets', type: 'main', index: 0 }]],
+    };
+    connections['Google Sheets'] = {
+      main: [[{ node: 'Add Metadata', type: 'main', index: 0 }]],
+    };
+    connections['Add Metadata'] = {
+      main: [[{ node: 'Check Condition', type: 'main', index: 0 }]],
+    };
+    connections['Check Condition'] = {
+      main: [
+        [{ node: 'Slack Success', type: 'main', index: 0 }],
+        [{ node: 'Slack Error', type: 'main', index: 0 }],
+      ],
+    };
+    connections['Slack Success'] = {
+      main: [[{ node: 'Email Success', type: 'main', index: 0 }]],
+    };
+    connections['Email Success'] = {
+      main: [[{ node: 'Log to Airtable', type: 'main', index: 0 }]],
+    };
+    connections['Slack Error'] = {
+      main: [[{ node: 'Email Error', type: 'main', index: 0 }]],
+    };
+    connections['Log to Airtable'] = {
+      main: [[{ node: 'Final Status', type: 'main', index: 0 }]],
+    };
+    connections['Final Status'] = {
+      main: [[{ node: 'Callback', type: 'main', index: 0 }]],
+    };
+
+    return {
+      name: workflowName,
+      nodes,
+      connections,
+      active: true,
+      settings: {
+        saveManualExecutions: true,
+        callerPolicy: 'workflowsFromSameOwner',
+      },
+    };
+  }
+
+  /**
+   * Generate a workflow with conditional logic (IF node with true/false branches)
+   */
+  private generateConditionalWorkflow(description: string): N8nWorkflow {
+    const lowerDesc = description.toLowerCase();
+    const workflowName = `Conditional Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const nodes: WorkflowNode[] = [];
+    const connections: Record<string, WorkflowConnection> = {};
+
+    // Extract condition value from description (look for numbers)
+    const numberMatch = description.match(/(\d+)/);
+    const conditionValue = numberMatch ? numberMatch[1] : '100';
+
+    // Node 0: Manual Trigger
+    nodes.push({
+      id: 'node_0',
+      name: 'Start',
+      type: 'n8n-nodes-base.manualTrigger',
+      typeVersion: 1,
+      position: [250, 300],
+      parameters: {},
+    });
+
+    // Node 1: IF - Conditional check
+    nodes.push({
+      id: 'node_1',
+      name: 'Check Condition',
+      type: 'n8n-nodes-base.if',
+      typeVersion: 1,
+      position: [450, 300],
+      parameters: {
+        conditions: {
+          number: [
+            {
+              value1: '={{ $json.value }}',
+              operation: 'larger',
+              value2: conditionValue,
+            },
+          ],
+        },
+      },
+    });
+
+    // Determine true/false branch actions from description
+    const hasSlack = lowerDesc.includes('slack');
+    const hasEmail = lowerDesc.includes('email');
+
+    // Node 2: True branch action
+    if (hasSlack) {
+      nodes.push({
+        id: 'node_2',
+        name: 'Slack (Condition True)',
+        type: 'n8n-nodes-base.slack',
+        typeVersion: 2,
+        position: [650, 200],
+        parameters: {
+          operation: 'post',
+          channel: '#notifications',
+          text: '✅ Condition met: value > ' + conditionValue,
+        },
+      });
+    } else {
+      nodes.push({
+        id: 'node_2',
+        name: 'Set True Result',
+        type: 'n8n-nodes-base.set',
+        typeVersion: 3,
+        position: [650, 200],
+        parameters: {
+          mode: 'manual',
+          duplicateItem: false,
+          assignments: {
+            assignments: [
+              { id: 't1', name: 'result', value: 'Condition was true', type: 'string' },
+            ],
+          },
+        },
+      });
+    }
+
+    // Node 3: False branch action
+    if (hasEmail) {
+      nodes.push({
+        id: 'node_3',
+        name: 'Send Email (Condition False)',
+        type: 'n8n-nodes-base.emailSend',
+        typeVersion: 2,
+        position: [650, 400],
+        parameters: {
+          fromEmail: 'workflow@example.com',
+          toEmail: 'notifications@example.com',
+          subject: 'Condition Not Met',
+          text: 'The value did not exceed ' + conditionValue,
+        },
+      });
+    } else if (hasSlack && !hasEmail) {
+      nodes.push({
+        id: 'node_3',
+        name: 'Send Email (Condition False)',
+        type: 'n8n-nodes-base.emailSend',
+        typeVersion: 2,
+        position: [650, 400],
+        parameters: {
+          fromEmail: 'workflow@example.com',
+          toEmail: 'notifications@example.com',
+          subject: 'Condition Not Met',
+          text: 'The value did not exceed ' + conditionValue,
+        },
+      });
+    } else {
+      nodes.push({
+        id: 'node_3',
+        name: 'Set False Result',
+        type: 'n8n-nodes-base.set',
+        typeVersion: 3,
+        position: [650, 400],
+        parameters: {
+          mode: 'manual',
+          duplicateItem: false,
+          assignments: {
+            assignments: [
+              { id: 'f1', name: 'result', value: 'Condition was false', type: 'string' },
+            ],
+          },
+        },
+      });
+    }
+
+    // Define connections
+    connections['Start'] = {
+      main: [[{ node: 'Check Condition', type: 'main', index: 0 }]],
+    };
+    connections['Check Condition'] = {
+      main: [
+        [{ node: nodes[2].name, type: 'main', index: 0 }],  // true branch
+        [{ node: nodes[3].name, type: 'main', index: 0 }],  // false branch
+      ],
+    };
+
+    return {
+      name: workflowName,
+      nodes,
+      connections,
+      active: true,
+      settings: {
+        saveManualExecutions: true,
+        callerPolicy: 'workflowsFromSameOwner',
+      },
+    };
+  }
+
+  /**
+   * Generate a workflow with loop/iteration for processing arrays
+   */
+  private generateLoopWorkflow(description: string): N8nWorkflow {
+    const lowerDesc = description.toLowerCase();
+    const workflowName = `Loop Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const nodes: WorkflowNode[] = [];
+    const connections: Record<string, WorkflowConnection> = {};
+
+    // Node 0: Manual Trigger
+    nodes.push({
+      id: 'node_0',
+      name: 'Start',
+      type: 'n8n-nodes-base.manualTrigger',
+      typeVersion: 1,
+      position: [250, 300],
+      parameters: {},
+    });
+
+    // Node 1: HTTP Request to fetch list
+    nodes.push({
+      id: 'node_1',
+      name: 'Get List from API',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4,
+      position: [450, 300],
+      parameters: {
+        method: 'GET',
+        url: 'https://api.example.com/users',
+        options: {},
+      },
+    });
+
+    // Node 2: Split In Batches for iteration
+    nodes.push({
+      id: 'node_2',
+      name: 'Loop Over Items',
+      type: 'n8n-nodes-base.splitInBatches',
+      typeVersion: 3,
+      position: [650, 300],
+      parameters: {
+        batchSize: 1,
+        options: {},
+      },
+    });
+
+    // Determine what to do with each item
+    if (lowerDesc.includes('email')) {
+      nodes.push({
+        id: 'node_3',
+        name: 'Send Email',
+        type: 'n8n-nodes-base.emailSend',
+        typeVersion: 2,
+        position: [850, 300],
+        parameters: {
+          fromEmail: 'noreply@example.com',
+          toEmail: '={{ $json.email }}',
+          subject: 'Notification for {{ $json.name }}',
+          text: 'Hello {{ $json.name }}, this is an automated notification.',
+        },
+      });
+    } else if (lowerDesc.includes('slack')) {
+      nodes.push({
+        id: 'node_3',
+        name: 'Send Slack Message',
+        type: 'n8n-nodes-base.slack',
+        typeVersion: 2,
+        position: [850, 300],
+        parameters: {
+          operation: 'post',
+          channel: '#notifications',
+          text: 'Processing user: {{ $json.name }}',
+        },
+      });
+    } else {
+      nodes.push({
+        id: 'node_3',
+        name: 'Process Item',
+        type: 'n8n-nodes-base.set',
+        typeVersion: 3,
+        position: [850, 300],
+        parameters: {
+          mode: 'manual',
+          duplicateItem: false,
+          assignments: {
+            assignments: [
+              { id: 'p1', name: 'processed', value: 'true', type: 'string' },
+              { id: 'p2', name: 'processedAt', value: '={{ $now.toISO() }}', type: 'string' },
+            ],
+          },
+        },
+      });
+    }
+
+    // Node 4: No Operation (to handle completion)
+    nodes.push({
+      id: 'node_4',
+      name: 'Done',
+      type: 'n8n-nodes-base.noOp',
+      typeVersion: 1,
+      position: [1050, 300],
+      parameters: {},
+    });
+
+    // Define connections - Loop back from processing to batch splitter
+    connections['Start'] = {
+      main: [[{ node: 'Get List from API', type: 'main', index: 0 }]],
+    };
+    connections['Get List from API'] = {
+      main: [[{ node: 'Loop Over Items', type: 'main', index: 0 }]],
+    };
+    connections['Loop Over Items'] = {
+      main: [
+        [{ node: nodes[3].name, type: 'main', index: 0 }],  // Process each item
+        [{ node: 'Done', type: 'main', index: 0 }],  // Done processing all items
+      ],
+    };
+    connections[nodes[3].name] = {
+      main: [[{ node: 'Loop Over Items', type: 'main', index: 0 }]],  // Loop back
+    };
+
+    return {
+      name: workflowName,
+      nodes,
+      connections,
+      active: true,
+      settings: {
+        saveManualExecutions: true,
+        callerPolicy: 'workflowsFromSameOwner',
+      },
+    };
+  }
+
+  /**
    * Generate a simple workflow based on description keywords
    * In production, this would use Gemini AI
    */
   private generateWorkflowFromDescription(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
+
+    // Check if this is a complex workflow request
+    if (this.isComplexWorkflowRequest(description)) {
+      return this.generateComplexWorkflow(description);
+    }
+
+    // Check for conditional workflow pattern (if...otherwise/else)
+    if ((lowerDesc.includes('if ') || lowerDesc.includes('when ')) &&
+        (lowerDesc.includes('otherwise') || lowerDesc.includes('else') || lowerDesc.includes('otherwise'))) {
+      return this.generateConditionalWorkflow(description);
+    }
+
+    // Check for loop/iteration workflow pattern
+    if (lowerDesc.includes('each') || lowerDesc.includes('every') ||
+        lowerDesc.includes('list of') || lowerDesc.includes('all users') ||
+        lowerDesc.includes('iterate') || lowerDesc.includes('loop')) {
+      return this.generateLoopWorkflow(description);
+    }
+
     const workflowName = `Generated Workflow - ${new Date().toISOString().slice(0, 10)}`;
 
     const nodes: WorkflowNode[] = [];
@@ -467,7 +1111,7 @@ export class WorkflowGeneratorService {
       name: workflowName,
       nodes,
       connections,
-      active: false,
+      active: true, // Workflows are activated by default
       settings: {
         saveManualExecutions: true,
         callerPolicy: 'workflowsFromSameOwner',
@@ -526,14 +1170,29 @@ export class WorkflowGeneratorService {
   }
 
   /**
-   * Helper to emit progress events
+   * Helper to emit progress events with estimated time remaining
    */
-  private emitProgress(socketId: string | undefined, generationId: string, message: string, progress: number) {
+  private emitProgress(
+    socketId: string | undefined,
+    generationId: string,
+    message: string,
+    progress: number,
+    estimatedTotalMs: number = 3000
+  ) {
     if (socketId) {
+      // Calculate estimated time remaining based on progress
+      let estimatedTimeRemaining: number | null = null;
+      if (progress > 0 && progress < 100) {
+        const remainingProgress = 100 - progress;
+        const msPerPercent = estimatedTotalMs / 100;
+        estimatedTimeRemaining = Math.ceil((remainingProgress * msPerPercent) / 1000);
+      }
+
       io.to(socketId).emit('workflow:progress', {
         generationId,
         message,
         progress,
+        estimatedTimeRemaining, // in seconds
       });
     }
   }

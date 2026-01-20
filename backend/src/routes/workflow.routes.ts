@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/authenticate';
 import { workflowGenerationLimiter } from '../middleware/rateLimiter';
 import {
   generateWorkflow,
+  cancelGeneration,
   getGeneration,
   getHistory,
 } from '../controllers/workflow.controller';
@@ -18,6 +19,9 @@ router.post('/generate', workflowGenerationLimiter, generateWorkflow);
 
 // GET /api/workflows/history - Get user's workflow history
 router.get('/history', getHistory);
+
+// POST /api/workflows/:id/cancel - Cancel an in-progress generation
+router.post('/:id/cancel', cancelGeneration);
 
 // GET /api/workflows/:id - Get specific workflow generation
 router.get('/:id', getGeneration);
