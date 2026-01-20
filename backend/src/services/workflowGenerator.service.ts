@@ -302,6 +302,9 @@ export class WorkflowGeneratorService {
     socketId: string | undefined,
     startTime: number
   ) {
+    let createdWorkflowId: string | undefined; // Track created workflow for potential rollback
+    const apiKey = decrypt(instance.apiKeyEncrypted);
+
     try {
       // Check for cancellation before each step
       if (this.isCancelled(generationId)) {
@@ -354,31 +357,42 @@ export class WorkflowGeneratorService {
       // Step 4: Create workflow in n8n (with automatic retry for transient failures)
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
 
-      const apiKey = decrypt(instance.apiKeyEncrypted);
       const n8nResult = await this.createWorkflowInN8n(instance.url, apiKey, workflow, 3, socketId, generationId);
 
       if (!n8nResult.success) {
         throw new Error(n8nResult.error || 'Failed to create workflow in n8n');
       }
 
-      // Step 4: Update generation record with success
+      // Track the created workflow ID for potential rollback
+      createdWorkflowId = n8nResult.n8nWorkflowId;
+
+      // Step 5: Update generation record with success
       this.emitProgress(socketId, generationId, 'Workflow created successfully!', 100);
 
       const durationMs = Date.now() - startTime;
-      await prisma.workflowGeneration.update({
-        where: { id: generationId },
-        data: {
-          status: WorkflowStatus.success,
-          generatedWorkflowJson: workflow as any,
-          n8nWorkflowId: n8nResult.n8nWorkflowId,
-          n8nWorkflowUrl: n8nResult.n8nWorkflowUrl,
-          nodesUsedCount: workflow.nodes.length,
-          credentialsRequired: credentials.length > 0 ? credentials : null,
-          aiTokensUsed,
-          durationMs,
-          completedAt: new Date(),
-        },
-      });
+
+      try {
+        await prisma.workflowGeneration.update({
+          where: { id: generationId },
+          data: {
+            status: WorkflowStatus.success,
+            generatedWorkflowJson: workflow as any,
+            n8nWorkflowId: n8nResult.n8nWorkflowId,
+            n8nWorkflowUrl: n8nResult.n8nWorkflowUrl,
+            nodesUsedCount: workflow.nodes.length,
+            credentialsRequired: credentials.length > 0 ? credentials : null,
+            aiTokensUsed,
+            durationMs,
+            completedAt: new Date(),
+          },
+        });
+      } catch (dbError: any) {
+        // Database update failed after workflow was created in n8n
+        // Attempt rollback by deleting the workflow from n8n
+        console.error('Database update failed, attempting rollback:', dbError);
+        await this.rollbackWorkflow(instance.url, apiKey, createdWorkflowId);
+        throw new Error('Failed to save workflow record. The workflow has been rolled back.');
+      }
 
       // Emit completion event
       if (socketId) {
@@ -392,24 +406,35 @@ export class WorkflowGeneratorService {
         });
       }
 
-      // Update instance last used
-      await prisma.n8nInstance.update({
-        where: { id: instance.id },
-        data: { lastUsedAt: new Date() },
-      });
+      // Update instance last used (non-critical, don't rollback on failure)
+      try {
+        await prisma.n8nInstance.update({
+          where: { id: instance.id },
+          data: { lastUsedAt: new Date() },
+        });
+      } catch (instanceUpdateError) {
+        console.warn('Failed to update instance last used timestamp:', instanceUpdateError);
+        // Non-critical, don't fail the operation
+      }
     } catch (error: any) {
       console.error('Workflow generation error:', error);
 
       const durationMs = Date.now() - startTime;
-      await prisma.workflowGeneration.update({
-        where: { id: generationId },
-        data: {
-          status: WorkflowStatus.failed,
-          errorMessage: error.message || 'Unknown error',
-          durationMs,
-          completedAt: new Date(),
-        },
-      });
+
+      try {
+        await prisma.workflowGeneration.update({
+          where: { id: generationId },
+          data: {
+            status: WorkflowStatus.failed,
+            errorMessage: error.message || 'Unknown error',
+            durationMs,
+            completedAt: new Date(),
+          },
+        });
+      } catch (dbError) {
+        console.error('Failed to update generation status to failed:', dbError);
+        // Even if this fails, we still need to inform the user
+      }
 
       // Emit error event
       if (socketId) {
@@ -418,6 +443,36 @@ export class WorkflowGeneratorService {
           error: error.message || 'Workflow generation failed',
         });
       }
+    }
+  }
+
+  /**
+   * Rollback a created workflow by deleting it from n8n
+   * Called when post-creation operations (like database update) fail
+   */
+  private async rollbackWorkflow(n8nUrl: string, apiKey: string, workflowId: string): Promise<boolean> {
+    const baseUrl = n8nUrl.replace(/\/$/, '');
+
+    try {
+      console.log(`Attempting to rollback workflow ${workflowId} from ${baseUrl}`);
+
+      await axios.delete(
+        `${baseUrl}/api/v1/workflows/${workflowId}`,
+        {
+          headers: {
+            'X-N8N-API-KEY': apiKey,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+
+      console.log(`Successfully rolled back workflow ${workflowId}`);
+      return true;
+    } catch (error: any) {
+      // Log but don't throw - rollback is best-effort
+      console.error(`Failed to rollback workflow ${workflowId}:`, error.response?.data || error.message);
+      return false;
     }
   }
 

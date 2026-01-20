@@ -25,9 +25,12 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
     const validatedData = requestResetSchema.parse(req.body);
 
+    // Normalize email: trim whitespace and convert to lowercase
+    const normalizedEmail = validatedData.email.trim().toLowerCase();
+
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: normalizedEmail },
     });
 
     // Always return success message (security: don't reveal if email exists)

@@ -44,9 +44,12 @@ export const register = async (req: Request, res: Response) => {
     // Validate input
     const validatedData = registerSchema.parse(req.body);
 
+    // Normalize email: trim whitespace and convert to lowercase
+    const normalizedEmail = validatedData.email.trim().toLowerCase();
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -56,10 +59,10 @@ export const register = async (req: Request, res: Response) => {
     // Hash password
     const passwordHash = await bcrypt.hash(validatedData.password, 10);
 
-    // Create user
+    // Create user with normalized email
     const user = await prisma.user.create({
       data: {
-        email: validatedData.email,
+        email: normalizedEmail,
         passwordHash,
         firstName: validatedData.firstName,
         lastName: validatedData.lastName,
@@ -105,9 +108,12 @@ export const login = async (req: Request, res: Response) => {
     // Validate input
     const validatedData = loginSchema.parse(req.body);
 
+    // Normalize email: trim whitespace and convert to lowercase
+    const normalizedEmail = validatedData.email.trim().toLowerCase();
+
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
