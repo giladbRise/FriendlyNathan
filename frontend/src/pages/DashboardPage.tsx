@@ -22,6 +22,12 @@ const DashboardPage: React.FC = () => {
               </h1>
             </div>
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/profile')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                Profile
+              </button>
               {user?.role === 'admin' && (
                 <button
                   onClick={() => navigate('/admin')}

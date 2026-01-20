@@ -24,6 +24,16 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number'),
+});
+
 export const register = async (req: Request, res: Response) => {
   try {
     // Validate input
@@ -178,6 +188,63 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     res.json({ user });
   } catch (error) {
     console.error('Get current user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const validatedData = changePasswordSchema.parse(req.body);
+
+    // Get current user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(
+      validatedData.currentPassword,
+      user.passwordHash
+    );
+
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    // Check if new password is different from current
+    const isSamePassword = await bcrypt.compare(
+      validatedData.newPassword,
+      user.passwordHash
+    );
+
+    if (isSamePassword) {
+      return res.status(400).json({ error: 'New password must be different from current password' });
+    }
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(validatedData.newPassword, 10);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.errors,
+      });
+    }
+
+    console.error('Change password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
