@@ -169,7 +169,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({
           id: workflowId,
           name: workflow.name,
-          active: workflow.active || false,
+          active: false, // Workflows are created inactive by default in n8n
           nodes: workflow.nodes,
           connections: workflow.connections,
           createdAt: new Date().toISOString(),
@@ -181,6 +181,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ message: 'Invalid JSON' }));
       }
     });
+    // Important: Don't call res.end() here - it's handled in the 'end' event
     return;
   }
 

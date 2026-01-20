@@ -1433,11 +1433,15 @@ export class WorkflowGeneratorService {
     const baseUrl = n8nUrl.replace(/\/$/, '');
     let lastError: any = null;
 
+    // Remove 'active' field from workflow as it's read-only in n8n API
+    // Workflows need to be activated separately after creation
+    const { active: _active, ...workflowWithoutActive } = workflow;
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await axios.post(
           `${baseUrl}/api/v1/workflows`,
-          workflow,
+          workflowWithoutActive,
           {
             headers: {
               'X-N8N-API-KEY': apiKey,

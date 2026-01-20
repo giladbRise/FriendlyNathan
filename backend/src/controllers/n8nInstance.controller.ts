@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 // Validation schemas
 const createInstanceSchema = z.object({
-  name: z.string().min(1, 'Instance name is required').max(255, 'Name too long'),
+  name: z.string().max(255, 'Name too long').optional(),
   url: z.string().url('Invalid URL format').max(500, 'URL too long'),
   apiKey: z.string().min(1, 'API key is required'),
   isDefault: z.boolean().optional().default(false),
@@ -158,11 +158,22 @@ export const createInstance = async (req: Request, res: Response): Promise<void>
     // Encrypt API key
     const apiKeyEncrypted = encrypt(validatedData.apiKey);
 
+    // Auto-generate name from URL if not provided
+    let instanceName = validatedData.name;
+    if (!instanceName || instanceName.trim() === '') {
+      try {
+        const urlObj = new URL(validatedData.url);
+        instanceName = urlObj.hostname.replace(/^(www\.|n8n\.)/, '').split('.')[0] || 'n8n Instance';
+      } catch {
+        instanceName = 'n8n Instance';
+      }
+    }
+
     // Create instance
     const instance = await prisma.n8nInstance.create({
       data: {
         userId,
-        name: validatedData.name,
+        name: instanceName,
         url: validatedData.url,
         apiKeyEncrypted,
         isDefault: validatedData.isDefault,
