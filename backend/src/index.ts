@@ -10,6 +10,7 @@ import n8nInstanceRoutes from './routes/n8nInstance.routes';
 import workflowRoutes from './routes/workflow.routes';
 import adminRoutes from './routes/admin.routes';
 import credentialGuidanceRoutes from './routes/credentialGuidance.routes';
+import publicRoutes from './routes/public.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -45,6 +46,9 @@ app.use('/api/n8n-instances', n8nInstanceRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/credentials/guidance', credentialGuidanceRoutes);
+
+// Public routes (no authentication required)
+app.use('/api/public', publicRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

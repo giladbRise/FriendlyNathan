@@ -14,6 +14,7 @@ import AdminCredentialGuidance from './pages/AdminCredentialGuidance';
 import InstancesPage from './pages/InstancesPage';
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage';
 import WorkflowDetailPage from './pages/WorkflowDetailPage';
+import SimplifiedWorkflowPage from './pages/SimplifiedWorkflowPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -26,10 +27,16 @@ function AppRoutes() {
       <SkipLink />
       <PageTransition>
       <Routes>
+        {/* Simplified workflow page - no auth required */}
+        <Route path="/" element={<SimplifiedWorkflowPage />} />
+
+        {/* Legacy auth routes - still available if needed */}
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Protected routes (still available for authenticated users) */}
         <Route
           path="/dashboard"
           element={
@@ -110,7 +117,6 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </PageTransition>
