@@ -260,6 +260,49 @@ export const changePassword = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Refresh JWT token - issues a new token with extended expiration
+ */
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    // Get current user to ensure they're still active
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Account is inactive' });
+    }
+
+    // Generate new JWT token with fresh expiration
+    const newToken = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+    );
+
+    res.json({
+      message: 'Token refreshed successfully',
+      token: newToken,
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const updateProfile = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
