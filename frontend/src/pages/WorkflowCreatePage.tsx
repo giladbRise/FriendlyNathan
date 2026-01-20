@@ -14,6 +14,13 @@ interface N8nInstance {
   lastUsedAt: string | null;
 }
 
+interface CredentialRequirement {
+  type: string;
+  displayName: string;
+  instructions: string;
+  documentationUrl?: string;
+}
+
 interface GenerationResult {
   generationId: string;
   success: boolean;
@@ -21,6 +28,7 @@ interface GenerationResult {
   n8nWorkflowUrl?: string;
   nodesUsed?: number;
   error?: string;
+  credentials?: CredentialRequirement[];
 }
 
 const WorkflowCreatePage: React.FC = () => {
@@ -561,6 +569,13 @@ const WorkflowCreatePage: React.FC = () => {
                     >
                       Send Email
                     </button>
+                    <button
+                      onClick={() => setWorkflowDescription('Get data from Google Sheets and send to Slack')}
+                      className="text-xs px-3 py-1 bg-yellow-100 hover:bg-yellow-200 rounded-full text-yellow-800"
+                      disabled={generating}
+                    >
+                      Google Sheets + Slack (requires credentials)
+                    </button>
                   </div>
                 </div>
 
@@ -610,6 +625,40 @@ const WorkflowCreatePage: React.FC = () => {
                         </p>
                       </div>
                     </div>
+
+                    {/* Credentials Required Section */}
+                    {generationResult.credentials && generationResult.credentials.length > 0 && (
+                      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <h4 className="text-lg font-semibold text-yellow-800 mb-3">
+                          Credentials Required
+                        </h4>
+                        <p className="text-sm text-yellow-700 mb-4">
+                          This workflow requires the following credentials to be configured in n8n:
+                        </p>
+                        <div className="space-y-4">
+                          {generationResult.credentials.map((cred, index) => (
+                            <div key={index} className="bg-white p-3 rounded border border-yellow-200">
+                              <h5 className="font-semibold text-yellow-900 mb-1">
+                                {cred.displayName}
+                              </h5>
+                              <p className="text-sm text-yellow-800 mb-2">
+                                {cred.instructions}
+                              </p>
+                              {cred.documentationUrl && (
+                                <a
+                                  href={cred.documentationUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:text-blue-700 underline"
+                                >
+                                  View Documentation ↗
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <a
                       href={generationResult.n8nWorkflowUrl}
