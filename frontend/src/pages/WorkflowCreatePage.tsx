@@ -276,12 +276,17 @@ const WorkflowCreatePage: React.FC = () => {
     } catch (err: any) {
       console.error('Error generating workflow:', err);
       setGenerating(false);
-      // Handle rate limit error specifically
-      if (err.response?.status === 429) {
-        const retryAfter = err.response?.data?.retryAfter || '15 minutes';
+      // Handle different error types with user-friendly messages
+      if (!err.response) {
+        // Network error - no response from server
+        setError('Connection failed, please check your network and try again.');
+      } else if (err.response.status === 429) {
+        const retryAfter = err.response.data?.retryAfter || '15 minutes';
         setError(`Rate limit exceeded, please wait ${retryAfter} before generating another workflow.`);
+      } else if (err.response.status >= 500) {
+        setError('Server error. Please try again later or contact support.');
       } else {
-        setError(err.response?.data?.error || 'Failed to generate workflow');
+        setError(err.response.data?.error || 'Failed to generate workflow. Please try again.');
       }
     }
   };
