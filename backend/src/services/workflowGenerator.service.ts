@@ -557,12 +557,43 @@ export class WorkflowGeneratorService {
   /**
    * Get user's workflow history
    */
-  async getHistory(userId: string, page: number = 1, limit: number = 10) {
+  async getHistory(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+    filters?: {
+      startDate?: Date;
+      endDate?: Date;
+      status?: string;
+    }
+  ) {
     const skip = (page - 1) * limit;
+
+    // Build where clause with filters
+    const where: any = { userId };
+
+    // Date range filter
+    if (filters?.startDate || filters?.endDate) {
+      where.createdAt = {};
+      if (filters.startDate) {
+        where.createdAt.gte = filters.startDate;
+      }
+      if (filters.endDate) {
+        // Set end date to end of day
+        const endOfDay = new Date(filters.endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
+    }
+
+    // Status filter
+    if (filters?.status && filters.status !== 'all') {
+      where.status = filters.status;
+    }
 
     const [generations, total] = await Promise.all([
       prisma.workflowGeneration.findMany({
-        where: { userId },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -572,7 +603,7 @@ export class WorkflowGeneratorService {
           },
         },
       }),
-      prisma.workflowGeneration.count({ where: { userId } }),
+      prisma.workflowGeneration.count({ where }),
     ]);
 
     return {

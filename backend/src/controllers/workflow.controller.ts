@@ -77,7 +77,16 @@ export const getHistory = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
-    const result = await workflowGeneratorService.getHistory(userId, page, limit);
+    // Date filters
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const status = req.query.status as string | undefined;
+
+    const result = await workflowGeneratorService.getHistory(userId, page, limit, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      status,
+    });
 
     res.json(result);
   } catch (error) {

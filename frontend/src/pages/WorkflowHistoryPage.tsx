@@ -41,16 +41,31 @@ const WorkflowHistoryPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
+  // Filter states
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+
   useEffect(() => {
     fetchHistory();
-  }, [page]);
+  }, [page, startDate, endDate, statusFilter]);
 
   const fetchHistory = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
+
+      // Build query params
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '10');
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
+
       const response = await axios.get<HistoryResponse>(
-        `http://localhost:3000/api/workflows/history?page=${page}&limit=10`,
+        `http://localhost:3000/api/workflows/history?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -65,6 +80,15 @@ const WorkflowHistoryPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const clearFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setStatusFilter('all');
+    setPage(1);
+  };
+
+  const hasActiveFilters = startDate || endDate || statusFilter !== 'all';
 
   const handleLogout = () => {
     logout();
@@ -175,13 +199,89 @@ const WorkflowHistoryPage: React.FC = () => {
                 View your previous workflow generation attempts
               </p>
             </div>
-            <button
-              onClick={() => navigate('/workflow/create')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
-            >
-              + Create New Workflow
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  showFilters || hasActiveFilters
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {hasActiveFilters ? '✓ Filters Active' : 'Filter'}
+              </button>
+              <button
+                onClick={() => navigate('/workflow/create')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+              >
+                + Create New Workflow
+              </button>
+            </div>
           </div>
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="px-3 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
