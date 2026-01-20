@@ -151,28 +151,28 @@ const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navigation />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Profile Information</h2>
+        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+          <h2 className="text-2xl font-bold text-foreground mb-4">Profile Information</h2>
 
           <form onSubmit={handleProfileSubmit} className="space-y-4">
             {profileError && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+              <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-md">
                 {profileError}
               </div>
             )}
 
             {profileSuccess && (
-              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md">
+              <div className="bg-success/10 border border-success/30 text-success px-4 py-3 rounded-md">
                 {profileSuccess}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-1">
                 Email
               </label>
               <input
@@ -180,13 +180,13 @@ const ProfilePage: React.FC = () => {
                 id="email"
                 value={user?.email || ''}
                 disabled
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
+                className="w-full px-3 py-2 border border-border rounded-md bg-input text-muted-foreground cursor-not-allowed"
               />
-              <p className="mt-1 text-sm text-gray-500">Email cannot be changed</p>
+              <p className="mt-1 text-sm text-muted-foreground">Email cannot be changed</p>
             </div>
 
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="firstName" className="block text-sm font-medium text-muted-foreground mb-1">
                 First Name
               </label>
               <input
@@ -195,13 +195,13 @@ const ProfilePage: React.FC = () => {
                 name="firstName"
                 value={profileData.firstName}
                 onChange={handleProfileChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={isProfileSubmitting}
               />
             </div>
 
             <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="lastName" className="block text-sm font-medium text-muted-foreground mb-1">
                 Last Name
               </label>
               <input
@@ -210,44 +210,44 @@ const ProfilePage: React.FC = () => {
                 name="lastName"
                 value={profileData.lastName}
                 onChange={handleProfileChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={isProfileSubmitting}
               />
             </div>
 
             <div>
-              <span className="text-sm font-medium text-gray-700">Role:</span>
-              <p className="text-gray-900 capitalize mt-1">{user?.role}</p>
+              <span className="text-sm font-medium text-muted-foreground">Role:</span>
+              <p className="text-foreground capitalize mt-1">{user?.role}</p>
             </div>
 
             <button
               type="submit"
               disabled={isProfileSubmitting}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isProfileSubmitting ? 'Saving...' : 'Save Profile'}
             </button>
           </form>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Change Password</h2>
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h2 className="text-2xl font-bold text-foreground mb-4">Change Password</h2>
 
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             {passwordError && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+              <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-md">
                 {passwordError}
               </div>
             )}
 
             {passwordSuccess && (
-              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md">
+              <div className="bg-success/10 border border-success/30 text-success px-4 py-3 rounded-md">
                 {passwordSuccess}
               </div>
             )}
 
             <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-muted-foreground mb-1">
                 Current Password
               </label>
               <input
@@ -256,13 +256,13 @@ const ProfilePage: React.FC = () => {
                 name="currentPassword"
                 value={passwordData.currentPassword}
                 onChange={handlePasswordChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={isPasswordSubmitting}
               />
             </div>
 
             <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="newPassword" className="block text-sm font-medium text-muted-foreground mb-1">
                 New Password
               </label>
               <input
@@ -271,16 +271,16 @@ const ProfilePage: React.FC = () => {
                 name="newPassword"
                 value={passwordData.newPassword}
                 onChange={handlePasswordChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={isPasswordSubmitting}
               />
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Min 8 chars, must include uppercase, lowercase, and number
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-muted-foreground mb-1">
                 Confirm New Password
               </label>
               <input
@@ -289,7 +289,7 @@ const ProfilePage: React.FC = () => {
                 name="confirmPassword"
                 value={passwordData.confirmPassword}
                 onChange={handlePasswordChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={isPasswordSubmitting}
               />
             </div>
@@ -297,7 +297,7 @@ const ProfilePage: React.FC = () => {
             <button
               type="submit"
               disabled={isPasswordSubmitting}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isPasswordSubmitting ? 'Changing Password...' : 'Change Password'}
             </button>
