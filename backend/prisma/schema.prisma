@@ -38,9 +38,26 @@ model User {
   // Relations
   n8nInstances       N8nInstance[]
   workflowGenerations WorkflowGeneration[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model N8nInstance {
