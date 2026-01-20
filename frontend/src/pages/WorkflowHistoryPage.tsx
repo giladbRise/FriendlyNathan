@@ -50,9 +50,13 @@ const WorkflowHistoryPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
+  // Sort states
+  const [sortBy, setSortBy] = useState<'date' | 'status' | 'duration'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   useEffect(() => {
     fetchHistory();
-  }, [page, startDate, endDate, statusFilter, searchQuery]);
+  }, [page, startDate, endDate, statusFilter, searchQuery, sortBy, sortOrder]);
 
   const fetchHistory = async () => {
     try {
@@ -67,6 +71,8 @@ const WorkflowHistoryPage: React.FC = () => {
       if (endDate) params.append('endDate', endDate);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       if (searchQuery) params.append('search', searchQuery);
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
 
       const response = await axios.get<HistoryResponse>(
         `http://localhost:3000/api/workflows/history?${params.toString()}`,
@@ -112,6 +118,23 @@ const WorkflowHistoryPage: React.FC = () => {
   };
 
   const hasActiveFilters = startDate || endDate || statusFilter !== 'all' || searchQuery;
+
+  const handleSort = (column: 'date' | 'status' | 'duration') => {
+    if (sortBy === column) {
+      // Toggle sort order if same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to descending for date, ascending for others
+      setSortBy(column);
+      setSortOrder(column === 'date' ? 'desc' : 'asc');
+    }
+    setPage(1);
+  };
+
+  const getSortIndicator = (column: 'date' | 'status' | 'duration') => {
+    if (sortBy !== column) return null;
+    return sortOrder === 'asc' ? ' ▲' : ' ▼';
+  };
 
   // Toast state for copy success
   const [copySuccess, setCopySuccess] = useState(false);
@@ -361,20 +384,29 @@ const WorkflowHistoryPage: React.FC = () => {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          onClick={() => handleSort('date')}
+                        >
+                          Date{getSortIndicator('date')}
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Description
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          onClick={() => handleSort('status')}
+                        >
+                          Status{getSortIndicator('status')}
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           n8n Instance
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Duration
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                          onClick={() => handleSort('duration')}
+                        >
+                          Duration{getSortIndicator('duration')}
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions

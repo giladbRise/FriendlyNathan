@@ -1435,6 +1435,8 @@ export class WorkflowGeneratorService {
       endDate?: Date;
       status?: string;
       search?: string;
+      sortBy?: 'date' | 'status' | 'duration';
+      sortOrder?: 'asc' | 'desc';
     }
   ) {
     const skip = (page - 1) * limit;
@@ -1469,10 +1471,27 @@ export class WorkflowGeneratorService {
       };
     }
 
+    // Build orderBy based on sortBy and sortOrder
+    let orderBy: any = { createdAt: 'desc' }; // Default
+    if (filters?.sortBy) {
+      const order = filters.sortOrder || 'desc';
+      switch (filters.sortBy) {
+        case 'date':
+          orderBy = { createdAt: order };
+          break;
+        case 'status':
+          orderBy = { status: order };
+          break;
+        case 'duration':
+          orderBy = { durationMs: order };
+          break;
+      }
+    }
+
     const [generations, total] = await Promise.all([
       prisma.workflowGeneration.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
         include: {

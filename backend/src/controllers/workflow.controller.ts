@@ -124,11 +124,17 @@ export const getHistory = async (req: Request, res: Response) => {
     const status = req.query.status as string | undefined;
     const search = req.query.search as string | undefined;
 
+    // Sorting
+    const sortBy = req.query.sortBy as string | undefined;
+    const sortOrder = req.query.sortOrder as string | undefined;
+
     const result = await workflowGeneratorService.getHistory(userId, page, limit, {
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       status,
       search,
+      sortBy: sortBy as 'date' | 'status' | 'duration' | undefined,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
 
     res.json(result);
