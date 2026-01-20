@@ -39,6 +39,7 @@ model User {
   n8nInstances       N8nInstance[]
   workflowGenerations WorkflowGeneration[]
   passwordResetTokens PasswordResetToken[]
+  activities         UserActivity[]
 
   @@index([email])
   @@map("users")
@@ -134,4 +135,31 @@ model NodeCache {
   @@index([n8nUrl])
   @@index([expiresAt])
   @@map("node_cache")
+}
+
+enum ActivityType {
+  workflow_created
+  workflow_failed
+  instance_added
+  instance_updated
+  instance_deleted
+  profile_updated
+  login
+}
+
+model UserActivity {
+  id          String       @id @default(uuid())
+  userId      String       @map("user_id")
+  activityType ActivityType @map("activity_type")
+  description String       @db.VarChar(500)
+  metadata    Json?        @map("metadata")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([activityType])
+  @@map("user_activities")
 }
