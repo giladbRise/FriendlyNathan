@@ -13,6 +13,7 @@ import AdminAuditLog from './pages/AdminAuditLog';
 import InstancesPage from './pages/InstancesPage';
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage';
 import WorkflowDetailPage from './pages/WorkflowDetailPage';
+import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 
@@ -98,6 +99,7 @@ function App() {
             }
           />
           <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+
+interface LocationState {
+  from?: string;
+}
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  // Get the redirect path from location state (set by ProtectedRoute)
+  const locationState = location.state as LocationState | null;
+  const redirectPath = locationState?.from || '/dashboard';
 
   const [formData, setFormData] = useState({
     email: '',
@@ -33,7 +42,8 @@ const LoginPage: React.FC = () => {
 
     try {
       await login(formData.email, formData.password);
-      navigate('/dashboard');
+      // Navigate to the page they originally requested, or dashboard
+      navigate(redirectPath, { replace: true });
     } catch (error: any) {
       setError(error.message);
     } finally {
