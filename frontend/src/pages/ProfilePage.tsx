@@ -4,71 +4,62 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
+  const [profileData, setProfileData] = useState({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+  });
+
+  const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
 
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
+
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (error) setError('');
-    if (success) setSuccess('');
+    setProfileData((prev) => ({ ...prev, [name]: value }));
+    if (profileError) setProfileError('');
+    if (profileSuccess) setProfileSuccess('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
+    if (passwordError) setPasswordError('');
+    if (passwordSuccess) setPasswordSuccess('');
+  };
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setProfileError('');
+    setProfileSuccess('');
 
     // Validation
-    if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
-      setError('Please fill in all fields');
+    if (!profileData.firstName || !profileData.lastName) {
+      setProfileError('Please fill in both first and last name');
       return;
     }
 
-    if (formData.newPassword !== formData.confirmPassword) {
-      setError('New passwords do not match');
-      return;
-    }
-
-    if (formData.newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
-      return;
-    }
-
-    if (!/[A-Z]/.test(formData.newPassword)) {
-      setError('New password must contain at least one uppercase letter');
-      return;
-    }
-
-    if (!/[a-z]/.test(formData.newPassword)) {
-      setError('New password must contain at least one lowercase letter');
-      return;
-    }
-
-    if (!/[0-9]/.test(formData.newPassword)) {
-      setError('New password must contain at least one number');
-      return;
-    }
-
-    setIsSubmitting(true);
+    setIsProfileSubmitting(true);
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(
-        'http://localhost:3000/api/auth/change-password',
+      const response = await axios.put(
+        'http://localhost:3000/api/auth/profile',
         {
-          currentPassword: formData.currentPassword,
-          newPassword: formData.newPassword,
+          firstName: profileData.firstName,
+          lastName: profileData.lastName,
         },
         {
           headers: {
@@ -77,20 +68,86 @@ const ProfilePage: React.FC = () => {
         }
       );
 
-      setSuccess('Password changed successfully!');
-      setFormData({
+      setProfileSuccess('Profile updated successfully!');
+      updateUser(response.data.user);
+    } catch (error: any) {
+      setProfileError(
+        error.response?.data?.error ||
+        error.response?.data?.details?.[0]?.message ||
+        'Failed to update profile'
+      );
+    } finally {
+      setIsProfileSubmitting(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('Please fill in all fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters');
+      return;
+    }
+
+    if (!/[A-Z]/.test(passwordData.newPassword)) {
+      setPasswordError('New password must contain at least one uppercase letter');
+      return;
+    }
+
+    if (!/[a-z]/.test(passwordData.newPassword)) {
+      setPasswordError('New password must contain at least one lowercase letter');
+      return;
+    }
+
+    if (!/[0-9]/.test(passwordData.newPassword)) {
+      setPasswordError('New password must contain at least one number');
+      return;
+    }
+
+    setIsPasswordSubmitting(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        'http://localhost:3000/api/auth/change-password',
+        {
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setPasswordSuccess('Password changed successfully!');
+      setPasswordData({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
     } catch (error: any) {
-      setError(
+      setPasswordError(
         error.response?.data?.error ||
         error.response?.data?.details?.[0]?.message ||
         'Failed to change password'
       );
     } finally {
-      setIsSubmitting(false);
+      setIsPasswordSubmitting(false);
     }
   };
 
@@ -141,37 +198,92 @@ const ProfilePage: React.FC = () => {
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Profile Information</h2>
-          <div className="space-y-3">
+
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            {profileError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+                {profileError}
+              </div>
+            )}
+
+            {profileSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md">
+                {profileSuccess}
+              </div>
+            )}
+
             <div>
-              <span className="text-sm font-medium text-gray-700">Email:</span>
-              <p className="text-gray-900">{user?.email}</p>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={user?.email || ''}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
+              />
+              <p className="mt-1 text-sm text-gray-500">Email cannot be changed</p>
             </div>
+
             <div>
-              <span className="text-sm font-medium text-gray-700">Name:</span>
-              <p className="text-gray-900">
-                {user?.firstName} {user?.lastName}
-              </p>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                First Name
+              </label>
+              <input
+                type="text"
+                id="firstName"
+                name="firstName"
+                value={profileData.firstName}
+                onChange={handleProfileChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isProfileSubmitting}
+              />
             </div>
+
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name
+              </label>
+              <input
+                type="text"
+                id="lastName"
+                name="lastName"
+                value={profileData.lastName}
+                onChange={handleProfileChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isProfileSubmitting}
+              />
+            </div>
+
             <div>
               <span className="text-sm font-medium text-gray-700">Role:</span>
-              <p className="text-gray-900 capitalize">{user?.role}</p>
+              <p className="text-gray-900 capitalize mt-1">{user?.role}</p>
             </div>
-          </div>
+
+            <button
+              type="submit"
+              disabled={isProfileSubmitting}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isProfileSubmitting ? 'Saving...' : 'Save Profile'}
+            </button>
+          </form>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Change Password</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            {passwordError && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-                {error}
+                {passwordError}
               </div>
             )}
 
-            {success && (
+            {passwordSuccess && (
               <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md">
-                {success}
+                {passwordSuccess}
               </div>
             )}
 
@@ -183,10 +295,10 @@ const ProfilePage: React.FC = () => {
                 type="password"
                 id="currentPassword"
                 name="currentPassword"
-                value={formData.currentPassword}
-                onChange={handleChange}
+                value={passwordData.currentPassword}
+                onChange={handlePasswordChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={isSubmitting}
+                disabled={isPasswordSubmitting}
               />
             </div>
 
@@ -198,10 +310,10 @@ const ProfilePage: React.FC = () => {
                 type="password"
                 id="newPassword"
                 name="newPassword"
-                value={formData.newPassword}
-                onChange={handleChange}
+                value={passwordData.newPassword}
+                onChange={handlePasswordChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={isSubmitting}
+                disabled={isPasswordSubmitting}
               />
               <p className="mt-1 text-sm text-gray-500">
                 Min 8 chars, must include uppercase, lowercase, and number
@@ -216,19 +328,19 @@ const ProfilePage: React.FC = () => {
                 type="password"
                 id="confirmPassword"
                 name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
+                value={passwordData.confirmPassword}
+                onChange={handlePasswordChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={isSubmitting}
+                disabled={isPasswordSubmitting}
               />
             </div>
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isPasswordSubmitting}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isSubmitting ? 'Changing Password...' : 'Change Password'}
+              {isPasswordSubmitting ? 'Changing Password...' : 'Change Password'}
             </button>
           </form>
         </div>

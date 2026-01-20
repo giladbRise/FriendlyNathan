@@ -34,6 +34,11 @@ const changePasswordSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number'),
 });
 
+const updateProfileSchema = z.object({
+  firstName: z.string().min(1, 'First name is required').max(100, 'First name too long'),
+  lastName: z.string().min(1, 'Last name is required').max(100, 'Last name too long'),
+});
+
 export const register = async (req: Request, res: Response) => {
   try {
     // Validate input
@@ -245,6 +250,56 @@ export const changePassword = async (req: Request, res: Response) => {
     }
 
     console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const validatedData = updateProfileSchema.parse(req.body);
+
+    // Get current user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update profile
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+    });
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.errors,
+      });
+    }
+
+    console.error('Update profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
