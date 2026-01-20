@@ -13,6 +13,43 @@ const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
 // Node type details cache TTL (4 hours - these don't change often)
 const NODE_TYPES_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
+/**
+ * Generate a unique workflow name based on description keywords
+ * Format: [Type] Workflow - [Date] [Time] #[RandomSuffix]
+ */
+function generateUniqueWorkflowName(description: string, prefix?: string): string {
+  const lowerDesc = description.toLowerCase();
+  const keywords: string[] = [];
+
+  // Use provided prefix or detect from description
+  if (!prefix) {
+    if (lowerDesc.includes('email') || lowerDesc.includes('gmail')) keywords.push('Email');
+    if (lowerDesc.includes('slack')) keywords.push('Slack');
+    if (lowerDesc.includes('http') || lowerDesc.includes('webhook') || lowerDesc.includes('api')) keywords.push('HTTP');
+    if (lowerDesc.includes('google sheet') || lowerDesc.includes('spreadsheet')) keywords.push('Sheets');
+    if (lowerDesc.includes('excel')) keywords.push('Excel');
+    if (lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('openai') || lowerDesc.includes('gpt')) keywords.push('AI');
+    if (lowerDesc.includes('summarize') || lowerDesc.includes('summary')) keywords.push('Summary');
+    if (lowerDesc.includes('schedule') || lowerDesc.includes('cron')) keywords.push('Scheduled');
+    if (lowerDesc.includes('database') || lowerDesc.includes('postgres') || lowerDesc.includes('mysql')) keywords.push('DB');
+    if (lowerDesc.includes('discord')) keywords.push('Discord');
+    if (lowerDesc.includes('telegram')) keywords.push('Telegram');
+    if (lowerDesc.includes('airtable')) keywords.push('Airtable');
+    if (lowerDesc.includes('notion')) keywords.push('Notion');
+    if (lowerDesc.includes('conditional') || lowerDesc.includes('if ') || lowerDesc.includes('switch')) keywords.push('Conditional');
+    if (lowerDesc.includes('loop') || lowerDesc.includes('each') || lowerDesc.includes('batch')) keywords.push('Loop');
+
+    prefix = keywords.length > 0 ? keywords.slice(0, 3).join(' + ') : 'Custom';
+  }
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 5);
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+
+  return `${prefix} Workflow - ${dateStr} ${timeStr} #${randomSuffix}`;
+}
+
 interface N8nNode {
   name: string;
   displayName: string;
@@ -1593,8 +1630,8 @@ export class WorkflowGeneratorService {
   /**
    * Generate a complex multi-node workflow with 10+ nodes
    */
-  private generateComplexWorkflow(_description: string): N8nWorkflow {
-    const workflowName = `Complex Workflow - ${new Date().toISOString().slice(0, 10)}`;
+  private generateComplexWorkflow(description: string): N8nWorkflow {
+    const workflowName = generateUniqueWorkflowName(description, 'Complex');
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};
 
@@ -1827,7 +1864,7 @@ export class WorkflowGeneratorService {
    */
   private generateConditionalWorkflow(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
-    const workflowName = `Conditional Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const workflowName = generateUniqueWorkflowName(description, 'Conditional');
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};
 
@@ -1978,7 +2015,7 @@ export class WorkflowGeneratorService {
    */
   private generateLoopWorkflow(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
-    const workflowName = `Loop Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const workflowName = generateUniqueWorkflowName(description, 'Loop');
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};
 
@@ -2112,7 +2149,7 @@ export class WorkflowGeneratorService {
    */
   private generateEmailProcessingWorkflow(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
-    const workflowName = `Email Processing Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const workflowName = generateUniqueWorkflowName(description, 'Email');
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};
 
@@ -2320,7 +2357,7 @@ return [{ json: { summary, emailCount, sender: '${senderName}' } }];`,
       return this.generateLoopWorkflow(description);
     }
 
-    const workflowName = `Generated Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const workflowName = generateUniqueWorkflowName(description);
 
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};

@@ -13,6 +13,40 @@ import axios, { AxiosError } from 'axios';
 const N8N_API_URL = process.env.N8N_API_URL || '';
 const N8N_API_KEY = process.env.N8N_API_KEY || '';
 
+// Node cache to store discovered nodes
+const NODE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache TTL
+interface NodeCache {
+  nodes: N8nNode[];
+  nodeTypes: Map<string, N8nNodeType>;
+  timestamp: number;
+}
+let nodeCache: NodeCache | null = null;
+
+interface N8nNodeType {
+  name: string;
+  displayName: string;
+  description?: string;
+  version: number;
+  properties: N8nNodeProperty[];
+  credentials?: N8nCredentialType[];
+  group?: string[];
+}
+
+interface N8nNodeProperty {
+  name: string;
+  displayName: string;
+  type: string;
+  default?: unknown;
+  required?: boolean;
+  description?: string;
+  options?: Array<{ name: string; value: string | number | boolean }>;
+}
+
+interface N8nCredentialType {
+  name: string;
+  required?: boolean;
+}
+
 interface N8nNode {
   name: string;
   displayName: string;
@@ -135,6 +169,75 @@ async function n8nRequest<T>(
     }
     throw error;
   }
+}
+
+/**
+ * Discover and cache all available nodes from n8n
+ * This ensures we have a complete picture of what nodes are available
+ * before generating workflows
+ */
+async function discoverAndCacheNodes(): Promise<NodeCache> {
+  // Return cached nodes if still valid
+  if (nodeCache && Date.now() - nodeCache.timestamp < NODE_CACHE_TTL_MS) {
+    console.error(`Using cached nodes (${nodeCache.nodes.length} nodes, cached ${Math.round((Date.now() - nodeCache.timestamp) / 1000)}s ago)`);
+    return nodeCache;
+  }
+
+  console.error('Discovering available n8n nodes...');
+
+  try {
+    // Fetch all nodes
+    const nodesResponse = await n8nRequest<{ data: N8nNode[] }>('GET', '/nodes');
+    const nodes = nodesResponse.data || [];
+
+    // Try to fetch node types with full schemas
+    const nodeTypes = new Map<string, N8nNodeType>();
+
+    try {
+      const nodeTypesResponse = await n8nRequest<{ data: N8nNodeType[] }>('GET', '/node-types');
+      const types = nodeTypesResponse.data || [];
+      for (const nodeType of types) {
+        nodeTypes.set(nodeType.name, nodeType);
+      }
+      console.error(`Fetched ${nodeTypes.size} node type configurations`);
+    } catch (nodeTypeError) {
+      console.error('Could not fetch node types (endpoint may not be available). Using basic node info only.');
+    }
+
+    // Create cache
+    nodeCache = {
+      nodes,
+      nodeTypes,
+      timestamp: Date.now(),
+    };
+
+    console.error(`Cached ${nodes.length} nodes, ${nodeTypes.size} with full schemas`);
+    return nodeCache;
+  } catch (error) {
+    console.error('Failed to discover nodes:', error);
+    // Return empty cache on error
+    return {
+      nodes: [],
+      nodeTypes: new Map(),
+      timestamp: Date.now(),
+    };
+  }
+}
+
+/**
+ * Get cached nodes or discover them if not cached
+ */
+async function getCachedNodes(): Promise<N8nNode[]> {
+  const cache = await discoverAndCacheNodes();
+  return cache.nodes;
+}
+
+/**
+ * Get node type details from cache
+ */
+async function getNodeTypeDetails(nodeType: string): Promise<N8nNodeType | undefined> {
+  const cache = await discoverAndCacheNodes();
+  return cache.nodeTypes.get(nodeType);
 }
 
 // Analyze description and suggest relevant nodes
@@ -399,6 +502,43 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         required: ['workflowId'],
       },
     },
+    {
+      name: 'n8n_get_node_types',
+      description: 'Get detailed node type information including all available parameters, options, and credential requirements. This is essential for understanding what options are available before creating workflows. Results are cached for 1 hour.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          nodeTypes: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of node type names to get details for (e.g., ["n8n-nodes-base.httpRequest", "n8n-nodes-base.slack"]). If empty, returns all available node types.',
+          },
+          includeProperties: {
+            type: 'boolean',
+            description: 'If true, include full property schemas with options and defaults (default: true)',
+          },
+        },
+        required: [],
+      },
+    },
+    {
+      name: 'n8n_refresh_node_cache',
+      description: 'Force refresh the node cache to get the latest available nodes from n8n. Use this if new nodes have been installed.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {},
+        required: [],
+      },
+    },
+    {
+      name: 'n8n_get_cache_status',
+      description: 'Get information about the current node cache status including how many nodes are cached and when the cache was last updated.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {},
+        required: [],
+      },
+    },
   ];
 
   return { tools };
@@ -412,8 +552,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case 'n8n_list_nodes': {
         const { category, search } = (args as { category?: string; search?: string }) || {};
-        const response = await n8nRequest<{ data: N8nNode[] }>('GET', '/nodes');
-        let nodes = response.data || [];
+        // Use cached nodes instead of direct API call
+        let nodes = await getCachedNodes();
 
         // Apply filters
         if (category) {
@@ -742,6 +882,129 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'n8n_get_node_types': {
+        const { nodeTypes: requestedTypes, includeProperties } = (args as { nodeTypes?: string[]; includeProperties?: boolean }) || {};
+        const includeProps = includeProperties !== false; // Default to true
+
+        const cache = await discoverAndCacheNodes();
+        const result: {
+          success: boolean;
+          nodeCount: number;
+          cacheAge: number;
+          nodeTypes: Array<{
+            name: string;
+            displayName: string;
+            description?: string;
+            version: number;
+            category?: string;
+            credentials?: N8nCredentialType[];
+            properties?: N8nNodeProperty[];
+          }>;
+        } = {
+          success: true,
+          nodeCount: 0,
+          cacheAge: Math.round((Date.now() - cache.timestamp) / 1000),
+          nodeTypes: [],
+        };
+
+        // If specific node types requested, return those
+        // Otherwise return all cached node types
+        const typesToReturn = requestedTypes && requestedTypes.length > 0
+          ? requestedTypes
+          : Array.from(cache.nodeTypes.keys());
+
+        for (const nodeTypeName of typesToReturn) {
+          const nodeType = cache.nodeTypes.get(nodeTypeName);
+          if (nodeType) {
+            result.nodeTypes.push({
+              name: nodeType.name,
+              displayName: nodeType.displayName,
+              description: nodeType.description,
+              version: nodeType.version,
+              category: nodeType.group?.[0],
+              credentials: nodeType.credentials,
+              properties: includeProps ? nodeType.properties : undefined,
+            });
+          } else {
+            // Try to find basic node info
+            const basicNode = cache.nodes.find(n => n.name === nodeTypeName);
+            if (basicNode) {
+              result.nodeTypes.push({
+                name: basicNode.name,
+                displayName: basicNode.displayName,
+                description: basicNode.description,
+                version: basicNode.version,
+                category: basicNode.group?.[0],
+                credentials: basicNode.credentials?.map(c => ({ name: c })),
+              });
+            }
+          }
+        }
+
+        result.nodeCount = result.nodeTypes.length;
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'n8n_refresh_node_cache': {
+        // Clear cache to force refresh
+        nodeCache = null;
+
+        // Re-discover nodes
+        const cache = await discoverAndCacheNodes();
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: true,
+                message: 'Node cache refreshed successfully',
+                nodeCount: cache.nodes.length,
+                nodeTypesWithSchemas: cache.nodeTypes.size,
+                timestamp: new Date(cache.timestamp).toISOString(),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'n8n_get_cache_status': {
+        const cacheStatus = nodeCache
+          ? {
+              isCached: true,
+              nodeCount: nodeCache.nodes.length,
+              nodeTypesWithSchemas: nodeCache.nodeTypes.size,
+              cacheTimestamp: new Date(nodeCache.timestamp).toISOString(),
+              cacheAgeSeconds: Math.round((Date.now() - nodeCache.timestamp) / 1000),
+              cacheTtlSeconds: Math.round(NODE_CACHE_TTL_MS / 1000),
+              expiresInSeconds: Math.max(0, Math.round((nodeCache.timestamp + NODE_CACHE_TTL_MS - Date.now()) / 1000)),
+            }
+          : {
+              isCached: false,
+              message: 'No nodes cached. Call n8n_list_nodes or n8n_get_node_types to populate cache.',
+            };
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: true,
+                cache: cacheStatus,
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
       default:
         return {
           content: [
@@ -753,10 +1016,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 availableTools: [
                   'n8n_list_nodes',
                   'n8n_get_node_details',
+                  'n8n_get_node_types',
                   'n8n_suggest_workflow',
                   'n8n_create_workflow',
                   'n8n_get_workflow',
                   'n8n_list_workflows',
+                  'n8n_refresh_node_cache',
+                  'n8n_get_cache_status',
                   'n8n_activate_workflow',
                   'n8n_delete_workflow',
                   'n8n_execute_workflow',
@@ -788,8 +1054,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('n8n MCP Server v2.0.0 started (using @modelcontextprotocol/sdk v1.25.3)');
-  console.error('Available tools: n8n_list_nodes, n8n_get_node_details, n8n_suggest_workflow, n8n_create_workflow, n8n_get_workflow, n8n_list_workflows, n8n_activate_workflow, n8n_delete_workflow, n8n_execute_workflow');
+  console.error('n8n MCP Server v3.0.0 started (using @modelcontextprotocol/sdk v1.25.3)');
+  console.error('Node caching enabled with 1 hour TTL');
+  console.error('Available tools:');
+  console.error('  Node Discovery: n8n_list_nodes, n8n_get_node_details, n8n_get_node_types');
+  console.error('  Cache Management: n8n_refresh_node_cache, n8n_get_cache_status');
+  console.error('  Workflow Planning: n8n_suggest_workflow');
+  console.error('  Workflow CRUD: n8n_create_workflow, n8n_get_workflow, n8n_list_workflows');
+  console.error('  Workflow Control: n8n_activate_workflow, n8n_delete_workflow, n8n_execute_workflow');
 }
 
 main().catch((error) => {

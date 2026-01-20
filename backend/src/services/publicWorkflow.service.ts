@@ -9,6 +9,48 @@ const prisma = new PrismaClient();
 // Cache TTL in milliseconds (1 hour)
 const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Generate a unique workflow name based on description keywords
+ * Format: [Type] Workflow - [Date] [Time] #[RandomSuffix]
+ * Examples:
+ *   - "Email Workflow - 2026-01-20 16:45 #abc123"
+ *   - "Slack + HTTP Workflow - 2026-01-20 16:45 #xyz789"
+ */
+function generateUniqueWorkflowName(description: string): string {
+  const lowerDesc = description.toLowerCase();
+  const keywords: string[] = [];
+
+  // Detect main services/actions from description
+  if (lowerDesc.includes('email') || lowerDesc.includes('gmail')) keywords.push('Email');
+  if (lowerDesc.includes('slack')) keywords.push('Slack');
+  if (lowerDesc.includes('http') || lowerDesc.includes('webhook') || lowerDesc.includes('api')) keywords.push('HTTP');
+  if (lowerDesc.includes('google sheet') || lowerDesc.includes('spreadsheet')) keywords.push('Sheets');
+  if (lowerDesc.includes('excel')) keywords.push('Excel');
+  if (lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('openai') || lowerDesc.includes('gpt')) keywords.push('AI');
+  if (lowerDesc.includes('summarize') || lowerDesc.includes('summary')) keywords.push('Summary');
+  if (lowerDesc.includes('schedule') || lowerDesc.includes('cron')) keywords.push('Scheduled');
+  if (lowerDesc.includes('database') || lowerDesc.includes('postgres') || lowerDesc.includes('mysql')) keywords.push('DB');
+  if (lowerDesc.includes('discord')) keywords.push('Discord');
+  if (lowerDesc.includes('telegram')) keywords.push('Telegram');
+  if (lowerDesc.includes('airtable')) keywords.push('Airtable');
+  if (lowerDesc.includes('notion')) keywords.push('Notion');
+
+  // Build prefix from keywords (max 3)
+  const prefix = keywords.length > 0
+    ? keywords.slice(0, 3).join(' + ')
+    : 'Custom';
+
+  // Get current date and time
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10); // 2026-01-20
+  const timeStr = now.toTimeString().slice(0, 5); // 16:45
+
+  // Generate a random suffix for uniqueness
+  const randomSuffix = Math.random().toString(36).substring(2, 8); // abc123
+
+  return `${prefix} Workflow - ${dateStr} ${timeStr} #${randomSuffix}`;
+}
+
 interface N8nNode {
   name: string;
   displayName: string;
@@ -544,7 +586,7 @@ export class PublicWorkflowService {
    */
   private generateWorkflowFromDescription(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
-    const workflowName = `Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const workflowName = generateUniqueWorkflowName(description);
 
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};
@@ -711,7 +753,7 @@ export class PublicWorkflowService {
    */
   private generateEmailProcessingWorkflow(description: string): N8nWorkflow {
     const lowerDesc = description.toLowerCase();
-    const workflowName = `Email Workflow - ${new Date().toISOString().slice(0, 10)}`;
+    const workflowName = generateUniqueWorkflowName(description);
     const nodes: WorkflowNode[] = [];
     const connections: Record<string, WorkflowConnection> = {};
 
