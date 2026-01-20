@@ -192,7 +192,7 @@ const AdminDashboard: React.FC = () => {
               {/* Quick Actions */}
               <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <button
                     onClick={() => navigate('/admin/users')}
                     className="bg-white rounded-lg shadow p-6 text-left hover:bg-gray-50 transition-colors"
@@ -207,6 +207,14 @@ const AdminDashboard: React.FC = () => {
                   >
                     <h4 className="font-medium text-gray-900">View Audit Log</h4>
                     <p className="text-sm text-gray-500 mt-1">Review all workflow generation activity</p>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/admin/credentials')}
+                    className="bg-white rounded-lg shadow p-6 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <h4 className="font-medium text-gray-900">Credential Guidance</h4>
+                    <p className="text-sm text-gray-500 mt-1">Manage credential setup templates</p>
                   </button>
 
                   <button

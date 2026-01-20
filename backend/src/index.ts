@@ -9,6 +9,7 @@ import passwordResetRoutes from './routes/passwordReset.routes';
 import n8nInstanceRoutes from './routes/n8nInstance.routes';
 import workflowRoutes from './routes/workflow.routes';
 import adminRoutes from './routes/admin.routes';
+import credentialGuidanceRoutes from './routes/credentialGuidance.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -43,6 +44,7 @@ app.use('/api/password-reset', passwordResetRoutes);
 app.use('/api/n8n-instances', n8nInstanceRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/credentials/guidance', credentialGuidanceRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

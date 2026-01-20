@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
 import AdminAuditLog from './pages/AdminAuditLog';
+import AdminCredentialGuidance from './pages/AdminCredentialGuidance';
 import InstancesPage from './pages/InstancesPage';
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage';
 import WorkflowDetailPage from './pages/WorkflowDetailPage';
@@ -98,6 +99,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <AdminAuditLog />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/credentials"
+          element={
+            <AdminRoute>
+              <AdminCredentialGuidance />
             </AdminRoute>
           }
         />
