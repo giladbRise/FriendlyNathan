@@ -2,6 +2,7 @@ import axios from 'axios';
 import { io } from '../index';
 import { geminiService } from './gemini.service';
 import { PrismaClient } from '@prisma/client';
+import { workflowLogger } from './workflow-logger.service';
 
 const prisma = new PrismaClient();
 
@@ -250,12 +251,25 @@ export class PublicWorkflowService {
     n8nApiKey: string,
     description: string,
     socketId: string | undefined,
-    _startTime: number,
+    startTime: number,
     geminiApiKey?: string
   ) {
+    const hasGeminiKey = !!(geminiApiKey || geminiService.isAvailable());
+    let workflow: N8nWorkflow | undefined;
+
+    // Log generation start
+    workflowLogger.logGenerationStart(
+      generationId,
+      'public', // No user ID for public workflow
+      description,
+      n8nUrl,
+      hasGeminiKey
+    );
+
     try {
       // Check for cancellation
       if (this.isCancelled(generationId)) {
+        workflowLogger.info(generationId, 'CANCELLED', 'Generation cancelled before start');
         activeGenerations.delete(generationId);
         return;
       }
@@ -263,6 +277,14 @@ export class PublicWorkflowService {
       // Step 1: Discover nodes
       this.emitProgress(socketId, generationId, 'Discovering available nodes...', 15);
       const discoveryResult = await this.discoverNodes(n8nUrl, n8nApiKey);
+
+      // Log node discovery
+      workflowLogger.logNodeDiscovery(
+        generationId,
+        discoveryResult.nodeCount,
+        discoveryResult.fromCache,
+        discoveryResult.nodes.map(n => n.name).slice(0, 30)
+      );
 
       if (discoveryResult.fromCache) {
         this.emitProgress(socketId, generationId, `Using cached nodes (${discoveryResult.nodeCount} available)`, 20);
@@ -277,6 +299,11 @@ export class PublicWorkflowService {
 
       // Step 2: Generate workflow
       this.emitProgress(socketId, generationId, 'Analyzing description...', 30);
+
+      // Detect relevant node types from description
+      const relevantNodeTypes = this.detectRelevantNodeTypes(description);
+      workflowLogger.logRelevantNodeTypes(generationId, relevantNodeTypes);
+
       await this.delay(300);
 
       if (this.isCancelled(generationId)) {
@@ -287,27 +314,45 @@ export class PublicWorkflowService {
       this.emitProgress(socketId, generationId, 'Generating workflow...', 40);
 
       // Use Gemini AI if available
-      let workflow: N8nWorkflow;
-      const hasGeminiKey = geminiApiKey || geminiService.isAvailable();
+      let generationMethod: 'AI' | 'RULE_BASED' = 'RULE_BASED';
+      let aiExplanation: string | undefined;
 
       if (hasGeminiKey) {
         try {
           this.emitProgress(socketId, generationId, 'Using AI to understand your request...', 45);
+          workflowLogger.info(generationId, 'AI_GENERATION', 'Starting AI-based workflow generation');
+
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
             geminiApiKey
           );
           workflow = aiResult.workflow;
+          generationMethod = 'AI';
+          aiExplanation = aiResult.explanation;
+
+          workflowLogger.info(generationId, 'AI_SUCCESS', 'AI generation completed', {
+            nodeCount: aiResult.nodeCount,
+            explanation: aiResult.explanation,
+          });
         } catch (aiError: any) {
+          workflowLogger.warn(generationId, 'AI_FALLBACK', 'AI generation failed, falling back to rule-based', {
+            error: aiError.message,
+          });
           console.warn('AI generation failed, falling back to rule-based:', aiError.message);
           this.emitProgress(socketId, generationId, 'Using rule-based generation...', 45);
           workflow = this.generateWorkflowFromDescription(description);
+          generationMethod = 'RULE_BASED';
         }
       } else {
         this.emitProgress(socketId, generationId, 'Generating workflow...', 45);
+        workflowLogger.info(generationId, 'RULE_BASED', 'Using rule-based generation (no AI key)');
         workflow = this.generateWorkflowFromDescription(description);
+        generationMethod = 'RULE_BASED';
       }
+
+      // Log generated workflow
+      workflowLogger.logGeneratedWorkflow(generationId, workflow, generationMethod, aiExplanation);
 
       if (this.isCancelled(generationId)) {
         activeGenerations.delete(generationId);
@@ -317,17 +362,32 @@ export class PublicWorkflowService {
       // Step 3: Detect credentials
       this.emitProgress(socketId, generationId, 'Detecting required credentials...', 50);
       const credentials = this.detectCredentials(workflow.nodes);
+      workflowLogger.logCredentialsDetected(generationId, credentials);
 
       // Step 4: Validate workflow
       this.emitProgress(socketId, generationId, 'Validating workflow...', 55);
       const validationResult = this.validateWorkflow(workflow);
       if (!validationResult.valid) {
+        workflowLogger.error(generationId, 'VALIDATION', 'Workflow validation failed', {
+          error: validationResult.error,
+        });
         throw new Error(`Invalid workflow: ${validationResult.error}`);
       }
+      workflowLogger.info(generationId, 'VALIDATION', 'Workflow validation passed');
 
       // Step 5: Create in n8n
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
+      workflowLogger.info(generationId, 'N8N_CREATE', 'Sending workflow to n8n API');
+
       const n8nResult = await this.createWorkflowInN8n(n8nUrl, n8nApiKey, workflow, 3, socketId, generationId);
+
+      // Log n8n creation result
+      workflowLogger.logN8nCreation(
+        generationId,
+        n8nResult.success,
+        n8nResult.n8nWorkflowId,
+        n8nResult.error
+      );
 
       if (!n8nResult.success) {
         throw new Error(n8nResult.error || 'Failed to create workflow in n8n');
@@ -335,6 +395,9 @@ export class PublicWorkflowService {
 
       // Success!
       this.emitProgress(socketId, generationId, 'Workflow created successfully!', 100);
+
+      const durationMs = Date.now() - startTime;
+      workflowLogger.logGenerationComplete(generationId, description, workflow, durationMs, true);
 
       // Emit completion
       if (socketId) {
@@ -351,6 +414,11 @@ export class PublicWorkflowService {
       // Cleanup
       activeGenerations.delete(generationId);
     } catch (error: any) {
+      // Log the error
+      workflowLogger.error(generationId, 'GENERATION_ERROR', 'Workflow generation failed', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      });
       console.error('Workflow generation error:', error);
 
       // Emit error
@@ -402,6 +470,73 @@ export class PublicWorkflowService {
     }
 
     return { valid: true };
+  }
+
+  /**
+   * Detect which node types are likely needed based on description keywords
+   * This helps log what was requested vs what was generated
+   */
+  private detectRelevantNodeTypes(description: string): string[] {
+    const lowerDesc = description.toLowerCase();
+    const nodeTypes: Set<string> = new Set();
+
+    // Comprehensive keyword to node type mapping
+    const keywordMap: Array<{ keywords: string[]; nodeType: string }> = [
+      // Triggers
+      { keywords: ['webhook', 'http trigger', 'incoming'], nodeType: 'n8n-nodes-base.webhook' },
+      { keywords: ['schedule', 'cron', 'timer', 'every day', 'every hour', 'daily', 'hourly', 'weekly'], nodeType: 'n8n-nodes-base.scheduleTrigger' },
+
+      // HTTP & API
+      { keywords: ['http', 'request', 'api call', 'fetch', 'url', 'rest api', 'endpoint'], nodeType: 'n8n-nodes-base.httpRequest' },
+
+      // Communication
+      { keywords: ['slack', 'message slack', 'slack channel', 'slack message'], nodeType: 'n8n-nodes-base.slack' },
+      { keywords: ['email', 'gmail', 'inbox', 'mail', 'outlook', 'imap'], nodeType: 'n8n-nodes-base.gmail' },
+      { keywords: ['send email', 'smtp', 'mail send'], nodeType: 'n8n-nodes-base.emailSend' },
+      { keywords: ['discord', 'discord message'], nodeType: 'n8n-nodes-base.discord' },
+      { keywords: ['telegram', 'telegram message'], nodeType: 'n8n-nodes-base.telegram' },
+
+      // Spreadsheets & Documents
+      { keywords: ['google sheet', 'spreadsheet', 'sheets', 'google sheets'], nodeType: 'n8n-nodes-base.googleSheets' },
+      { keywords: ['excel', 'xlsx', 'xls', 'microsoft excel'], nodeType: 'n8n-nodes-base.microsoftExcel' },
+      { keywords: ['spreadsheet file', 'read excel', 'write excel', 'csv file', 'csv'], nodeType: 'n8n-nodes-base.spreadsheetFile' },
+
+      // AI/LLM Nodes
+      { keywords: ['openai', 'gpt', 'chatgpt', 'gpt-4', 'gpt-3'], nodeType: 'n8n-nodes-base.openAi' },
+      { keywords: ['gemini', 'google ai', 'palm', 'bard'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
+      { keywords: ['ai', 'artificial intelligence', 'llm', 'language model', 'chat ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary', 'summary'], nodeType: '@n8n/n8n-nodes-langchain.chainSummarization' },
+
+      // Project Management & Productivity
+      { keywords: ['airtable', 'airtable base'], nodeType: 'n8n-nodes-base.airtable' },
+      { keywords: ['notion', 'notion page', 'notion database'], nodeType: 'n8n-nodes-base.notion' },
+      { keywords: ['github', 'repo', 'repository', 'git', 'pull request', 'issue'], nodeType: 'n8n-nodes-base.github' },
+      { keywords: ['jira', 'jira issue', 'jira ticket'], nodeType: 'n8n-nodes-base.jira' },
+      { keywords: ['trello', 'trello board', 'trello card'], nodeType: 'n8n-nodes-base.trello' },
+
+      // Databases
+      { keywords: ['postgres', 'postgresql', 'database', 'sql'], nodeType: 'n8n-nodes-base.postgres' },
+      { keywords: ['mysql', 'mariadb'], nodeType: 'n8n-nodes-base.mySql' },
+      { keywords: ['mongodb', 'mongo', 'nosql'], nodeType: 'n8n-nodes-base.mongoDb' },
+
+      // Logic & Flow Control
+      { keywords: ['if', 'condition', 'branch', 'when', 'conditional'], nodeType: 'n8n-nodes-base.if' },
+      { keywords: ['filter', 'remove', 'exclude', 'only', 'keep'], nodeType: 'n8n-nodes-base.filter' },
+      { keywords: ['merge', 'combine', 'join', 'merge data'], nodeType: 'n8n-nodes-base.merge' },
+      { keywords: ['code', 'javascript', 'script', 'custom code', 'function'], nodeType: 'n8n-nodes-base.code' },
+    ];
+
+    // Match keywords in description
+    for (const { keywords, nodeType } of keywordMap) {
+      for (const keyword of keywords) {
+        if (lowerDesc.includes(keyword)) {
+          nodeTypes.add(nodeType);
+          break;
+        }
+      }
+    }
+
+    return Array.from(nodeTypes);
   }
 
   /**

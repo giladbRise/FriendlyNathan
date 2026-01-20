@@ -3,6 +3,7 @@ import axios from 'axios';
 import { decrypt } from '../utils/encryption';
 import { io } from '../index';
 import { geminiService } from './gemini.service';
+import { workflowLogger } from './workflow-logger.service';
 
 const prisma = new PrismaClient();
 
@@ -187,6 +188,146 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
       'In n8n, create Notion API credentials and paste the token',
     ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/notion/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // Microsoft Excel
+  'n8n-nodes-base.microsoftExcel': {
+    type: 'microsoftExcelOAuth2Api',
+    displayName: 'Microsoft Excel OAuth2',
+    instructions: 'Set up OAuth 2.0 credentials in Azure Active Directory to access Excel files in OneDrive or SharePoint.',
+    steps: [
+      'Go to portal.azure.com and navigate to Azure Active Directory',
+      'Click "App registrations" and then "New registration"',
+      'Name your application and select supported account types',
+      'Add n8n callback URL to redirect URIs',
+      'Under "API permissions", add Microsoft Graph permissions (Files.ReadWrite)',
+      'Create a client secret under "Certificates & secrets"',
+      'Copy the Application (client) ID and client secret',
+      'In n8n, create Microsoft Excel OAuth2 credentials',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/microsoft/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // OpenAI
+  'n8n-nodes-base.openAi': {
+    type: 'openAiApi',
+    displayName: 'OpenAI API',
+    instructions: 'Create an API key from your OpenAI account to use GPT and other models.',
+    steps: [
+      'Go to platform.openai.com and sign in or create an account',
+      'Navigate to API Keys section',
+      'Click "Create new secret key"',
+      'Copy the API key (it won\'t be shown again)',
+      'In n8n, create OpenAI API credentials and paste the key',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/openai/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // Google Gemini (via Google Palm API)
+  '@n8n/n8n-nodes-langchain.lmChatGoogleGemini': {
+    type: 'googlePalmApi',
+    displayName: 'Google Gemini API',
+    instructions: 'Create an API key from Google AI Studio to use Gemini models.',
+    steps: [
+      'Go to makersuite.google.com (Google AI Studio)',
+      'Sign in with your Google account',
+      'Click "Get API Key" in the sidebar',
+      'Create a new API key or use an existing one',
+      'Copy the API key',
+      'In n8n, create Google PaLM/Gemini API credentials and paste the key',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/google/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // Discord
+  'n8n-nodes-base.discord': {
+    type: 'discordApi',
+    displayName: 'Discord API',
+    instructions: 'Create a Discord bot and get its token to send messages.',
+    steps: [
+      'Go to discord.com/developers/applications',
+      'Click "New Application" and name your bot',
+      'Navigate to the "Bot" tab and click "Add Bot"',
+      'Copy the bot token',
+      'Enable necessary Intents (Message Content Intent if reading messages)',
+      'Invite the bot to your server via OAuth2 > URL Generator',
+      'In n8n, create Discord credentials and paste the bot token',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/discord/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // Telegram
+  'n8n-nodes-base.telegram': {
+    type: 'telegramApi',
+    displayName: 'Telegram Bot API',
+    instructions: 'Create a Telegram bot via BotFather to send and receive messages.',
+    steps: [
+      'Open Telegram and search for @BotFather',
+      'Send /newbot to create a new bot',
+      'Follow the prompts to name your bot',
+      'Copy the HTTP API token provided',
+      'In n8n, create Telegram API credentials and paste the token',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/telegram/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // GitHub
+  'n8n-nodes-base.github': {
+    type: 'githubApi',
+    displayName: 'GitHub API',
+    instructions: 'Create a personal access token from GitHub to manage repositories and issues.',
+    steps: [
+      'Go to github.com/settings/tokens',
+      'Click "Generate new token (classic)"',
+      'Select the scopes you need (repo, workflow, etc.)',
+      'Click "Generate token" and copy it',
+      'In n8n, create GitHub credentials and paste the token',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/github/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // AWS S3
+  'n8n-nodes-base.awsS3': {
+    type: 'aws',
+    displayName: 'AWS S3',
+    instructions: 'Create an IAM user with S3 permissions and get access keys.',
+    steps: [
+      'Sign in to AWS Console and go to IAM',
+      'Create a new user or use an existing one',
+      'Attach the AmazonS3FullAccess policy (or more restrictive)',
+      'Create access keys for the user',
+      'Copy the Access Key ID and Secret Access Key',
+      'In n8n, create AWS credentials with these values',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/aws/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // MongoDB
+  'n8n-nodes-base.mongoDb': {
+    type: 'mongoDb',
+    displayName: 'MongoDB',
+    instructions: 'Get your MongoDB connection string from your database provider.',
+    steps: [
+      'Get your MongoDB connection string from MongoDB Atlas or your host',
+      'The format is: mongodb+srv://user:password@cluster.mongodb.net/database',
+      'In n8n, create MongoDB credentials with the connection string',
+      'Test the connection to verify access',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/mongodb/',
+    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
+  },
+  // Postgres
+  'n8n-nodes-base.postgres': {
+    type: 'postgres',
+    displayName: 'PostgreSQL',
+    instructions: 'Get your PostgreSQL connection details from your database administrator.',
+    steps: [
+      'Get your database host, port, database name, username, and password',
+      'Ensure the database allows connections from your n8n instance IP',
+      'In n8n, create Postgres credentials with these values',
+      'Optionally enable SSL if required',
+    ],
+    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/postgres/',
     contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
 };
@@ -565,6 +706,183 @@ export class WorkflowGeneratorService {
         ],
         credentials: [{ name: 'smtp', required: true }],
       },
+      // Excel / Microsoft Excel node
+      'n8n-nodes-base.microsoftExcel': {
+        name: 'n8n-nodes-base.microsoftExcel',
+        displayName: 'Microsoft Excel',
+        description: 'Read, create, and modify Microsoft Excel spreadsheets in OneDrive or SharePoint',
+        version: 2,
+        properties: [
+          { name: 'resource', displayName: 'Resource', type: 'options', options: [
+            { name: 'Table', value: 'table' }, { name: 'Workbook', value: 'workbook' },
+            { name: 'Worksheet', value: 'worksheet' },
+          ]},
+          { name: 'operation', displayName: 'Operation', type: 'options', options: [
+            { name: 'Append', value: 'append' }, { name: 'Delete', value: 'delete' },
+            { name: 'Get All Rows', value: 'getAll' }, { name: 'Get Columns', value: 'getColumns' },
+            { name: 'Lookup', value: 'lookup' }, { name: 'Update', value: 'update' },
+          ]},
+          { name: 'workbook', displayName: 'Workbook', type: 'resourceLocator', required: true },
+          { name: 'worksheet', displayName: 'Worksheet', type: 'resourceLocator', required: true },
+          { name: 'tableId', displayName: 'Table', type: 'resourceLocator' },
+        ],
+        credentials: [{ name: 'microsoftExcelOAuth2Api', required: true }],
+      },
+      // Spreadsheet File node (for local Excel/CSV files)
+      'n8n-nodes-base.spreadsheetFile': {
+        name: 'n8n-nodes-base.spreadsheetFile',
+        displayName: 'Spreadsheet File',
+        description: 'Read and write Excel, ODS, HTML, and CSV files',
+        version: 2,
+        properties: [
+          { name: 'operation', displayName: 'Operation', type: 'options', options: [
+            { name: 'Read From File', value: 'fromFile' },
+            { name: 'Write to File', value: 'toFile' },
+          ]},
+          { name: 'fileFormat', displayName: 'File Format', type: 'options', options: [
+            { name: 'Autodetect', value: 'autodetect' },
+            { name: 'CSV', value: 'csv' },
+            { name: 'HTML', value: 'html' },
+            { name: 'ODS', value: 'ods' },
+            { name: 'RTF', value: 'rtf' },
+            { name: 'XLSX', value: 'xlsx' },
+          ]},
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+      },
+      // OpenAI node
+      'n8n-nodes-base.openAi': {
+        name: 'n8n-nodes-base.openAi',
+        displayName: 'OpenAI',
+        description: 'Interact with OpenAI API for text generation, chat, images, and more',
+        version: 1,
+        properties: [
+          { name: 'resource', displayName: 'Resource', type: 'options', options: [
+            { name: 'Chat', value: 'chat' },
+            { name: 'Text', value: 'text' },
+            { name: 'Image', value: 'image' },
+            { name: 'Audio', value: 'audio' },
+          ]},
+          { name: 'operation', displayName: 'Operation', type: 'options', options: [
+            { name: 'Create', value: 'create' },
+            { name: 'Message', value: 'message' },
+          ]},
+          { name: 'model', displayName: 'Model', type: 'options', options: [
+            { name: 'gpt-4', value: 'gpt-4' },
+            { name: 'gpt-4-turbo', value: 'gpt-4-turbo' },
+            { name: 'gpt-3.5-turbo', value: 'gpt-3.5-turbo' },
+          ]},
+          { name: 'prompt', displayName: 'Prompt', type: 'string', required: true },
+          { name: 'maxTokens', displayName: 'Max Tokens', type: 'number', default: 1000 },
+          { name: 'temperature', displayName: 'Temperature', type: 'number', default: 0.7 },
+        ],
+        credentials: [{ name: 'openAiApi', required: true }],
+      },
+      // Google Gemini LLM node (LangChain)
+      '@n8n/n8n-nodes-langchain.lmChatGoogleGemini': {
+        name: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
+        displayName: 'Google Gemini Chat Model',
+        description: 'Use Google Gemini AI models for chat and text generation',
+        version: 1,
+        properties: [
+          { name: 'model', displayName: 'Model', type: 'options', options: [
+            { name: 'gemini-pro', value: 'gemini-pro' },
+            { name: 'gemini-pro-vision', value: 'gemini-pro-vision' },
+          ]},
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+        credentials: [{ name: 'googlePalmApi', required: true }],
+      },
+      // LLM Chain node (LangChain)
+      '@n8n/n8n-nodes-langchain.chainLlm': {
+        name: '@n8n/n8n-nodes-langchain.chainLlm',
+        displayName: 'LLM Chain',
+        description: 'Execute prompts with language models',
+        version: 1,
+        properties: [
+          { name: 'prompt', displayName: 'Prompt', type: 'string', required: true },
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+      },
+      // Summarization Chain node (LangChain)
+      '@n8n/n8n-nodes-langchain.chainSummarization': {
+        name: '@n8n/n8n-nodes-langchain.chainSummarization',
+        displayName: 'Summarization Chain',
+        description: 'Summarize text using AI language models',
+        version: 1,
+        properties: [
+          { name: 'type', displayName: 'Type', type: 'options', options: [
+            { name: 'Map Reduce', value: 'map_reduce' },
+            { name: 'Stuff', value: 'stuff' },
+            { name: 'Refine', value: 'refine' },
+          ]},
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+      },
+      // Merge node
+      'n8n-nodes-base.merge': {
+        name: 'n8n-nodes-base.merge',
+        displayName: 'Merge',
+        description: 'Merge data from multiple sources',
+        version: 2,
+        properties: [
+          { name: 'mode', displayName: 'Mode', type: 'options', options: [
+            { name: 'Append', value: 'append' },
+            { name: 'Combine', value: 'combine' },
+            { name: 'Choose Branch', value: 'chooseBranch' },
+          ]},
+          { name: 'joinMode', displayName: 'Join Mode', type: 'options', options: [
+            { name: 'Inner Join', value: 'inner' },
+            { name: 'Left Join', value: 'left' },
+            { name: 'Outer Join', value: 'outer' },
+          ]},
+        ],
+      },
+      // Split In Batches node
+      'n8n-nodes-base.splitInBatches': {
+        name: 'n8n-nodes-base.splitInBatches',
+        displayName: 'Split In Batches',
+        description: 'Process items in batches (loop)',
+        version: 3,
+        properties: [
+          { name: 'batchSize', displayName: 'Batch Size', type: 'number', default: 10 },
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+      },
+      // Aggregate node
+      'n8n-nodes-base.aggregate': {
+        name: 'n8n-nodes-base.aggregate',
+        displayName: 'Aggregate',
+        description: 'Combine items into a single item with aggregated values',
+        version: 1,
+        properties: [
+          { name: 'aggregate', displayName: 'Aggregate', type: 'options', options: [
+            { name: 'All Items', value: 'aggregateAllItemData' },
+            { name: 'Individual Fields', value: 'aggregateIndividualFields' },
+          ]},
+        ],
+      },
+      // Wait node
+      'n8n-nodes-base.wait': {
+        name: 'n8n-nodes-base.wait',
+        displayName: 'Wait',
+        description: 'Wait for a specified time or until a webhook is called',
+        version: 1,
+        properties: [
+          { name: 'resume', displayName: 'Resume', type: 'options', options: [
+            { name: 'After Time Interval', value: 'timeInterval' },
+            { name: 'At Specified Time', value: 'specificTime' },
+            { name: 'On Webhook Call', value: 'webhook' },
+          ]},
+          { name: 'amount', displayName: 'Wait Amount', type: 'number', default: 1 },
+          { name: 'unit', displayName: 'Wait Unit', type: 'options', options: [
+            { name: 'Seconds', value: 'seconds' },
+            { name: 'Minutes', value: 'minutes' },
+            { name: 'Hours', value: 'hours' },
+            { name: 'Days', value: 'days' },
+          ]},
+        ],
+      },
     };
 
     for (const nodeType of nodeTypes) {
@@ -580,6 +898,7 @@ export class WorkflowGeneratorService {
   /**
    * Detect which node types are likely needed based on description keywords
    * This helps us fetch relevant node configurations before AI generation
+   * Updated to include Excel, AI/LLM nodes, and more n8n node types
    */
   private detectRelevantNodeTypes(description: string): string[] {
     const lowerDesc = description.toLowerCase();
@@ -589,42 +908,130 @@ export class WorkflowGeneratorService {
     nodeTypes.add('n8n-nodes-base.manualTrigger');
     nodeTypes.add('n8n-nodes-base.set');
 
-    // Keyword to node type mapping
+    // Comprehensive keyword to node type mapping
     const keywordMap: Array<{ keywords: string[]; nodeType: string }> = [
+      // Triggers
       { keywords: ['webhook', 'http trigger', 'incoming'], nodeType: 'n8n-nodes-base.webhook' },
-      { keywords: ['http', 'request', 'api call', 'fetch', 'url'], nodeType: 'n8n-nodes-base.httpRequest' },
-      { keywords: ['slack', 'message slack'], nodeType: 'n8n-nodes-base.slack' },
-      { keywords: ['email', 'gmail', 'inbox', 'mail'], nodeType: 'n8n-nodes-base.gmail' },
+      { keywords: ['schedule', 'cron', 'timer', 'every day', 'every hour', 'daily', 'hourly', 'weekly'], nodeType: 'n8n-nodes-base.scheduleTrigger' },
+
+      // HTTP & API
+      { keywords: ['http', 'request', 'api call', 'fetch', 'url', 'rest api', 'endpoint'], nodeType: 'n8n-nodes-base.httpRequest' },
+
+      // Communication
+      { keywords: ['slack', 'message slack', 'slack channel', 'slack message'], nodeType: 'n8n-nodes-base.slack' },
+      { keywords: ['email', 'gmail', 'inbox', 'mail', 'outlook', 'imap'], nodeType: 'n8n-nodes-base.gmail' },
       { keywords: ['send email', 'smtp', 'mail send'], nodeType: 'n8n-nodes-base.emailSend' },
-      { keywords: ['google sheet', 'spreadsheet', 'sheets'], nodeType: 'n8n-nodes-base.googleSheets' },
-      { keywords: ['airtable'], nodeType: 'n8n-nodes-base.airtable' },
-      { keywords: ['notion'], nodeType: 'n8n-nodes-base.notion' },
-      { keywords: ['if', 'condition', 'branch', 'when'], nodeType: 'n8n-nodes-base.if' },
-      { keywords: ['switch', 'multiple branch', 'route'], nodeType: 'n8n-nodes-base.switch' },
-      { keywords: ['loop', 'each', 'iterate', 'batch'], nodeType: 'n8n-nodes-base.splitInBatches' },
-      { keywords: ['filter', 'remove', 'exclude', 'only'], nodeType: 'n8n-nodes-base.filter' },
-      { keywords: ['code', 'javascript', 'script', 'custom'], nodeType: 'n8n-nodes-base.code' },
-      { keywords: ['schedule', 'cron', 'timer', 'every day', 'every hour'], nodeType: 'n8n-nodes-base.schedule' },
-      { keywords: ['merge', 'combine', 'join'], nodeType: 'n8n-nodes-base.merge' },
-      { keywords: ['wait', 'delay', 'pause'], nodeType: 'n8n-nodes-base.wait' },
-      { keywords: ['summarize', 'aggregate', 'count', 'sum'], nodeType: 'n8n-nodes-base.summarize' },
-      { keywords: ['openai', 'gpt', 'chatgpt'], nodeType: 'n8n-nodes-base.openAi' },
-      { keywords: ['postgres', 'postgresql', 'database'], nodeType: 'n8n-nodes-base.postgres' },
-      { keywords: ['mysql', 'database'], nodeType: 'n8n-nodes-base.mySql' },
-      { keywords: ['mongodb', 'mongo'], nodeType: 'n8n-nodes-base.mongoDb' },
-      { keywords: ['redis'], nodeType: 'n8n-nodes-base.redis' },
-      { keywords: ['aws', 's3', 'bucket'], nodeType: 'n8n-nodes-base.awsS3' },
-      { keywords: ['discord'], nodeType: 'n8n-nodes-base.discord' },
-      { keywords: ['telegram'], nodeType: 'n8n-nodes-base.telegram' },
-      { keywords: ['twitter', 'tweet', 'x.com'], nodeType: 'n8n-nodes-base.twitter' },
-      { keywords: ['github', 'repo', 'repository'], nodeType: 'n8n-nodes-base.github' },
-      { keywords: ['jira', 'issue', 'ticket'], nodeType: 'n8n-nodes-base.jira' },
-      { keywords: ['trello', 'board', 'card'], nodeType: 'n8n-nodes-base.trello' },
-      { keywords: ['asana', 'task'], nodeType: 'n8n-nodes-base.asana' },
-      { keywords: ['hubspot', 'crm', 'contact'], nodeType: 'n8n-nodes-base.hubspot' },
-      { keywords: ['salesforce'], nodeType: 'n8n-nodes-base.salesforce' },
-      { keywords: ['stripe', 'payment'], nodeType: 'n8n-nodes-base.stripe' },
-      { keywords: ['twilio', 'sms', 'text message'], nodeType: 'n8n-nodes-base.twilio' },
+      { keywords: ['microsoft outlook', 'outlook email'], nodeType: 'n8n-nodes-base.microsoftOutlook' },
+      { keywords: ['discord', 'discord message'], nodeType: 'n8n-nodes-base.discord' },
+      { keywords: ['telegram', 'telegram message'], nodeType: 'n8n-nodes-base.telegram' },
+      { keywords: ['twitter', 'tweet', 'x.com', 'post tweet'], nodeType: 'n8n-nodes-base.twitter' },
+      { keywords: ['twilio', 'sms', 'text message', 'send sms'], nodeType: 'n8n-nodes-base.twilio' },
+
+      // Spreadsheets & Documents
+      { keywords: ['google sheet', 'spreadsheet', 'sheets', 'google sheets'], nodeType: 'n8n-nodes-base.googleSheets' },
+      { keywords: ['excel', 'xlsx', 'xls', 'microsoft excel'], nodeType: 'n8n-nodes-base.microsoftExcel' },
+      { keywords: ['spreadsheet file', 'read excel', 'write excel', 'csv file', 'csv'], nodeType: 'n8n-nodes-base.spreadsheetFile' },
+      { keywords: ['google drive', 'drive file', 'google docs'], nodeType: 'n8n-nodes-base.googleDrive' },
+      { keywords: ['dropbox', 'dropbox file'], nodeType: 'n8n-nodes-base.dropbox' },
+      { keywords: ['pdf', 'pdf file', 'extract pdf'], nodeType: 'n8n-nodes-base.readPdf' },
+
+      // AI/LLM Nodes (important for Gemini, OpenAI, etc.)
+      { keywords: ['openai', 'gpt', 'chatgpt', 'gpt-4', 'gpt-3'], nodeType: 'n8n-nodes-base.openAi' },
+      { keywords: ['gemini', 'google ai', 'palm', 'bard'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
+      { keywords: ['ai', 'artificial intelligence', 'llm', 'language model', 'chat ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary'], nodeType: '@n8n/n8n-nodes-langchain.chainSummarization' },
+      { keywords: ['text generation', 'generate text', 'ai text'], nodeType: '@n8n/n8n-nodes-langchain.textSplitter' },
+      { keywords: ['embedding', 'vector', 'semantic search'], nodeType: '@n8n/n8n-nodes-langchain.embeddings' },
+      { keywords: ['anthropic', 'claude'], nodeType: '@n8n/n8n-nodes-langchain.lmChatAnthropic' },
+      { keywords: ['azure openai'], nodeType: '@n8n/n8n-nodes-langchain.lmChatAzureOpenAi' },
+
+      // Project Management & Productivity
+      { keywords: ['airtable', 'airtable base'], nodeType: 'n8n-nodes-base.airtable' },
+      { keywords: ['notion', 'notion page', 'notion database'], nodeType: 'n8n-nodes-base.notion' },
+      { keywords: ['github', 'repo', 'repository', 'git', 'pull request', 'issue'], nodeType: 'n8n-nodes-base.github' },
+      { keywords: ['gitlab', 'gitlab project'], nodeType: 'n8n-nodes-base.gitlab' },
+      { keywords: ['jira', 'jira issue', 'jira ticket'], nodeType: 'n8n-nodes-base.jira' },
+      { keywords: ['trello', 'trello board', 'trello card'], nodeType: 'n8n-nodes-base.trello' },
+      { keywords: ['asana', 'asana task', 'asana project'], nodeType: 'n8n-nodes-base.asana' },
+      { keywords: ['monday', 'monday.com', 'monday board'], nodeType: 'n8n-nodes-base.mondayCom' },
+      { keywords: ['clickup', 'clickup task'], nodeType: 'n8n-nodes-base.clickUp' },
+      { keywords: ['todoist', 'todoist task'], nodeType: 'n8n-nodes-base.todoist' },
+
+      // CRM & Sales
+      { keywords: ['hubspot', 'hubspot crm', 'hubspot contact'], nodeType: 'n8n-nodes-base.hubspot' },
+      { keywords: ['salesforce', 'salesforce crm', 'salesforce lead'], nodeType: 'n8n-nodes-base.salesforce' },
+      { keywords: ['pipedrive', 'pipedrive deal'], nodeType: 'n8n-nodes-base.pipedrive' },
+      { keywords: ['zoho', 'zoho crm'], nodeType: 'n8n-nodes-base.zohoCrm' },
+
+      // Databases
+      { keywords: ['postgres', 'postgresql', 'database', 'sql'], nodeType: 'n8n-nodes-base.postgres' },
+      { keywords: ['mysql', 'mariadb'], nodeType: 'n8n-nodes-base.mySql' },
+      { keywords: ['mongodb', 'mongo', 'nosql'], nodeType: 'n8n-nodes-base.mongoDb' },
+      { keywords: ['redis', 'redis cache'], nodeType: 'n8n-nodes-base.redis' },
+      { keywords: ['elasticsearch', 'elastic'], nodeType: 'n8n-nodes-base.elasticsearch' },
+      { keywords: ['supabase'], nodeType: 'n8n-nodes-base.supabase' },
+      { keywords: ['firebase', 'firestore'], nodeType: 'n8n-nodes-base.googleFirebaseCloudFirestore' },
+
+      // Cloud Services
+      { keywords: ['aws', 's3', 'bucket', 'amazon s3'], nodeType: 'n8n-nodes-base.awsS3' },
+      { keywords: ['aws lambda', 'lambda function'], nodeType: 'n8n-nodes-base.awsLambda' },
+      { keywords: ['google cloud', 'gcp', 'cloud storage'], nodeType: 'n8n-nodes-base.googleCloudStorage' },
+      { keywords: ['azure', 'azure blob'], nodeType: 'n8n-nodes-base.microsoftAzureBlobStorage' },
+
+      // Payments
+      { keywords: ['stripe', 'payment', 'stripe payment'], nodeType: 'n8n-nodes-base.stripe' },
+      { keywords: ['paypal', 'paypal payment'], nodeType: 'n8n-nodes-base.payPal' },
+      { keywords: ['square', 'square payment'], nodeType: 'n8n-nodes-base.square' },
+
+      // Logic & Flow Control
+      { keywords: ['if', 'condition', 'branch', 'when', 'conditional'], nodeType: 'n8n-nodes-base.if' },
+      { keywords: ['switch', 'multiple branch', 'route', 'case'], nodeType: 'n8n-nodes-base.switch' },
+      { keywords: ['loop', 'each', 'iterate', 'batch', 'for each'], nodeType: 'n8n-nodes-base.splitInBatches' },
+      { keywords: ['filter', 'remove', 'exclude', 'only', 'keep'], nodeType: 'n8n-nodes-base.filter' },
+      { keywords: ['sort', 'order', 'arrange'], nodeType: 'n8n-nodes-base.sort' },
+      { keywords: ['limit', 'limit items'], nodeType: 'n8n-nodes-base.limit' },
+      { keywords: ['remove duplicates', 'dedupe', 'unique'], nodeType: 'n8n-nodes-base.removeDuplicates' },
+
+      // Data Transformation
+      { keywords: ['code', 'javascript', 'script', 'custom code', 'function'], nodeType: 'n8n-nodes-base.code' },
+      { keywords: ['merge', 'combine', 'join', 'merge data'], nodeType: 'n8n-nodes-base.merge' },
+      { keywords: ['aggregate', 'count', 'sum', 'average', 'statistics'], nodeType: 'n8n-nodes-base.aggregate' },
+      { keywords: ['summarize data', 'group by'], nodeType: 'n8n-nodes-base.summarize' },
+      { keywords: ['split', 'split out', 'unnest'], nodeType: 'n8n-nodes-base.splitOut' },
+      { keywords: ['wait', 'delay', 'pause', 'sleep'], nodeType: 'n8n-nodes-base.wait' },
+      { keywords: ['date', 'time', 'datetime', 'format date'], nodeType: 'n8n-nodes-base.dateTime' },
+      { keywords: ['html', 'extract html', 'html parse'], nodeType: 'n8n-nodes-base.html' },
+      { keywords: ['xml', 'parse xml'], nodeType: 'n8n-nodes-base.xml' },
+      { keywords: ['json', 'parse json', 'json transform'], nodeType: 'n8n-nodes-base.set' },
+      { keywords: ['markdown', 'convert markdown'], nodeType: 'n8n-nodes-base.markdown' },
+
+      // Form & Data Collection
+      { keywords: ['google forms', 'form response'], nodeType: 'n8n-nodes-base.googleFormsTrigger' },
+      { keywords: ['typeform', 'typeform response'], nodeType: 'n8n-nodes-base.typeformTrigger' },
+      { keywords: ['jotform', 'jotform response'], nodeType: 'n8n-nodes-base.jotFormTrigger' },
+
+      // E-commerce
+      { keywords: ['shopify', 'shopify order'], nodeType: 'n8n-nodes-base.shopify' },
+      { keywords: ['woocommerce', 'woo order'], nodeType: 'n8n-nodes-base.wooCommerce' },
+      { keywords: ['magento'], nodeType: 'n8n-nodes-base.magento2' },
+
+      // Marketing
+      { keywords: ['mailchimp', 'mailchimp list'], nodeType: 'n8n-nodes-base.mailchimp' },
+      { keywords: ['sendgrid', 'sendgrid email'], nodeType: 'n8n-nodes-base.sendGrid' },
+      { keywords: ['mailerlite'], nodeType: 'n8n-nodes-base.mailerLite' },
+
+      // Calendar & Scheduling
+      { keywords: ['google calendar', 'calendar event'], nodeType: 'n8n-nodes-base.googleCalendar' },
+      { keywords: ['calendly', 'calendly event'], nodeType: 'n8n-nodes-base.calendly' },
+
+      // Analytics
+      { keywords: ['google analytics', 'analytics'], nodeType: 'n8n-nodes-base.googleAnalytics' },
+
+      // Misc
+      { keywords: ['ftp', 'sftp', 'file transfer'], nodeType: 'n8n-nodes-base.ftp' },
+      { keywords: ['rss', 'feed', 'rss feed'], nodeType: 'n8n-nodes-base.rssFeedRead' },
+      { keywords: ['crypto', 'encrypt', 'decrypt', 'hash'], nodeType: 'n8n-nodes-base.crypto' },
+      { keywords: ['qr code', 'generate qr'], nodeType: 'n8n-nodes-base.qrCode' },
     ];
 
     // Match keywords in description
@@ -785,11 +1192,23 @@ export class WorkflowGeneratorService {
   ) {
     let createdWorkflowId: string | undefined; // Track created workflow for potential rollback
     let nodesDiscoveredCount: number | undefined;
+    let workflow: N8nWorkflow | undefined;
     const apiKey = decrypt(instance.apiKeyEncrypted);
+    const hasGeminiKey = !!(geminiApiKey || geminiService.isAvailable());
+
+    // Log generation start with comprehensive details
+    workflowLogger.logGenerationStart(
+      generationId,
+      '', // We don't have userId here directly
+      description,
+      instance.url,
+      hasGeminiKey
+    );
 
     try {
       // Check for cancellation before each step
       if (this.isCancelled(generationId)) {
+        workflowLogger.info(generationId, 'CANCELLED', 'Generation cancelled by user before start');
         this.cancelledGenerations.delete(generationId);
         return;
       }
@@ -799,6 +1218,14 @@ export class WorkflowGeneratorService {
       const discoveryResult = await this.discoverNodes(instance.url, apiKey);
       nodesDiscoveredCount = discoveryResult.nodeCount;
 
+      // Log node discovery
+      workflowLogger.logNodeDiscovery(
+        generationId,
+        discoveryResult.nodeCount,
+        discoveryResult.fromCache,
+        discoveryResult.nodes.map(n => n.name).slice(0, 30)
+      );
+
       // Show different message based on cache status
       if (discoveryResult.fromCache) {
         this.emitProgress(socketId, generationId, `Using cached nodes (${discoveryResult.nodeCount} nodes available)`, 20);
@@ -807,6 +1234,7 @@ export class WorkflowGeneratorService {
       }
 
       if (this.isCancelled(generationId)) {
+        workflowLogger.info(generationId, 'CANCELLED', 'Generation cancelled after node discovery');
         this.cancelledGenerations.delete(generationId);
         return;
       }
@@ -821,11 +1249,19 @@ export class WorkflowGeneratorService {
 
       // Detect which node types are likely needed based on the description
       const relevantNodeTypes = this.detectRelevantNodeTypes(description);
+
+      // Log detected relevant node types
+      workflowLogger.logRelevantNodeTypes(generationId, relevantNodeTypes);
       console.log(`Detected relevant node types: ${relevantNodeTypes.join(', ')}`);
 
       // Fetch detailed node configurations for those types (Feature #269)
       this.emitProgress(socketId, generationId, 'Fetching node configurations...', 35);
       const nodeTypeDetails = await this.fetchNodeTypeDetails(instance.url, apiKey, relevantNodeTypes);
+
+      workflowLogger.info(generationId, 'NODE_CONFIGS', 'Fetched node type configurations', {
+        count: nodeTypeDetails.size,
+        nodeTypes: Array.from(nodeTypeDetails.keys()),
+      });
       console.log(`Fetched ${nodeTypeDetails.size} node type configurations`);
 
       if (this.isCancelled(generationId)) {
@@ -836,12 +1272,14 @@ export class WorkflowGeneratorService {
       this.emitProgress(socketId, generationId, 'Generating workflow with Gemini AI...', 40);
 
       // Use Gemini AI if available (custom API key or environment key), otherwise fall back to rule-based generation
-      let workflow: N8nWorkflow;
-      const hasGeminiKey = geminiApiKey || geminiService.isAvailable();
+      let generationMethod: 'AI' | 'RULE_BASED' = 'RULE_BASED';
+      let aiExplanation: string | undefined;
 
       if (hasGeminiKey) {
         try {
           this.emitProgress(socketId, generationId, 'Using Gemini AI to understand your request...', 45);
+          workflowLogger.info(generationId, 'AI_GENERATION', 'Starting AI-based workflow generation');
+
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
@@ -849,17 +1287,33 @@ export class WorkflowGeneratorService {
             nodeTypeDetails // Pass node configurations to AI
           );
           workflow = aiResult.workflow;
+          generationMethod = 'AI';
+          aiExplanation = aiResult.explanation;
+
+          workflowLogger.info(generationId, 'AI_SUCCESS', 'AI generation completed', {
+            nodeCount: aiResult.nodeCount,
+            explanation: aiResult.explanation,
+          });
           console.log(`AI generated workflow with ${aiResult.nodeCount} nodes: ${aiResult.explanation}`);
         } catch (aiError: any) {
+          workflowLogger.warn(generationId, 'AI_FALLBACK', 'AI generation failed, falling back to rule-based', {
+            error: aiError.message,
+          });
           console.warn('AI generation failed, falling back to rule-based:', aiError.message);
           this.emitProgress(socketId, generationId, 'AI unavailable, using rule-based generation...', 45);
           workflow = this.generateWorkflowFromDescription(description);
+          generationMethod = 'RULE_BASED';
         }
       } else {
         // Fallback to rule-based generation
         this.emitProgress(socketId, generationId, 'Generating workflow (no AI key provided)...', 45);
+        workflowLogger.info(generationId, 'RULE_BASED', 'Using rule-based generation (no AI key)');
         workflow = this.generateWorkflowFromDescription(description);
+        generationMethod = 'RULE_BASED';
       }
+
+      // Log the generated workflow with all details
+      workflowLogger.logGeneratedWorkflow(generationId, workflow, generationMethod, aiExplanation);
 
       if (this.isCancelled(generationId)) {
         this.cancelledGenerations.delete(generationId);
@@ -869,6 +1323,9 @@ export class WorkflowGeneratorService {
       // Step 3: Detect required credentials
       this.emitProgress(socketId, generationId, 'Detecting required credentials...', 50);
       const credentials = this.detectCredentials(workflow.nodes);
+
+      // Log credentials detected
+      workflowLogger.logCredentialsDetected(generationId, credentials);
       await this.delay(200);
 
       if (this.isCancelled(generationId)) {
@@ -880,8 +1337,13 @@ export class WorkflowGeneratorService {
       this.emitProgress(socketId, generationId, 'Validating workflow structure...', 55);
       const validationResult = this.validateWorkflowJson(workflow);
       if (!validationResult.valid) {
+        workflowLogger.error(generationId, 'VALIDATION', 'Workflow validation failed', {
+          error: validationResult.error,
+        });
         throw new Error(`Invalid workflow: ${validationResult.error}`);
       }
+
+      workflowLogger.info(generationId, 'VALIDATION', 'Workflow validation passed');
 
       // Estimate AI token usage (simulated - in production this comes from AI API response)
       // Input tokens: ~1 token per 4 characters of description
@@ -892,8 +1354,17 @@ export class WorkflowGeneratorService {
 
       // Step 5: Create workflow in n8n (with automatic retry for transient failures)
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
+      workflowLogger.info(generationId, 'N8N_CREATE', 'Sending workflow to n8n API');
 
       const n8nResult = await this.createWorkflowInN8n(instance.url, apiKey, workflow, 3, socketId, generationId);
+
+      // Log n8n creation result
+      workflowLogger.logN8nCreation(
+        generationId,
+        n8nResult.success,
+        n8nResult.n8nWorkflowId,
+        n8nResult.error
+      );
 
       if (!n8nResult.success) {
         throw new Error(n8nResult.error || 'Failed to create workflow in n8n');
@@ -906,6 +1377,9 @@ export class WorkflowGeneratorService {
       this.emitProgress(socketId, generationId, 'Workflow created successfully!', 100);
 
       const durationMs = Date.now() - startTime;
+
+      // Log generation completion with analysis
+      workflowLogger.logGenerationComplete(generationId, description, workflow, durationMs, true);
 
       try {
         await prisma.workflowGeneration.update({
@@ -926,6 +1400,9 @@ export class WorkflowGeneratorService {
       } catch (dbError: any) {
         // Database update failed after workflow was created in n8n
         // Attempt rollback by deleting the workflow from n8n
+        workflowLogger.error(generationId, 'DB_ERROR', 'Database update failed, attempting rollback', {
+          error: dbError.message,
+        });
         console.error('Database update failed, attempting rollback:', dbError);
         await this.rollbackWorkflow(instance.url, apiKey, createdWorkflowId ?? '');
         throw new Error('Failed to save workflow record. The workflow has been rolled back.');
@@ -954,6 +1431,11 @@ export class WorkflowGeneratorService {
         // Non-critical, don't fail the operation
       }
     } catch (error: any) {
+      // Log the error
+      workflowLogger.error(generationId, 'GENERATION_ERROR', 'Workflow generation failed', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      });
       console.error('Workflow generation error:', error);
 
       const durationMs = Date.now() - startTime;
