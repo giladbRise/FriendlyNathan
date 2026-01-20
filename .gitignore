@@ -97,3 +97,4 @@ docker-compose.override.yml
 # Agent and progress tracking
 claude-progress.txt
 .agent.lock
+.claude_assistant_settings.json
