@@ -36,8 +36,10 @@ const WorkflowCreatePage: React.FC = () => {
   // UI state
   const [loading, setLoading] = useState(false);
   const [loadingInstances, setLoadingInstances] = useState(true);
+  const [validating, setValidating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [validationSuccess, setValidationSuccess] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
   // Fetch saved instances on mount
@@ -72,6 +74,45 @@ const WorkflowCreatePage: React.FC = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    // Clear validation messages when user makes changes
+    setValidationSuccess('');
+    setError('');
+  };
+
+  const handleValidateInstance = async () => {
+    setError('');
+    setSuccess('');
+    setValidationSuccess('');
+
+    if (!manualForm.url || !manualForm.apiKey) {
+      setError('Please enter both n8n URL and API key to validate');
+      return;
+    }
+
+    try {
+      setValidating(true);
+      const token = localStorage.getItem('token');
+
+      const response = await axios.post(
+        'http://localhost:3000/api/n8n-instances/validate',
+        {
+          url: manualForm.url,
+          apiKey: manualForm.apiKey,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.valid) {
+        setValidationSuccess(response.data.message || 'Connection successful! Credentials are valid.');
+      }
+    } catch (err: any) {
+      console.error('Error validating instance:', err);
+      setError(err.response?.data?.error || 'Failed to validate n8n instance');
+    } finally {
+      setValidating(false);
+    }
   };
 
   const handleSubmitManualInstance = async (e: React.FormEvent) => {
@@ -325,13 +366,29 @@ const WorkflowCreatePage: React.FC = () => {
                       </div>
                     )}
 
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors disabled:bg-gray-400"
-                    >
-                      {loading ? 'Saving...' : 'Save Instance'}
-                    </button>
+                    {validationSuccess && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                        <p className="text-sm text-green-800">{validationSuccess}</p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={handleValidateInstance}
+                        disabled={validating || loading}
+                        className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-md transition-colors disabled:bg-gray-400"
+                      >
+                        {validating ? 'Validating...' : 'Validate'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading || validating}
+                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors disabled:bg-gray-400"
+                      >
+                        {loading ? 'Saving...' : 'Save Instance'}
+                      </button>
+                    </div>
                   </form>
                 )}
               </>
