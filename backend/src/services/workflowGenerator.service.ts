@@ -565,6 +565,7 @@ export class WorkflowGeneratorService {
       startDate?: Date;
       endDate?: Date;
       status?: string;
+      search?: string;
     }
   ) {
     const skip = (page - 1) * limit;
@@ -589,6 +590,14 @@ export class WorkflowGeneratorService {
     // Status filter
     if (filters?.status && filters.status !== 'all') {
       where.status = filters.status;
+    }
+
+    // Search filter - search by description
+    if (filters?.search && filters.search.trim()) {
+      where.workflowDescription = {
+        contains: filters.search.trim(),
+        mode: 'insensitive',
+      };
     }
 
     const [generations, total] = await Promise.all([

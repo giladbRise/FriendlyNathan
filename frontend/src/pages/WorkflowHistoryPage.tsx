@@ -46,10 +46,12 @@ const WorkflowHistoryPage: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
   useEffect(() => {
     fetchHistory();
-  }, [page, startDate, endDate, statusFilter]);
+  }, [page, startDate, endDate, statusFilter, searchQuery]);
 
   const fetchHistory = async () => {
     try {
@@ -63,6 +65,7 @@ const WorkflowHistoryPage: React.FC = () => {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
+      if (searchQuery) params.append('search', searchQuery);
 
       const response = await axios.get<HistoryResponse>(
         `http://localhost:3000/api/workflows/history?${params.toString()}`,
@@ -85,10 +88,29 @@ const WorkflowHistoryPage: React.FC = () => {
     setStartDate('');
     setEndDate('');
     setStatusFilter('all');
+    setSearchQuery('');
+    setSearchInput('');
     setPage(1);
   };
 
-  const hasActiveFilters = startDate || endDate || statusFilter !== 'all';
+  const handleSearch = () => {
+    setSearchQuery(searchInput);
+    setPage(1);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearchQuery('');
+    setPage(1);
+  };
+
+  const hasActiveFilters = startDate || endDate || statusFilter !== 'all' || searchQuery;
 
   const handleLogout = () => {
     logout();
@@ -192,31 +214,67 @@ const WorkflowHistoryPage: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Workflow History</h2>
-              <p className="text-gray-600">
-                View your previous workflow generation attempts
-              </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Workflow History</h2>
+                <p className="text-gray-600">
+                  View your previous workflow generation attempts
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    showFilters || hasActiveFilters
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {hasActiveFilters ? '✓ Filters Active' : 'Filter'}
+                </button>
+                <button
+                  onClick={() => navigate('/workflow/create')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+                >
+                  + Create New Workflow
+                </button>
+              </div>
             </div>
+
+            {/* Search Bar */}
             <div className="flex gap-2">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  showFilters || hasActiveFilters
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {hasActiveFilters ? '✓ Filters Active' : 'Filter'}
-              </button>
-              <button
-                onClick={() => navigate('/workflow/create')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
-              >
-                + Create New Workflow
-              </button>
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder="Search by workflow description..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  className="w-full px-4 py-2 border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 pr-20"
+                />
+                {searchInput && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-14 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                )}
+                <button
+                  onClick={handleSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                >
+                  Search
+                </button>
+              </div>
             </div>
+            {searchQuery && (
+              <p className="text-sm text-gray-600">
+                Showing results for "{searchQuery}"
+                {total === 0 && ' - No workflows found'}
+              </p>
+            )}
           </div>
 
           {/* Filter Panel */}
