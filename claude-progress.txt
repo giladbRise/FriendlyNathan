@@ -1,6 +1,75 @@
 RISE n8n Workflow AI Builder - Progress Log
 ============================================================
 
+SESSION 21 - January 20, 2026
+==============================
+Agent Role: Implementation Agent
+Session Status: COMPLETED - Bug Fixes for Feature #264
+
+ACCOMPLISHMENTS THIS SESSION
+=============================
+
+✅ Feature #264: Bug Fixes (3 issues)
+
+1. "No need instance name" - FIXED
+   - Backend: Made name field optional in validation schema
+   - Backend: Added auto-generation of instance name from URL hostname
+   - Frontend: Added "(optional)" label and updated placeholder
+
+2. "Always use risecodes URL" - FIXED (previous session)
+   - Frontend: Pre-fills URL with https://n8n.risecodes.com/
+   - Added helpful note about RISE n8n URL
+
+3. "request/body/active is read-only" error - FIXED
+   - Backend: Removed 'active' field from workflow JSON before sending to n8n API
+   - n8n API rejects the 'active' field as it's read-only on creation
+   - Workflows need to be activated separately after creation
+
+Also Fixed:
+- Mock n8n server POST handler was returning 404 (fixed server restart)
+
+Files Modified:
+- backend/src/controllers/n8nInstance.controller.ts
+- backend/src/services/workflowGenerator.service.ts
+- mock-n8n-server.js
+
+Git: 2 commits this session (0f87a24, 2145c12)
+
+Testing Verification:
+- Created new instance without name (auto-generated as "localhost")
+- Successfully created workflow without "active is read-only" error
+- Verified in History page: workflow ID wf_1002 shows as "Success"
+
+FINAL STATUS: 264/264 features passing (100%) ✅
+
+============================================================
+
+SESSION 20 - January 20, 2026
+==============================
+Agent Role: Implementation Agent (YOLO Mode)
+Session Status: COMPLETED - Feature #264 Implementation
+
+ACCOMPLISHMENTS THIS SESSION
+=============================
+
+✅ Feature #264: Improve n8n instance UX
+   - Made instance name optional (was required)
+   - Added default RISE URL: https://n8n.risecodes.com/
+   - URL field pre-filled with default RISE URL
+   - Added "(optional)" label to Instance Name field
+   - Updated validation to only require URL and API key
+   - Backend already had auto-name generation from URL hostname
+   - Backend already fixed "active is read-only" error (removes active field before API call)
+
+Files Modified:
+- frontend/src/pages/WorkflowCreatePage.tsx
+
+Git: 1 commit this session (0f87a24)
+
+FINAL STATUS: 264/264 features passing (100%) ✅
+
+============================================================
+
 SESSION 19 - January 20, 2026
 ==============================
 Agent Role: Implementation Agent (YOLO Mode)
@@ -49,9 +118,9 @@ Screenshots captured:
 - regression_json_syntax_highlight_bottom.png
 - regression_dashboard_dark_theme.png
 
-Git: 1 commit this session (9f4442f)
+Git: 3 commits this session (9f4442f, b1f7d10, 0f87a24)
 
-FINAL STATUS: 263/263 features passing (100%) ✅
+FINAL STATUS: 264/264 features passing (100%) ✅
 
 ============================================================
 
