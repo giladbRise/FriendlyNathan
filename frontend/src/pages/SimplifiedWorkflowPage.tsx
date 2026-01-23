@@ -155,7 +155,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error validating connection:', err);
-      setError(err.response?.data?.error || 'Failed to validate n8n connection');
+      // Check if it's a network error (backend not reachable)
+      if (err.code === 'ERR_NETWORK' || !err.response) {
+        setError('Cannot connect to backend server. Please ensure the backend is running on localhost:3000');
+      } else {
+        setError(err.response?.data?.error || 'Failed to validate n8n connection');
+      }
     } finally {
       setValidating(false);
     }
