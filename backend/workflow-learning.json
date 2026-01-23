@@ -28,6 +28,21 @@
       "createdAt": "2026-01-23T00:00:00.000Z"
     },
     {
+      "id": "replace_the_manual_trigger_with_a_schedule_trigger_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Replace the Manual Trigger with a Schedule Trigger node configured to run every 20 minutes.",
+      "fixApplied": "Updated parallel connections so Slack, Email, and Google Sheets are updated simultaneously with the AI output.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 3,
+      "lastSeen": "2026-01-23T07:56:58.006Z",
+      "createdAt": "2026-01-21T17:13:53.928Z"
+    },
+    {
       "id": "the_workflow_uses_a_manual_trigger_instead_of_a_sc_n8nnodesbaseschedulerigger_n8n",
       "issuePattern": "The workflow uses a Manual Trigger instead of a Schedule Trigger set to 20-minute intervals as requested.",
       "fixApplied": "Replaced Manual Trigger with Schedule Trigger set to run daily at 09:00.",
@@ -43,19 +58,23 @@
       "createdAt": "2026-01-21T17:13:53.926Z"
     },
     {
-      "id": "replace_the_manual_trigger_with_a_schedule_trigger_n8nnodesbaseschedulerigger_n8n",
-      "issuePattern": "Replace the Manual Trigger with a Schedule Trigger node configured to run every 20 minutes.",
-      "fixApplied": "Updated parallel connections so Slack, Email, and Google Sheets are updated simultaneously with the AI output.",
-      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "id": "add_an__item_lists__node_after_the_gmail_node_to___n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'Item Lists' node after the Gmail node to 'Summarize' (Join) all email bodies into a single text block.",
+      "fixApplied": "Enhanced the AI prompt to specifically request a sorted, well-designed list of action items as per user request.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
       "nodeTypes": [
         "n8n-nodes-base.scheduleTrigger",
-        "n8n-nodes-base.googleBigQuery",
-        "n8n-nodes-base.set",
-        "n8n-nodes-base.slack"
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
       ],
-      "count": 3,
-      "lastSeen": "2026-01-23T07:56:58.006Z",
-      "createdAt": "2026-01-21T17:13:53.928Z"
+      "count": 2,
+      "lastSeen": "2026-01-23T07:56:58.007Z",
+      "createdAt": "2026-01-23T07:50:17.845Z"
     },
     {
       "id": "the__summarize_with_gemini__node___n8n_n8n_nodes_l_n8nnodesbasemanualrigger_n8nno",
@@ -900,25 +919,6 @@
       "createdAt": "2026-01-23T07:50:17.843Z"
     },
     {
-      "id": "add_an__item_lists__node_after_the_gmail_node_to___n8nnodesbaseschedulerigger_n8n",
-      "issuePattern": "Add an 'Item Lists' node after the Gmail node to 'Summarize' (Join) all email bodies into a single text block.",
-      "fixApplied": "Enhanced the AI prompt to specifically request a sorted, well-designed list of action items as per user request.",
-      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
-      "nodeTypes": [
-        "n8n-nodes-base.scheduleTrigger",
-        "n8n-nodes-base.gmail",
-        "n8n-nodes-base.itemLists",
-        "@n8n/n8n-nodes-langchain.chainLlm",
-        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-        "n8n-nodes-base.slack",
-        "n8n-nodes-base.gmail",
-        "n8n-nodes-base.googleSheets"
-      ],
-      "count": 2,
-      "lastSeen": "2026-01-23T07:56:58.007Z",
-      "createdAt": "2026-01-23T07:50:17.845Z"
-    },
-    {
       "id": "use_a__basic_llm_chain__or__ai_agent__node__and_co_n8nnodesbaseschedulerigger_n8n",
       "issuePattern": "Use a 'Basic LLM Chain' or 'AI Agent' node, and connect the Gemini model to its Model input.",
       "fixApplied": "Applied improvement",
@@ -1271,6 +1271,299 @@
       "count": 1,
       "lastSeen": "2026-01-23T07:57:44.353Z",
       "createdAt": "2026-01-23T07:57:44.353Z"
+    },
+    {
+      "id": "the_workflow_uses_a_manual_trigger_instead_of_a_sl_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The workflow uses a Manual Trigger instead of a Slack Trigger (Event Listener) as requested.",
+      "fixApplied": "Replaced Manual Trigger and Gmail node with a Slack Trigger set to 'message' events.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.253Z",
+      "createdAt": "2026-01-23T11:35:02.253Z"
+    },
+    {
+      "id": "the_workflow_is_configured_to_fetch_gmail_emails_i_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The workflow is configured to fetch Gmail emails instead of processing incoming Slack messages.",
+      "fixApplied": "Added an IF node to specifically check for the exact message 'I LOVE YOU' and channel ID 'C0A1CEBJWJF'.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.255Z",
+      "createdAt": "2026-01-23T11:35:02.255Z"
+    },
+    {
+      "id": "there_is_no_filter_or_logic_to_check_if_the_messag_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "There is no filter or logic to check if the message content is exactly 'I LOVE YOU' in capital letters.",
+      "fixApplied": "Updated the AI node (OpenAI) to generate a loving response based on the sender's text instead of summarizing emails.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.256Z",
+      "createdAt": "2026-01-23T11:35:02.256Z"
+    },
+    {
+      "id": "the_ai_model_prompt_is_configured_to__summarize_th_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The AI model prompt is configured to 'Summarize the emails' rather than generating a response to the Slack message.",
+      "fixApplied": "Configured the Slack Post Message node to use 'thread_ts' so it replies to the specific person in a thread.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.257Z",
+      "createdAt": "2026-01-23T11:35:02.257Z"
+    },
+    {
+      "id": "the_email_node_is_entirely_missing_from_the_workfl_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The Email node is entirely missing from the workflow, despite being a requirement.",
+      "fixApplied": "Added the missing Email Send node to deliver the summary content as requested.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.258Z",
+      "createdAt": "2026-01-23T11:35:02.258Z"
+    },
+    {
+      "id": "the_slack_node_is_set_to__post__a_message__but_it__n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The Slack node is set to 'Post' a message, but it does not reply to the specific person/thread (missing thread_ts reference).",
+      "fixApplied": "Mapped correct data (Slack user, original text, AI response) to Google Sheets and Email nodes.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.259Z",
+      "createdAt": "2026-01-23T11:35:02.259Z"
+    },
+    {
+      "id": "data_mapping_for_google_sheets_and_email__sender_n_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Data mapping for Google Sheets and Email (Sender Name, Original Message, AI Answer) is missing or incorrectly mapped from Gmail data instead of Slack data.",
+      "fixApplied": "Configured parallel flow so Google Sheets logging and Email sending happen after the AI response.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.261Z",
+      "createdAt": "2026-01-23T11:35:02.261Z"
+    },
+    {
+      "id": "replace__manual_trigger__and__get_emails__with_a___n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Replace 'Manual Trigger' and 'Get Emails' with a 'Slack Trigger' node set to 'On Message'.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.262Z",
+      "createdAt": "2026-01-23T11:35:02.262Z"
+    },
+    {
+      "id": "add_an__if__node_or__filter__node_after_the_trigge_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Add an 'If' node or 'Filter' node after the trigger to check if the text equals 'I LOVE YOU'.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.263Z",
+      "createdAt": "2026-01-23T11:35:02.263Z"
+    },
+    {
+      "id": "change_the_gemini_chat_model_prompt_to_generate_a__n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Change the Gemini Chat Model prompt to generate a friendly response to the message received.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.264Z",
+      "createdAt": "2026-01-23T11:35:02.264Z"
+    },
+    {
+      "id": "add_a__gmail__send__or__ses__send__node_to_handle__n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Add a 'Gmail: Send' or 'SES: Send' node to handle the email requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.265Z",
+      "createdAt": "2026-01-23T11:35:02.265Z"
+    },
+    {
+      "id": "use_the__thread_ts__value_from_the_slack_trigger_i_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Use the 'Thread TS' value from the Slack Trigger in the Slack 'Send Message' node to ensure the response is a reply to the original user.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.266Z",
+      "createdAt": "2026-01-23T11:35:02.266Z"
+    },
+    {
+      "id": "ensure_the_google_sheets_node_has_explicit_mapping_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Ensure the Google Sheets node has explicit mapping for the columns: User Name, Original Message, and AI Response.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:02.267Z",
+      "createdAt": "2026-01-23T11:35:02.267Z"
+    },
+    {
+      "id": "the_slack_trigger_returns_a__user__field_containin_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The Slack Trigger returns a 'user' field containing a User ID (e.g., U123456). To include the person's actual name as requested, add a 'Slack: Get User Info' node after the trigger to resolve the ID into a display name.",
+      "fixApplied": "Added 'Get User Info' Slack node to resolve User ID into a human-readable real name.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:44.391Z",
+      "createdAt": "2026-01-23T11:35:44.391Z"
+    },
+    {
+      "id": "the_current__filter__node_checks_for_an_exact_matc_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The current 'Filter' node checks for an exact match of 'I LOVE YOU'. If you want to trigger even if the message contains other text, change the operator to 'Contains'.",
+      "fixApplied": "Changed Filter operator from 'Equal' to 'Contains' to capture 'I LOVE YOU' messages more reliably as suggested.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:44.393Z",
+      "createdAt": "2026-01-23T11:35:44.393Z"
+    },
+    {
+      "id": "consider_using_the_newer__ai_agent__or__basic_llm__n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "Consider using the newer 'AI Agent' or 'Basic LLM Chain' nodes if you are on a recent n8n version, as they provide better handling of system prompts and memory.",
+      "fixApplied": "Restructured connections to branch from AI Responder so Slack, Sheets, and Email actions run in parallel using the same AI output.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:44.394Z",
+      "createdAt": "2026-01-23T11:35:44.394Z"
+    },
+    {
+      "id": "the_google_sheets_node_has_a_placeholder__your_spr_n8nnodesbaseslackrigger_n8nnod",
+      "issuePattern": "The Google Sheets node has a placeholder 'YOUR_SPREADSHEET_ID'; this needs to be replaced with a real ID before the workflow can be activated.",
+      "fixApplied": "Updated expressions in AI Responder, Google Sheets, and Email nodes to use the resolved 'real_name' instead of the raw User ID.",
+      "description": "Create a slack listerner so that if anyone on channel id C0A1CEBJWJF says \"I LOVE YOU\" in captial letters, we will send this message to AI and think about a proper answer and send this message back to this channel as a reply to this person. in parallel i would like to label this answer in some google sheet and also send email with the entire content of the person who said I LOVE YOU , the answer we sent him and the person's name. ",
+      "nodeTypes": [
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.openAi",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.emailSend"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T11:35:44.395Z",
+      "createdAt": "2026-01-23T11:35:44.395Z"
     }
   ],
   "version": "1.0"
