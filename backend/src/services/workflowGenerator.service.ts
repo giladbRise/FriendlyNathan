@@ -2,8 +2,12 @@ import { PrismaClient, WorkflowStatus } from '@prisma/client';
 import axios from 'axios';
 import { decrypt } from '../utils/encryption';
 import { io } from '../index';
-import { geminiService } from './gemini.service';
+import { geminiService, WorkflowIntent } from './gemini.service';
 import { workflowLogger } from './workflow-logger.service';
+import { n8nMcpService } from './mcpN8n.service';
+import { workflowValidatorService } from './workflow-validator.service';
+import { workflowLearningService } from './workflow-learning.service';
+import { workflowPreferencesService } from './workflow-preferences.service';
 
 const prisma = new PrismaClient();
 
@@ -108,6 +112,7 @@ interface GenerationResult {
   n8nWorkflowId?: string;
   n8nWorkflowUrl?: string;
   error?: string;
+  errorDetails?: any;
   nodesUsed?: number;
 }
 
@@ -399,7 +404,65 @@ export class WorkflowGeneratorService {
       return { nodes, fromCache: true, nodeCount: nodes.length };
     }
 
-    // Fetch nodes from n8n instance
+    // Try MCP server first for node discovery (uses n8n API under the hood with caching)
+    if (n8nMcpService.isAvailable()) {
+      try {
+        console.log(`Fetching nodes via MCP server for ${baseUrl}...`);
+        const mcpResult = await n8nMcpService.listNodes(baseUrl, apiKey);
+        let nodes: N8nNode[] = mcpResult.nodes.map((node) => ({
+          name: node.name,
+          displayName: node.displayName,
+          description: node.description,
+          version: node.version,
+          group: node.category ? [node.category] : undefined,
+          credentials: (node.credentialTypes || []).map((cred) => typeof cred === 'string' ? cred : cred.name),
+        }));
+
+        if (nodes.length === 0) {
+          try {
+            const nodeTypes = await n8nMcpService.getNodeTypes(baseUrl, apiKey);
+            if (nodeTypes.success && nodeTypes.nodeTypes.length > 0) {
+              nodes = nodeTypes.nodeTypes.map((nodeType) => ({
+                name: nodeType.name,
+                displayName: nodeType.displayName || nodeType.name,
+                description: nodeType.description,
+                version: nodeType.version || 1,
+                group: nodeType.category ? [nodeType.category] : undefined,
+                credentials: (nodeType.credentials || []).map((cred) => cred.name),
+              }));
+            }
+          } catch (error: any) {
+            console.warn('MCP node type lookup failed:', error?.message || error);
+          }
+        }
+
+        if (nodes.length > 0) {
+          console.log(`Discovered ${nodes.length} nodes via MCP for ${baseUrl}`);
+
+          const expiresAt = new Date(Date.now() + NODE_CACHE_TTL_MS);
+          await prisma.nodeCache.upsert({
+            where: { n8nUrl: baseUrl },
+            update: {
+              nodesJson: nodes as any,
+              cachedAt: new Date(),
+              expiresAt,
+            },
+            create: {
+              n8nUrl: baseUrl,
+              nodesJson: nodes as any,
+              cachedAt: new Date(),
+              expiresAt,
+            },
+          });
+
+          return { nodes, fromCache: false, nodeCount: nodes.length };
+        }
+      } catch (error: any) {
+        console.warn('MCP node discovery failed, falling back to direct API:', error?.message || error);
+      }
+    }
+
+    // Fetch nodes from n8n instance directly
     try {
       console.log(`Fetching nodes from ${baseUrl}...`);
       const response = await axios.get(`${baseUrl}/api/v1/nodes`, {
@@ -491,6 +554,38 @@ export class WorkflowGeneratorService {
     const nodeTypeDetailsMap = new Map<string, NodeTypeDetails>();
 
     try {
+      if (n8nMcpService.isAvailable()) {
+        console.log(`Fetching node type details via MCP for ${baseUrl}...`);
+        const mcpResult = await n8nMcpService.getNodeTypes(baseUrl, apiKey);
+        if (mcpResult.success && mcpResult.nodeTypes.length > 0) {
+          for (const nodeType of mcpResult.nodeTypes) {
+            nodeTypeDetailsMap.set(nodeType.name, {
+              name: nodeType.name,
+              displayName: nodeType.displayName || nodeType.name,
+              description: nodeType.description,
+              version: nodeType.version || 1,
+              properties: this.extractNodeProperties(nodeType.properties || []),
+              credentials: nodeType.credentials || [],
+            });
+          }
+
+          nodeTypeDetailsCache.set(baseUrl, {
+            details: nodeTypeDetailsMap,
+            expiresAt: now + NODE_TYPES_CACHE_TTL_MS,
+          });
+
+          const filteredDetails = new Map<string, NodeTypeDetails>();
+          for (const nodeType of nodeTypes) {
+            const details = nodeTypeDetailsMap.get(nodeType);
+            if (details) {
+              filteredDetails.set(nodeType, details);
+            }
+          }
+
+          return filteredDetails;
+        }
+      }
+
       console.log(`Fetching node type details from ${baseUrl}...`);
 
       // n8n provides node type details via /api/v1/node-types endpoint
@@ -815,26 +910,38 @@ export class WorkflowGeneratorService {
         ],
         credentials: [{ name: 'openAiApi', required: true }],
       },
-      // Google Gemini LLM node (LangChain)
+      // Tool LLM node (LangChain) - DEPRECATED: Use chain+model pattern instead
+      '@n8n/n8n-nodes-langchain.toolLlm': {
+        name: '@n8n/n8n-nodes-langchain.toolLlm',
+        displayName: 'Message a Model',
+        description: 'Standalone AI tool node - AVOID: Use Basic LLM Chain + Google Gemini Model pattern instead',
+        version: 1,
+        properties: [
+          { name: 'prompt', displayName: 'Prompt', type: 'string', required: true, description: 'The message or instruction to send to the AI model' },
+          { name: 'model', displayName: 'Model', type: 'string', default: 'gemini-pro', description: 'AI model to use' },
+          { name: 'options', displayName: 'Options', type: 'collection' },
+        ],
+        credentials: [{ name: 'googlePalmApi', required: false }],
+      },
+      // Google Gemini LLM node (LangChain) - PREFERRED: Use with Basic LLM Chain
       '@n8n/n8n-nodes-langchain.lmChatGoogleGemini': {
         name: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
-        displayName: 'Google Gemini Chat Model',
-        description: 'Use Google Gemini AI models for chat and text generation',
+        displayName: 'Google Gemini Model',
+        description: 'Google Gemini model node - MUST be connected to Basic LLM Chain via ai_model connection',
         version: 1,
         properties: [
           { name: 'model', displayName: 'Model', type: 'options', options: [
             { name: 'gemini-pro', value: 'gemini-pro' },
             { name: 'gemini-pro-vision', value: 'gemini-pro-vision' },
           ]},
-          { name: 'options', displayName: 'Options', type: 'collection' },
         ],
         credentials: [{ name: 'googlePalmApi', required: true }],
       },
-      // LLM Chain node (LangChain)
+      // LLM Chain node (LangChain) - PREFERRED for AI operations
       '@n8n/n8n-nodes-langchain.chainLlm': {
         name: '@n8n/n8n-nodes-langchain.chainLlm',
-        displayName: 'LLM Chain',
-        description: 'Execute prompts with language models',
+        displayName: 'Basic LLM Chain',
+        description: 'PREFERRED: Execute prompts with language models - must be connected to Google Gemini Model node via ai_model connection',
         version: 1,
         properties: [
           { name: 'prompt', displayName: 'Prompt', type: 'string', required: true },
@@ -956,9 +1063,12 @@ export class WorkflowGeneratorService {
 
       // Communication
       { keywords: ['slack', 'message slack', 'slack channel', 'slack message'], nodeType: 'n8n-nodes-base.slack' },
-      { keywords: ['email', 'gmail', 'inbox', 'mail', 'outlook', 'imap'], nodeType: 'n8n-nodes-base.gmail' },
+      { keywords: ['gmail'], nodeType: 'n8n-nodes-base.gmail' },
+      { keywords: ['outlook', 'microsoft outlook', 'office 365'], nodeType: 'n8n-nodes-base.microsoftOutlook' },
+      { keywords: ['imap'], nodeType: 'n8n-nodes-base.imap' },
+      { keywords: ['email', 'inbox', 'mail'], nodeType: 'n8n-nodes-base.gmail' },
+      { keywords: ['email', 'inbox', 'mail'], nodeType: 'n8n-nodes-base.microsoftOutlook' },
       { keywords: ['send email', 'smtp', 'mail send'], nodeType: 'n8n-nodes-base.emailSend' },
-      { keywords: ['microsoft outlook', 'outlook email'], nodeType: 'n8n-nodes-base.microsoftOutlook' },
       { keywords: ['discord', 'discord message'], nodeType: 'n8n-nodes-base.discord' },
       { keywords: ['telegram', 'telegram message'], nodeType: 'n8n-nodes-base.telegram' },
       { keywords: ['twitter', 'tweet', 'x.com', 'post tweet'], nodeType: 'n8n-nodes-base.twitter' },
@@ -972,12 +1082,16 @@ export class WorkflowGeneratorService {
       { keywords: ['dropbox', 'dropbox file'], nodeType: 'n8n-nodes-base.dropbox' },
       { keywords: ['pdf', 'pdf file', 'extract pdf'], nodeType: 'n8n-nodes-base.readPdf' },
 
-      // AI/LLM Nodes (important for Gemini, OpenAI, etc.)
+      // AI/LLM Nodes (PREFERRED: Use chain+model pattern with Edit Fields input)
       { keywords: ['openai', 'gpt', 'chatgpt', 'gpt-4', 'gpt-3'], nodeType: 'n8n-nodes-base.openAi' },
-      { keywords: ['gemini', 'google ai', 'palm', 'bard'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
-      { keywords: ['ai', 'artificial intelligence', 'llm', 'language model', 'chat ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
-      { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary'], nodeType: '@n8n/n8n-nodes-langchain.chainSummarization' },
-      { keywords: ['text generation', 'generate text', 'ai text'], nodeType: '@n8n/n8n-nodes-langchain.textSplitter' },
+      { keywords: ['gemini', 'google ai', 'palm', 'bard', 'google gemini'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['gemini', 'google ai', 'palm', 'bard', 'google gemini'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
+      { keywords: ['ai', 'artificial intelligence', 'llm', 'language model', 'chat ai', 'ask model', 'message a model', 'ask ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['ai', 'artificial intelligence', 'llm', 'language model', 'chat ai', 'ask model', 'message a model', 'ask ai'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
+      { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
+      { keywords: ['text generation', 'generate text', 'ai text'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['text generation', 'generate text', 'ai text'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
       { keywords: ['embedding', 'vector', 'semantic search'], nodeType: '@n8n/n8n-nodes-langchain.embeddings' },
       { keywords: ['anthropic', 'claude'], nodeType: '@n8n/n8n-nodes-langchain.lmChatAnthropic' },
       { keywords: ['azure openai'], nodeType: '@n8n/n8n-nodes-langchain.lmChatAzureOpenAi' },
@@ -1082,6 +1196,758 @@ export class WorkflowGeneratorService {
     }
 
     return Array.from(nodeTypes);
+  }
+
+  private detectRelevantNodeTypesFromAvailableNodes(
+    description: string,
+    availableNodes: N8nNode[]
+  ): string[] {
+    if (!availableNodes.length) return [];
+    const lowerDesc = description.toLowerCase();
+    const matches = new Set<string>();
+
+    for (const node of availableNodes) {
+      const displayName = node.displayName?.toLowerCase() || '';
+      const shortName = node.name.split('.').pop()?.toLowerCase() || '';
+
+      if (displayName && lowerDesc.includes(displayName)) {
+        matches.add(node.name);
+        continue;
+      }
+      if (shortName && lowerDesc.includes(shortName)) {
+        matches.add(node.name);
+        continue;
+      }
+
+      const tokens = displayName.split(/\s+/).filter(Boolean);
+      if (tokens.length > 1 && tokens.every((token) => lowerDesc.includes(token))) {
+        matches.add(node.name);
+      }
+    }
+
+    return Array.from(matches);
+  }
+
+  private parseWorkflowIntent(description: string): {
+    sender?: string;
+    days?: number;
+    wantsMarkUnread: boolean;
+    wantsGeminiSummary: boolean;
+    wantsSlack: boolean;
+    slackChannel?: string;
+    wantsEmail: boolean;
+    wantsSpreadsheet: boolean;
+    wantsGoogleSheets: boolean;
+    spreadsheetId?: string;
+    spreadsheetGid?: string;
+  } {
+    const lowerDesc = description.toLowerCase();
+    const senderMatch = description.match(/from\s+([a-zA-Z\s]+?)(?:\s+in|\s+last|\s+past|$)/i);
+    const daysMatch = description.match(/last\s+(\d+)\s+days?/i);
+    const channelMatch = description.match(/C[A-Z0-9]{8,}/i);
+    const sheetMatch = description.match(/https?:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i);
+    const gidMatch = description.match(/gid=(\d+)/i);
+    const wantsSpreadsheet = lowerDesc.includes('spreadsheet') || lowerDesc.includes('sheet') || lowerDesc.includes('excel') || !!sheetMatch;
+    const wantsGoogleSheets = lowerDesc.includes('google sheets') || lowerDesc.includes('google sheet') || !!sheetMatch;
+
+    return {
+      sender: senderMatch?.[1]?.trim(),
+      days: daysMatch ? Number(daysMatch[1]) : undefined,
+      wantsMarkUnread: lowerDesc.includes('unread') && lowerDesc.includes('mark'),
+      wantsGeminiSummary: lowerDesc.includes('summar') && lowerDesc.includes('gemini'),
+      wantsSlack: lowerDesc.includes('slack'),
+      slackChannel: channelMatch?.[0],
+      wantsEmail: lowerDesc.includes('email') || lowerDesc.includes('gmail') || lowerDesc.includes('outlook'),
+      wantsSpreadsheet,
+      wantsGoogleSheets,
+      spreadsheetId: sheetMatch?.[1],
+      spreadsheetGid: gidMatch?.[1],
+    };
+  }
+
+  private enforceWorkflowRequirements(
+    description: string,
+    workflow: N8nWorkflow,
+    availableNodes: N8nNode[],
+    nodeTypeDetails?: Map<string, NodeTypeDetails>,
+    aiIntent?: WorkflowIntent | null
+  ): N8nWorkflow {
+    const parsedIntent = this.parseWorkflowIntent(description);
+    const intent: typeof parsedIntent & WorkflowIntent = {
+      ...parsedIntent,
+      sender: aiIntent?.sender ?? parsedIntent.sender,
+      days: aiIntent?.days ?? parsedIntent.days,
+      slackChannel: aiIntent?.slackChannel ?? parsedIntent.slackChannel,
+      spreadsheetId: aiIntent?.spreadsheetId ?? parsedIntent.spreadsheetId,
+      spreadsheetGid: aiIntent?.spreadsheetGid ?? parsedIntent.spreadsheetGid,
+      wantsMarkUnread: parsedIntent.wantsMarkUnread || aiIntent?.wantsMarkUnread === true,
+      wantsGeminiSummary: parsedIntent.wantsGeminiSummary || aiIntent?.wantsGeminiSummary === true,
+      wantsSlack: parsedIntent.wantsSlack || aiIntent?.wantsSlack === true,
+      wantsEmail: parsedIntent.wantsEmail || aiIntent?.wantsEmail === true,
+      wantsSpreadsheet: parsedIntent.wantsSpreadsheet || aiIntent?.wantsSpreadsheet === true,
+      wantsGoogleSheets: parsedIntent.wantsGoogleSheets || aiIntent?.wantsGoogleSheets === true,
+      requestedNodeTypes: aiIntent?.requestedNodeTypes,
+    };
+    const availableSet = new Set(availableNodes.map((node) => node.name));
+    const nodes = [...workflow.nodes];
+    const nameSet = new Set(nodes.map((node) => node.name));
+    const idSet = new Set(nodes.map((node) => node.id));
+
+    const getUniqueName = (base: string) => {
+      let name = base;
+      let i = 1;
+      while (nameSet.has(name)) {
+        name = `${base} ${i++}`;
+      }
+      nameSet.add(name);
+      return name;
+    };
+
+    const getUniqueId = () => {
+      let id = `node_${nodes.length + 1}`;
+      while (idSet.has(id)) {
+        id = `node_${nodes.length + Math.floor(Math.random() * 1000)}`;
+      }
+      idSet.add(id);
+      return id;
+    };
+
+    const pickAvailable = (types: string[]) => types.find((type) => availableSet.has(type));
+
+    const findNode = (types: string[], operation?: string) => nodes.find((node) => {
+      if (!types.includes(node.type)) return false;
+      if (!operation) return true;
+      return node.parameters?.operation === operation;
+    });
+
+    const prioritizeTypes = (preferred: string | undefined, types: string[]) => {
+      if (!preferred) return types;
+      return [preferred, ...types.filter((type) => type !== preferred)];
+    };
+
+    const pickOperation = (details: NodeTypeDetails | undefined): string | undefined => {
+      if (!details?.properties) return undefined;
+      const operationProp = details.properties.find((prop) => prop.name === 'operation' && prop.options);
+      if (!operationProp?.options) return undefined;
+
+      const lowerDesc = description.toLowerCase();
+      const candidates = [
+        { keywords: ['create', 'add', 'insert'], values: ['create', 'add'] },
+        { keywords: ['update', 'edit', 'modify'], values: ['update'] },
+        { keywords: ['delete', 'remove'], values: ['delete', 'remove'] },
+        { keywords: ['list', 'get all', 'fetch all'], values: ['getAll', 'list'] },
+        { keywords: ['get', 'fetch', 'read'], values: ['get', 'read'] },
+        { keywords: ['search', 'find'], values: ['search', 'query'] },
+        { keywords: ['send', 'notify'], values: ['send', 'sendMessage'] },
+        { keywords: ['post'], values: ['post'] },
+      ];
+
+      const optionValues = operationProp.options
+        .map((opt) => String(opt.value))
+        .filter(Boolean);
+
+      for (const candidate of candidates) {
+        if (candidate.keywords.some((keyword) => lowerDesc.includes(keyword))) {
+          const match = optionValues.find((value) =>
+            candidate.values.some((expected) => value.toLowerCase() === expected.toLowerCase())
+          );
+          if (match) return match;
+        }
+      }
+
+      return optionValues[0];
+    };
+
+    const hasProperty = (nodeType: string, propertyName: string): boolean => {
+      const details = nodeTypeDetails?.get(nodeType);
+      return !!details?.properties?.some((prop) => prop.name === propertyName);
+    };
+
+    const ensureResource = (node: WorkflowNode, resourceValue: string) => {
+      const hasDetails = nodeTypeDetails && nodeTypeDetails.size > 0;
+      const shouldDefault = !hasDetails && (node.type.includes('gmail') || node.type.includes('slack'));
+      if (node.parameters.resource === undefined && (shouldDefault || hasProperty(node.type, 'resource'))) {
+        node.parameters.resource = resourceValue;
+      }
+    };
+
+    const applyEmailQuery = (emailNode: WorkflowNode, query: string) => {
+      if (!query) return;
+      const hasDetails = nodeTypeDetails && nodeTypeDetails.size > 0;
+      if (!hasDetails || hasProperty(emailNode.type, 'filters')) {
+        const existingFilters = emailNode.parameters.filters || {};
+        emailNode.parameters.filters = { ...existingFilters, q: query };
+        return;
+      }
+      if (hasProperty(emailNode.type, 'options')) {
+        const existingOptions = emailNode.parameters.options || {};
+        emailNode.parameters.options = { ...existingOptions, query };
+        return;
+      }
+      emailNode.parameters.query = query;
+    };
+
+    const normalizeEmailQuery = (query: string, sender?: string | null) => {
+      if (!query || !sender) return query;
+      const escaped = sender.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const fromPattern = new RegExp(`from:(\"?${escaped}\"?)`, 'gi');
+      return query.replace(fromPattern, '').replace(/\s+/g, ' ').trim();
+    };
+
+    const extractRequestedNodeTypes = () => {
+      const aiRequested = (aiIntent?.requestedNodeTypes || [])
+        .filter((node) => typeof node === 'string')
+        .filter((node) => availableSet.size === 0 || availableSet.has(node));
+
+      if (availableNodes.length === 0) {
+        return Array.from(new Set([...aiRequested, ...this.detectRelevantNodeTypes(description)]));
+      }
+      const lowerDesc = description.toLowerCase();
+      const scored: Array<{ name: string; score: number }> = [];
+
+      for (const node of availableNodes) {
+        let score = 0;
+        const displayName = node.displayName?.toLowerCase() || '';
+        const shortName = node.name.split('.').pop()?.toLowerCase() || '';
+
+        if (displayName && lowerDesc.includes(displayName)) score += 3;
+        if (shortName && lowerDesc.includes(shortName)) score += 2;
+
+        const tokens = displayName.split(/\s+/).filter(Boolean);
+        if (tokens.length > 1 && tokens.every((token) => lowerDesc.includes(token))) {
+          score += 1;
+        }
+
+        if (score >= 2) {
+          scored.push({ name: node.name, score });
+        }
+      }
+
+      const scoredNodes = scored.sort((a, b) => b.score - a.score).map((entry) => entry.name);
+      return Array.from(new Set([...aiRequested, ...scoredNodes]));
+    };
+
+    const ensureNode = (
+      types: string[],
+      name: string,
+      parameters: Record<string, any> = {},
+      operation?: string
+    ) => {
+      let node = findNode(types, operation);
+      if (node) {
+        node.name = node.name || name;
+        node.parameters = { ...(node.parameters || {}), ...parameters };
+        return node;
+      }
+
+      const type = pickAvailable(types) || types[0];
+      const details = nodeTypeDetails?.get(type);
+      if (details) {
+        const inferredOperation = pickOperation(details);
+        if (inferredOperation && parameters.operation === undefined) {
+          parameters.operation = inferredOperation;
+        }
+      }
+      node = {
+        id: getUniqueId(),
+        name: getUniqueName(name),
+        type,
+        typeVersion: details?.version || 1,
+        position: [250, 300],
+        parameters,
+      };
+      nodes.push(node);
+      return node;
+    };
+
+    const requestedNodeTypes = extractRequestedNodeTypes();
+
+    const chain: WorkflowNode[] = [];
+    const outputNodes: WorkflowNode[] = [];
+    let branchBaseNode: WorkflowNode | undefined;
+
+    // Trigger
+    const triggerTypes = ['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.webhook', 'n8n-nodes-base.schedule', 'n8n-nodes-base.cron'];
+    const triggerNode = ensureNode(triggerTypes, 'Start');
+    chain.push(triggerNode);
+
+    // Add Workflow Description (Sticky Note)
+    // This allows the user to see the original request in the n8n canvas
+    nodes.push({
+      id: getUniqueId(),
+      name: 'Workflow Description',
+      type: 'n8n-nodes-base.stickyNote',
+      typeVersion: 1,
+      position: [150, 100], // Position above the start node
+      parameters: {
+        content: `## Generated by RISE AI
+
+**Request:** ${description}
+
+**Generated:** ${new Date().toLocaleString()}`,
+        height: 200,
+        width: 400,
+        color: 5 // Teal/Blue color
+      },
+    });
+
+    // Email fetch
+    if (intent.wantsEmail) {
+      const emailTypes = [
+        'n8n-nodes-base.gmail',
+        'n8n-nodes-base.microsoftOutlook',
+        'n8n-nodes-base.imap',
+        'n8n-nodes-base.emailReadImap',
+      ];
+      const preferredEmailType = requestedNodeTypes.find((type) => emailTypes.includes(type));
+      const senderValue = intent.sender?.trim();
+      const queryParts: string[] = [];
+      if (intent.sender) {
+        queryParts.push(`from:"${intent.sender}"`);
+      }
+      if (intent.days) {
+        queryParts.push(`newer_than:${intent.days}d`);
+      }
+      const emailNode = ensureNode(prioritizeTypes(preferredEmailType, emailTypes), 'Get Emails', {});
+      const emailDetails = nodeTypeDetails?.get(emailNode.type);
+      const hasDetails = nodeTypeDetails && nodeTypeDetails.size > 0;
+      if (!hasDetails) {
+        emailNode.parameters.operation = emailNode.parameters.operation ?? 'getAll';
+        emailNode.parameters.limit = emailNode.parameters.limit ?? 50;
+      } else {
+        if (hasProperty(emailNode.type, 'operation') && emailNode.parameters.operation === undefined) {
+          emailNode.parameters.operation = pickOperation(emailDetails) || 'getAll';
+        }
+        if (hasProperty(emailNode.type, 'limit') && emailNode.parameters.limit === undefined) {
+          emailNode.parameters.limit = 50;
+        }
+      }
+
+      if (queryParts.length > 0) {
+        const hasDetails = nodeTypeDetails && nodeTypeDetails.size > 0;
+        const existingQuery = (!hasDetails || hasProperty(emailNode.type, 'filters'))
+          ? String(emailNode.parameters.filters?.q || '')
+          : hasProperty(emailNode.type, 'options')
+          ? String(emailNode.parameters.options?.query || '')
+          : String(emailNode.parameters.query || '');
+        const cleanedQuery = normalizeEmailQuery(existingQuery, senderValue);
+        const mergedQuery = queryParts.reduce((acc, part) => {
+          if (acc.toLowerCase().includes(part.toLowerCase())) return acc;
+          return acc ? `${acc} ${part}` : part;
+        }, cleanedQuery);
+        applyEmailQuery(emailNode, mergedQuery);
+      }
+      ensureResource(emailNode, 'message');
+      chain.push(emailNode);
+    }
+
+    // Mark unread
+    if (intent.wantsMarkUnread) {
+      const markNode = ensureNode(['n8n-nodes-base.gmail'], 'Mark as Unread', {
+        operation: 'markUnread',
+        messageId: '={{ $json.id }}',
+      }, 'markUnread');
+      ensureResource(markNode, 'message');
+      chain.push(markNode);
+    }
+
+    // Summarize with AI (using organizational preferences)
+    if (intent.wantsGeminiSummary) {
+      // Get preferred AI node from preferences - prefer standalone tool nodes over chains
+      const aiPrefs = workflowPreferencesService.getPreferredAINode('summarize');
+      const preferredType = aiPrefs.nodeType;
+      const canUsePreferred = availableSet.size === 0 || availableSet.has(preferredType);
+
+      let aiNode = findNode([preferredType]);
+      if (!aiNode && canUsePreferred) {
+        aiNode = ensureNode([preferredType], aiPrefs.displayName || 'Message a Model');
+      } else if (!aiNode) {
+        // Fallback to any available AI node - prefer tool nodes over chain nodes
+        const fallbackTypes = [
+          '@n8n/n8n-nodes-langchain.toolLlm',  // Message a Model (standalone tool)
+          'n8n-nodes-base.openAi',  // OpenAI (standalone)
+          '@n8n/n8n-nodes-langchain.chainSummarization',  // Last resort chain
+        ];
+        const fallbackType = pickAvailable(fallbackTypes) || fallbackTypes[0];
+        aiNode = ensureNode([fallbackType], 'Message a Model');
+      }
+
+      // Ensure it has a prompt (MCP-driven validation will handle this generically)
+      const details = nodeTypeDetails?.get(aiNode.type);
+      if (details?.properties) {
+        const promptProp = details.properties.find((prop) => /prompt|input|text|instruction/i.test(prop.name));
+        if (promptProp && aiNode.parameters[promptProp.name] === undefined) {
+          aiNode.parameters[promptProp.name] = 'Summarize the emails from the previous node with key points and action items.';
+        }
+      }
+      chain.push(aiNode);
+      branchBaseNode = aiNode;
+    }
+
+    // Prepare summary fields for downstream nodes
+    if (intent.wantsSpreadsheet) {
+      const summaryPrep = ensureNode(['n8n-nodes-base.code'], 'Prepare Summary', {
+        mode: 'runOnceForAllItems',
+        jsCode: `// Extract meaningful summary from input items
+const items = $input.all();
+const summary = items.map(item => {
+  const json = item.json;
+  // Try to find meaningful text fields
+  return json.summary || json.text || json.message || json.content || json.body || JSON.stringify(json);
+}).join('\\n\\n');
+
+return [
+  {
+    json: {
+      summary: summary || 'No content to summarize',
+      from: '${intent.sender || 'unknown'}',
+      sinceDays: ${intent.days || 3},
+      generatedAt: new Date().toISOString(),
+      itemCount: items.length
+    }
+  }
+];`,
+      });
+      chain.push(summaryPrep);
+      branchBaseNode = summaryPrep;
+    }
+
+    if (!branchBaseNode) {
+      branchBaseNode = chain[chain.length - 1];
+    }
+
+    // Slack delivery (parallel output)
+    if (intent.wantsSlack) {
+      const slackNode = ensureNode(['n8n-nodes-base.slack'], 'Send to Slack', {
+        operation: 'post',
+        channel: intent.slackChannel || 'C0A1CEBJWJF',
+        text: '={{ $json.summary || $json.text || $json.response || JSON.stringify($json) }}',
+      }, 'post');
+      ensureResource(slackNode, 'message');
+      outputNodes.push(slackNode);
+    }
+
+    // Spreadsheet output (parallel)
+    if (intent.wantsSpreadsheet) {
+      const sheetTypes = intent.wantsGoogleSheets
+        ? ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.microsoftExcel', 'n8n-nodes-base.spreadsheetFile']
+        : ['n8n-nodes-base.microsoftExcel', 'n8n-nodes-base.googleSheets', 'n8n-nodes-base.spreadsheetFile'];
+      const sheetNode = ensureNode(sheetTypes, 'Update Spreadsheet', {});
+      const details = nodeTypeDetails?.get(sheetNode.type);
+
+      const applyParam = (name: string, value: any) => {
+        if (details?.properties) {
+          if (details.properties.some((prop) => prop.name === name)) {
+            sheetNode.parameters[name] = value;
+          }
+        } else if (value !== undefined) {
+          sheetNode.parameters[name] = value;
+        }
+      };
+
+      applyParam('operation', sheetNode.parameters.operation || 'append');
+      applyParam('dataMode', sheetNode.parameters.dataMode || 'autoMapInputData');
+      if (intent.spreadsheetId) {
+        applyParam('documentId', sheetNode.parameters.documentId || { __rl: true, mode: 'id', value: intent.spreadsheetId });
+        applyParam('spreadsheetId', sheetNode.parameters.spreadsheetId || intent.spreadsheetId);
+      }
+      if (intent.spreadsheetGid) {
+        applyParam('sheetId', sheetNode.parameters.sheetId || Number(intent.spreadsheetGid));
+      }
+      applyParam('sheetName', sheetNode.parameters.sheetName || { __rl: true, mode: 'name', value: 'Sheet1' });
+      outputNodes.push(sheetNode);
+    }
+
+    chain.forEach((node, index) => {
+      node.position = [250 + index * 200, 300];
+    });
+
+    const lastChain = chain[chain.length - 1];
+    const outputX = (lastChain?.position?.[0] || 250) + 200;
+    outputNodes.forEach((node, index) => {
+      node.position = [outputX, 300 + index * 180];
+    });
+
+    const connections: Record<string, WorkflowConnection> = {};
+    for (let i = 0; i < chain.length - 1; i++) {
+      connections[chain[i].name] = {
+        main: [[{ node: chain[i + 1].name, type: 'main', index: 0 }]],
+      };
+    }
+
+    if (branchBaseNode && outputNodes.length > 0) {
+      connections[branchBaseNode.name] = {
+        main: [[
+          ...outputNodes.map((node) => ({ node: node.name, type: 'main', index: 0 })),
+        ]],
+      };
+    }
+
+    const allowedNames = new Set([...chain, ...outputNodes].map((node) => node.name));
+    const filteredNodes = nodes.filter((node) => allowedNames.has(node.name));
+
+    return {
+      ...workflow,
+      nodes: filteredNodes,
+      connections,
+      active: false,
+    };
+  }
+
+  private sanitizeWorkflowParameters(
+    workflow: N8nWorkflow,
+    nodeTypeDetails?: Map<string, NodeTypeDetails>
+  ): N8nWorkflow {
+    if (!nodeTypeDetails || nodeTypeDetails.size === 0) {
+      return workflow;
+    }
+
+    const sanitizedNodes = workflow.nodes.map((node) => {
+      const details = nodeTypeDetails.get(node.type);
+      if (!details?.properties || details.properties.length === 0) {
+        return node;
+      }
+      const allowed = new Set(details.properties.map((prop) => prop.name));
+      const sanitizedParams: Record<string, any> = {};
+      for (const [key, value] of Object.entries(node.parameters || {})) {
+        if (allowed.has(key)) {
+          sanitizedParams[key] = value;
+        }
+      }
+      return { ...node, parameters: sanitizedParams };
+    });
+
+    return { ...workflow, nodes: sanitizedNodes };
+  }
+
+  /**
+   * Replace chain-based AI nodes with standalone tool nodes (Feature #277)
+   * Converts: chainLlm + lmChatGoogleGemini → single toolLlm node
+   */
+  private replaceChainNodesWithToolNodes(
+    workflow: N8nWorkflow,
+    description: string,
+    nodeTypeDetails?: Map<string, NodeTypeDetails>
+  ): N8nWorkflow {
+    const nodes = [...workflow.nodes];
+    const connections = { ...workflow.connections };
+
+    // Find chain + model pairs
+    const chainNodes = nodes.filter(n =>
+      n.type === '@n8n/n8n-nodes-langchain.chainLlm' ||
+      n.type === '@n8n/n8n-nodes-langchain.chainSummarization'
+    );
+    const modelNodes = nodes.filter(n => n.type === '@n8n/n8n-nodes-langchain.lmChatGoogleGemini');
+
+    if (chainNodes.length === 0 && modelNodes.length === 0) {
+      return workflow; // No chains to replace
+    }
+
+    // Build list of nodes to remove
+    const nodesToRemove = new Set<string>();
+
+    // Replace each chain node with a standalone toolLlm
+    for (const chainNode of chainNodes) {
+      // Find the model node connected to this chain (via ai_model connection)
+      let connectedModel: WorkflowNode | null = null;
+      for (const modelNode of modelNodes) {
+        const modelConnections = connections[modelNode.name];
+        if (modelConnections?.ai_model) {
+          const hasConnectionToChain = modelConnections.ai_model.some(
+            (connArr: any[]) => connArr.some((conn: any) => conn.node === chainNode.name)
+          );
+          if (hasConnectionToChain) {
+            connectedModel = modelNode;
+            break;
+          }
+        }
+      }
+
+      // Create a standalone toolLlm node to replace the chain+model combo
+      const toolNode: WorkflowNode = {
+        id: chainNode.id,
+        name: chainNode.name,
+        type: '@n8n/n8n-nodes-langchain.toolLlm',
+        typeVersion: 1,
+        position: chainNode.position,
+        parameters: {
+          prompt: chainNode.parameters.prompt || chainNode.parameters.promptTemplate || 'Process the input data',
+          model: connectedModel?.parameters.model || 'gemini-pro',
+        },
+      };
+
+      // Replace the chain node
+      const chainIndex = nodes.findIndex(n => n.id === chainNode.id);
+      if (chainIndex >= 0) {
+        nodes[chainIndex] = toolNode;
+      }
+
+      // Mark model node for removal
+      if (connectedModel) {
+        nodesToRemove.add(connectedModel.name);
+        // Remove ai_model connections from the connections object
+        delete connections[connectedModel.name];
+      }
+
+      console.log(`Replaced chain node "${chainNode.name}" with standalone toolLlm (Message a Model)`);
+    }
+
+    // Remove standalone model nodes that were connected to chains
+    const filteredNodes = nodes.filter(n => !nodesToRemove.has(n.name));
+
+    return {
+      ...workflow,
+      nodes: filteredNodes,
+      connections,
+    };
+  }
+
+  /**
+   * Ensure AI/LLM nodes always have required parameters like prompts
+   */
+  private ensureAINodeParameters(workflow: N8nWorkflow, description: string): N8nWorkflow {
+    const AI_NODE_TYPES = [
+      '@n8n/n8n-nodes-langchain.chainLlm',  // Basic LLM Chain (PREFERRED - use with model connection)
+      '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',  // Google Gemini Model (PREFERRED - connect to chain)
+      '@n8n/n8n-nodes-langchain.toolLlm',  // Message a Model (deprecated - use chain+model instead)
+      '@n8n/n8n-nodes-langchain.chainSummarization',
+      'n8n-nodes-base.openAi',
+    ];
+
+    const enhancedNodes = workflow.nodes.map((node) => {
+      if (!AI_NODE_TYPES.includes(node.type)) {
+        return node;
+      }
+
+      // Ensure the node has parameters
+      const parameters = node.parameters || {};
+
+      // For toolLlm (Message a Model) - ensure it has message/prompt
+      if (node.type === '@n8n/n8n-nodes-langchain.toolLlm') {
+        if (!parameters.prompt && !parameters.text && !parameters.message && !parameters.input) {
+          const defaultPrompt = this.generateDefaultAIPrompt(description, node.name);
+          parameters.prompt = defaultPrompt;
+        }
+        // Ensure it has a model selection if needed
+        if (!parameters.model && !parameters.modelName) {
+          parameters.model = 'gemini-pro';  // Default to Gemini
+        }
+        return { ...node, parameters };
+      }
+
+      // For lmChatGoogleGemini - ensure model and prompt are set
+      if (node.type === '@n8n/n8n-nodes-langchain.lmChatGoogleGemini') {
+        if (!parameters.model) {
+          parameters.model = 'gemini-pro';
+        }
+        // Ensure it has a prompt parameter
+        if (!parameters.prompt && !parameters.text && !parameters.input) {
+          const defaultPrompt = this.generateDefaultAIPrompt(description, node.name);
+          parameters.prompt = defaultPrompt;
+        }
+        return { ...node, parameters };
+      }
+
+      // For chainSummarization - ensure it has proper configuration
+      if (node.type === '@n8n/n8n-nodes-langchain.chainSummarization') {
+        if (!parameters.type) {
+          parameters.type = 'stuff'; // Default summarization type
+        }
+        return { ...node, parameters };
+      }
+
+      // For chainLlm - ensure it has a prompt
+      if (node.type === '@n8n/n8n-nodes-langchain.chainLlm') {
+        if (!parameters.prompt && !parameters.promptTemplate) {
+          // Generate a default prompt based on the workflow description
+          const defaultPrompt = this.generateDefaultAIPrompt(description, node.name);
+          parameters.prompt = defaultPrompt;
+        }
+        return { ...node, parameters };
+      }
+
+      // For OpenAI node - ensure it has a prompt
+      if (node.type === 'n8n-nodes-base.openAi') {
+        if (!parameters.prompt && !parameters.text) {
+          const defaultPrompt = this.generateDefaultAIPrompt(description, node.name);
+          parameters.prompt = defaultPrompt;
+        }
+        return { ...node, parameters };
+      }
+
+      return node;
+    });
+
+    return { ...workflow, nodes: enhancedNodes };
+  }
+
+  /**
+   * Generate a default AI prompt based on workflow context
+   */
+  private generateDefaultAIPrompt(description: string, nodeName: string): string {
+    const lowerDesc = description.toLowerCase();
+
+    if (lowerDesc.includes('summarize') || lowerDesc.includes('summary')) {
+      return 'Summarize the following text in a clear and concise way:\n\n{{ $json.text || $json.content || JSON.stringify($json) }}';
+    }
+
+    if (lowerDesc.includes('analyze') || lowerDesc.includes('analysis')) {
+      return 'Analyze the following data and provide insights:\n\n{{ JSON.stringify($json) }}';
+    }
+
+    if (lowerDesc.includes('extract') || lowerDesc.includes('information')) {
+      return 'Extract key information from the following:\n\n{{ $json.text || JSON.stringify($json) }}';
+    }
+
+    // Default generic prompt
+    return 'Process the following input:\n\n{{ $json.text || $json.content || JSON.stringify($json) }}';
+  }
+
+  /**
+   * Use MCP server to suggest relevant node types based on the description
+   */
+  private async getMcpSuggestedNodeTypes(
+    description: string,
+    n8nUrl: string,
+    apiKey: string
+  ): Promise<string[]> {
+    if (!n8nMcpService.isAvailable()) return [];
+
+    try {
+      const result = await n8nMcpService.suggestWorkflow(description, n8nUrl, apiKey);
+      if (result.success && Array.isArray(result.suggestedNodes)) {
+        return result.suggestedNodes;
+      }
+    } catch (error: any) {
+      console.warn('MCP suggestion failed:', error?.message || error);
+    }
+
+    return [];
+  }
+
+  /**
+   * Merge suggested node types and filter by availability on the instance
+   */
+  private mergeRelevantNodeTypes(nodeTypes: string[], availableNodes: N8nNode[]): string[] {
+    const availableSet = new Set(availableNodes.map((node) => node.name));
+    const merged = new Set<string>();
+
+    for (const nodeType of nodeTypes) {
+      if (!nodeType) continue;
+      if (availableSet.size === 0 || availableSet.has(nodeType)) {
+        merged.add(nodeType);
+      }
+    }
+
+    // Ensure essential nodes are included when available
+    const essentials = ['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.set'];
+    for (const essential of essentials) {
+      if (availableSet.size === 0 || availableSet.has(essential)) {
+        merged.add(essential);
+      }
+    }
+
+    return Array.from(merged);
   }
 
   /**
@@ -1262,6 +2128,11 @@ export class WorkflowGeneratorService {
         discoveryResult.fromCache,
         discoveryResult.nodes.map(n => n.name).slice(0, 30)
       );
+      if (discoveryResult.nodeCount === 0) {
+        workflowLogger.warn(generationId, 'NODE_DISCOVERY_EMPTY', 'No nodes discovered from n8n instance', {
+          n8nUrl: instance.url,
+        });
+      }
 
       // Show different message based on cache status
       if (discoveryResult.fromCache) {
@@ -1285,11 +2156,36 @@ export class WorkflowGeneratorService {
       }
 
       // Detect which node types are likely needed based on the description
-      const relevantNodeTypes = this.detectRelevantNodeTypes(description);
+      const locallyDetectedTypes = this.detectRelevantNodeTypes(description);
+      const catalogDetectedTypes = this.detectRelevantNodeTypesFromAvailableNodes(
+        description,
+        discoveryResult.nodes
+      );
+      const mcpSuggestedTypes = await this.getMcpSuggestedNodeTypes(description, instance.url, apiKey);
+      let relevantNodeTypes = this.mergeRelevantNodeTypes(
+        [...locallyDetectedTypes, ...catalogDetectedTypes, ...mcpSuggestedTypes],
+        discoveryResult.nodes
+      );
 
       // Log detected relevant node types
       workflowLogger.logRelevantNodeTypes(generationId, relevantNodeTypes);
       console.log(`Detected relevant node types: ${relevantNodeTypes.join(', ')}`);
+
+      // Use Gemini to extract additional intent and requested node types
+      let aiIntent: WorkflowIntent | null = null;
+      if (hasGeminiKey) {
+        aiIntent = await geminiService.analyzeWorkflowIntent(
+          description,
+          discoveryResult.nodes,
+          geminiApiKey
+        );
+        if (aiIntent?.requestedNodeTypes && aiIntent.requestedNodeTypes.length > 0) {
+          relevantNodeTypes = this.mergeRelevantNodeTypes(
+            [...relevantNodeTypes, ...aiIntent.requestedNodeTypes],
+            discoveryResult.nodes
+          );
+        }
+      }
 
       // Fetch detailed node configurations for those types (Feature #269)
       this.emitProgress(socketId, generationId, 'Fetching node configurations...', 35);
@@ -1317,11 +2213,16 @@ export class WorkflowGeneratorService {
           this.emitProgress(socketId, generationId, 'Using Gemini AI to understand your request...', 45);
           workflowLogger.info(generationId, 'AI_GENERATION', 'Starting AI-based workflow generation');
 
+          // Get learning guidance from past corrections (Feature #274)
+          const learningGuidance = workflowLearningService.getCommonLearningsGuidance();
+
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
             geminiApiKey, // Pass custom key if provided
-            nodeTypeDetails // Pass node configurations to AI
+            nodeTypeDetails, // Pass node configurations to AI
+            relevantNodeTypes, // Suggested node types from MCP/heuristics
+            learningGuidance // Learning from previous corrections
           );
           workflow = aiResult.workflow;
           generationMethod = 'AI';
@@ -1347,6 +2248,33 @@ export class WorkflowGeneratorService {
         workflowLogger.info(generationId, 'RULE_BASED', 'Using rule-based generation (no AI key)');
         workflow = this.generateWorkflowFromDescription(description);
         generationMethod = 'RULE_BASED';
+      }
+
+      // DISABLED Feature #277: We now PREFER chain-based AI nodes (chain + model pattern)
+      // DO NOT replace chains with standalone tools - chains are the correct pattern
+      // workflow = this.replaceChainNodesWithToolNodes(workflow, description, nodeTypeDetails);
+
+      // Ensure required steps are present for accuracy
+      workflow = this.enforceWorkflowRequirements(
+        description,
+        workflow,
+        discoveryResult.nodes,
+        nodeTypeDetails,
+        aiIntent
+      );
+      workflow = this.sanitizeWorkflowParameters(workflow, nodeTypeDetails);
+      workflow = this.ensureAINodeParameters(workflow, description);
+
+      // Validate and auto-correct workflow parameters (Feature #275)
+      this.emitProgress(socketId, generationId, 'Validating and correcting workflow parameters...', 48);
+      const paramValidationResult = workflowValidatorService.validateAndCorrect(workflow.nodes, nodeTypeDetails);
+      if (paramValidationResult.issues.length > 0) {
+        workflowLogger.info(generationId, 'VALIDATION_CORRECTIONS', 'Applied auto-corrections to workflow', {
+          issueCount: paramValidationResult.issues.length,
+          correctedNodes: paramValidationResult.correctedNodes,
+          issues: paramValidationResult.issues.map(i => `${i.node}.${i.field}: ${i.fix}`),
+        });
+        console.log(`Applied ${paramValidationResult.issues.length} auto-corrections to workflow`);
       }
 
       // Log the generated workflow with all details
@@ -1400,7 +2328,8 @@ export class WorkflowGeneratorService {
         generationId,
         n8nResult.success,
         n8nResult.n8nWorkflowId,
-        n8nResult.error
+        n8nResult.error,
+        n8nResult.errorDetails
       );
 
       if (!n8nResult.success) {
@@ -1410,7 +2339,26 @@ export class WorkflowGeneratorService {
       // Track the created workflow ID for potential rollback
       createdWorkflowId = n8nResult.n8nWorkflowId;
 
-      // Step 6: Update generation record with success
+      // Step 6: Verify created workflow with AI (Post-creation verification)
+      if (hasGeminiKey) {
+        this.emitProgress(socketId, generationId, 'Verifying workflow logic with Gemini AI...', 90);
+        
+        try {
+            const verification = await geminiService.verifyWorkflow(workflow, description, geminiApiKey);
+            workflowLogger.info(generationId, 'VERIFICATION', 'AI Verification Result', verification);
+            
+            if (socketId) {
+                io.to(socketId).emit('workflow:verification', {
+                    generationId,
+                    verification
+                });
+            }
+        } catch (verifyError) {
+            workflowLogger.warn(generationId, 'VERIFICATION_FAILED', 'Failed to verify workflow', { error: verifyError });
+        }
+      }
+
+      // Step 7: Update generation record with success
       this.emitProgress(socketId, generationId, 'Workflow created successfully!', 100);
 
       const durationMs = Date.now() - startTime;
@@ -1454,6 +2402,8 @@ export class WorkflowGeneratorService {
           n8nWorkflowUrl: n8nResult.n8nWorkflowUrl,
           nodesUsed: workflow.nodes.length,
           credentials: credentials.length > 0 ? credentials : undefined,
+          originalDescription: description,
+          workflow: workflow, // Include the workflow JSON for display
         });
       }
 
@@ -2189,9 +3139,6 @@ export class WorkflowGeneratorService {
         filters: {
           q: senderName ? `from:${senderName} newer_than:${daysFilter}d` : `newer_than:${daysFilter}d`,
         },
-        options: {
-          returnAll: true,
-        },
       },
     });
 
@@ -2570,6 +3517,16 @@ return [{ json: { summary, emailCount, sender: '${senderName}' } }];`,
     // Workflows need to be activated separately after creation
     const { active: _active, ...workflowWithoutActive } = workflow;
 
+    // Ensure settings exists (required by n8n API)
+    if (!workflowWithoutActive.settings) {
+      workflowWithoutActive.settings = {
+        saveManualExecutions: true,
+        saveExecutionProgress: false,
+        saveDataSuccessExecution: 'all',
+        saveDataErrorExecution: 'all',
+      };
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await axios.post(
@@ -2615,16 +3572,20 @@ return [{ json: { summary, emailCount, sender: '${senderName}' } }];`,
     }
 
     // All retries exhausted, return error
+    const errorDetails = lastError?.response
+      ? { status: lastError.response.status, data: lastError.response.data }
+      : undefined;
     if (lastError.response?.status === 401) {
-      return { success: false, error: 'Invalid n8n API key' };
+      return { success: false, error: 'Invalid n8n API key', errorDetails };
     }
     if (lastError.response?.status === 403) {
-      return { success: false, error: 'Access denied to n8n instance' };
+      return { success: false, error: 'Access denied to n8n instance', errorDetails };
     }
 
     return {
       success: false,
-      error: lastError.response?.data?.message || lastError.message || 'Failed to create workflow in n8n after multiple attempts'
+      error: lastError.response?.data?.message || lastError.message || 'Failed to create workflow in n8n after multiple attempts',
+      errorDetails,
     };
   }
 

@@ -11,6 +11,7 @@ import workflowRoutes from './routes/workflow.routes';
 import adminRoutes from './routes/admin.routes';
 import credentialGuidanceRoutes from './routes/credentialGuidance.routes';
 import publicRoutes from './routes/public.routes';
+import templatesRoutes from './routes/templates.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -49,6 +50,7 @@ app.use('/api/credentials/guidance', credentialGuidanceRoutes);
 
 // Public routes (no authentication required)
 app.use('/api/public', publicRoutes);
+app.use('/api/templates', templatesRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

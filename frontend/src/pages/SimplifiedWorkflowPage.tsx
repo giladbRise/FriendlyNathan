@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
-import Footer from '../components/Footer';
+import JsonSyntaxHighlight from '../components/JsonSyntaxHighlight';
 
 interface CredentialRequirement {
   type: string;
@@ -21,6 +21,17 @@ interface GenerationResult {
   nodesUsed?: number;
   error?: string;
   credentials?: CredentialRequirement[];
+  originalDescription?: string;
+  workflow?: Record<string, any>; // Add workflow JSON
+}
+
+interface PreviewResult {
+  previewId: string;
+  workflow: Record<string, unknown>;
+  nodeCount: number;
+  explanation?: string;
+  credentials?: CredentialRequirement[];
+  originalDescription?: string;
 }
 
 // Local storage keys
@@ -51,6 +62,11 @@ const SimplifiedWorkflowPage: React.FC = () => {
   const [generationProgress, setGenerationProgress] = useState({ message: '', progress: 0, estimatedTimeRemaining: null as number | null });
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [expandedCredentials, setExpandedCredentials] = useState<Set<string>>(new Set());
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
+  const [creatingFromPreview, setCreatingFromPreview] = useState(false);
+  const [showFlowDetails, setShowFlowDetails] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showWorkflowJSON, setShowWorkflowJSON] = useState(false);
 
   // UI state
   const [validating, setValidating] = useState(false);
@@ -148,6 +164,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
   const handleGenerateWorkflow = async () => {
     setError('');
     setGenerationResult(null);
+    setPreviewResult(null);
 
     if (!n8nUrl || !n8nApiKey) {
       setError('Please enter your n8n URL and API key');
@@ -163,24 +180,20 @@ const SimplifiedWorkflowPage: React.FC = () => {
       setGenerating(true);
       setGenerationProgress({ message: 'Starting...', progress: 0, estimatedTimeRemaining: null });
 
-      const socketId = socketRef.current?.id;
-
-      // Call the public workflow generation endpoint (no auth required)
+      setGenerationProgress({ message: 'Generating preview...', progress: 50, estimatedTimeRemaining: null });
       const response = await axios.post(
-        'http://localhost:3000/api/public/generate-workflow',
+        'http://localhost:3000/api/public/preview-workflow',
         {
           n8nUrl,
           n8nApiKey,
           description: workflowDescription,
-          socketId,
           geminiApiKey: geminiApiKey.trim() || undefined,
         }
       );
-
-      // Store the generation ID for potential cancellation
-      setCurrentGenerationId(response.data.generationId);
-
-      // The result will come through the socket
+      setPreviewResult(response.data);
+      setGenerating(false);
+      setGenerationProgress({ message: '', progress: 0, estimatedTimeRemaining: null });
+      return;
     } catch (err: any) {
       console.error('Error generating workflow:', err);
       setGenerating(false);
@@ -196,6 +209,91 @@ const SimplifiedWorkflowPage: React.FC = () => {
         setError(err.response.data?.error || 'Failed to generate workflow. Please try again.');
       }
     }
+  };
+
+  const handleCreateFromPreview = async () => {
+    if (!previewResult) return;
+
+    setCreatingFromPreview(true);
+    setError('');
+
+    try {
+      const response = await axios.post(
+        'http://localhost:3000/api/public/create-workflow',
+        {
+          n8nUrl,
+          n8nApiKey,
+          previewId: previewResult.previewId,
+        }
+      );
+
+      setGenerationResult({
+        generationId: response.data.generationId || 'preview',
+        success: response.data.success,
+        n8nWorkflowId: response.data.n8nWorkflowId,
+        n8nWorkflowUrl: response.data.n8nWorkflowUrl,
+        nodesUsed: response.data.nodesUsed,
+        credentials: previewResult.credentials,
+        originalDescription: previewResult.originalDescription,
+        workflow: response.data.workflow || previewResult.workflow, // Include workflow JSON
+      });
+      setPreviewResult(null);
+    } catch (err: any) {
+      console.error('Error creating workflow from preview:', err);
+      setError(err.response?.data?.error || 'Failed to create workflow in n8n');
+    } finally {
+      setCreatingFromPreview(false);
+    }
+  };
+
+  const renderFlowPreview = () => {
+    if (!previewResult?.workflow || !showFlowDetails) return null;
+    const nodes = (previewResult.workflow.nodes as Array<{ id: string; name: string; type: string; position?: [number, number] }>) || [];
+
+    const columns = new Map<number, typeof nodes>();
+    for (const node of nodes) {
+      const x = node.position?.[0] ?? 0;
+      if (!columns.has(x)) columns.set(x, []);
+      columns.get(x)!.push(node);
+    }
+
+    const sortedColumns = Array.from(columns.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, value]) => value.sort((a, b) => (a.position?.[1] ?? 0) - (b.position?.[1] ?? 0)));
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-foreground">Flow Preview</h4>
+          <button
+            onClick={() => setShowFlowDetails(false)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Hide
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="inline-flex gap-6">
+            {sortedColumns.map((column, colIndex) => (
+              <div key={`col-${colIndex}`} className="flex flex-col gap-4 min-w-[160px]">
+                {column.map((node) => (
+                  <div
+                    key={node.id}
+                    className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-foreground shadow-sm"
+                  >
+                    <div className="font-semibold text-sm">{node.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{node.type}</div>
+                  </div>
+                ))}
+                {colIndex < sortedColumns.length - 1 && (
+                  <div className="text-center text-muted-foreground text-xs">→</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const handleCancelGeneration = async () => {
@@ -274,23 +372,50 @@ const SimplifiedWorkflowPage: React.FC = () => {
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <div className="space-y-6">
 
-          {/* Credentials Section */}
-          <div className="bg-card rounded-lg shadow-lg p-6 border border-border">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Configuration</h2>
-              {(n8nApiKey || geminiApiKey) && (
-                <button
-                  onClick={handleClearCredentials}
-                  className="text-sm text-muted-foreground hover:text-destructive transition-colors"
+          {/* Credentials Section - Collapsible */}
+          <div className="bg-card rounded-lg shadow-lg border border-border">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="w-full p-4 flex justify-between items-center hover:bg-muted/30 transition-colors rounded-t-lg"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <h2 className="text-lg font-semibold text-foreground">Settings & Configuration</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {validationSuccess && !showSettings && (
+                  <span className="text-xs text-green-400 mr-2">✓ Connected</span>
+                )}
+                <svg
+                  className={`w-5 h-5 text-muted-foreground transition-transform ${showSettings ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  Clear All
-                </button>
-              )}
-            </div>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
 
-            <p className="text-sm text-muted-foreground mb-4">
-              Your credentials are saved locally in your browser and never sent to our servers.
-            </p>
+            {showSettings && (
+              <div className="p-6 border-t border-border">
+                <div className="flex justify-between items-center mb-4">
+                  {(n8nApiKey || geminiApiKey) && (
+                    <button
+                      onClick={handleClearCredentials}
+                      className="text-sm text-muted-foreground hover:text-destructive transition-colors ml-auto"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your credentials are saved locally in your browser and never sent to our servers.
+                </p>
 
             <div className="space-y-4">
               {/* n8n URL */}
@@ -403,6 +528,8 @@ const SimplifiedWorkflowPage: React.FC = () => {
                 </div>
               )}
             </div>
+              </div>
+            )}
           </div>
 
           {/* Workflow Description Section */}
@@ -414,7 +541,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                 <textarea
                   value={workflowDescription}
                   onChange={(e) => setWorkflowDescription(e.target.value)}
-                  placeholder="Describe the workflow you want to create. For example: 'Send a webhook POST request to https://example.com/hook with static JSON data' or 'Send a Slack message to #general channel'"
+                  placeholder="Describe the workflow you want to create. For example: 'Get emails from sender@example.com, summarize with Gemini, send to Slack #general'"
                   rows={5}
                   className="w-full px-4 py-3 border border-border rounded-lg bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
                   disabled={generating}
@@ -422,7 +549,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
                 <div className="mt-2 flex justify-between items-center">
                   <p className="text-sm text-muted-foreground">
-                    {workflowDescription.length} characters
+                    {workflowDescription.length} characters {workflowDescription.length < 10 && '(minimum 10)'}
                   </p>
                   <div className="flex items-center gap-4">
                     {workflowDescription.length > 0 && (
@@ -440,47 +567,11 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Example prompts */}
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-foreground mb-2">Quick examples:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setWorkflowDescription('Send a webhook POST request to https://example.com/hook with static JSON data')}
-                      className="text-xs px-3 py-1.5 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
-                      disabled={generating}
-                    >
-                      HTTP Request
-                    </button>
-                    <button
-                      onClick={() => setWorkflowDescription('Send a Slack message to #general channel with a greeting')}
-                      className="text-xs px-3 py-1.5 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
-                      disabled={generating}
-                    >
-                      Slack Message
-                    </button>
-                    <button
-                      onClick={() => setWorkflowDescription('Send an email notification to recipient@example.com with a summary')}
-                      className="text-xs px-3 py-1.5 bg-muted hover:bg-muted/80 rounded-full text-foreground transition-colors"
-                      disabled={generating}
-                    >
-                      Send Email
-                    </button>
-                    <button
-                      onClick={() => setWorkflowDescription('Get data from Google Sheets and send to Slack')}
-                      className="text-xs px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 rounded-full text-yellow-400 transition-colors"
-                      disabled={generating}
-                    >
-                      Google Sheets + Slack
-                    </button>
-                  </div>
-                </div>
-
                 {/* Progress indicator */}
                 {generating && (
                   <div className="mt-6 space-y-3">
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-medium text-primary">{generationProgress.message}</p>
-                      <p className="text-sm text-muted-foreground">{generationProgress.progress}%</p>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
@@ -488,18 +579,15 @@ const SimplifiedWorkflowPage: React.FC = () => {
                         style={{ width: `${generationProgress.progress}%` }}
                       />
                     </div>
-                    {generationProgress.estimatedTimeRemaining !== null && generationProgress.estimatedTimeRemaining > 0 && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        {formatTimeRemaining(generationProgress.estimatedTimeRemaining)}
-                      </p>
+                    {currentGenerationId && (
+                      <button
+                        onClick={handleCancelGeneration}
+                        disabled={cancelling}
+                        className="w-full px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive font-medium rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {cancelling ? 'Cancelling...' : 'Cancel Generation'}
+                      </button>
                     )}
-                    <button
-                      onClick={handleCancelGeneration}
-                      disabled={cancelling}
-                      className="w-full px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive font-medium rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {cancelling ? 'Cancelling...' : 'Cancel Generation'}
-                    </button>
                   </div>
                 )}
 
@@ -515,10 +603,10 @@ const SimplifiedWorkflowPage: React.FC = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Generating Workflow...
+                      Generating Preview...
                     </span>
                   ) : (
-                    'Generate Workflow'
+                    'Generate Preview'
                   )}
                 </button>
 
@@ -528,6 +616,49 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       ? 'Please enter your n8n credentials above'
                       : 'Please enter a workflow description (at least 10 characters)'}
                   </p>
+                )}
+
+                {previewResult && (
+                  <div className="mt-6 space-y-4 border border-border rounded-lg p-4 bg-card">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-foreground">Preview Workflow</h3>
+                      <button
+                        onClick={() => setPreviewResult(null)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        disabled={creatingFromPreview}
+                      >
+                        Clear Preview
+                      </button>
+                    </div>
+
+                    {/* Original User Request */}
+                    {previewResult.originalDescription && (
+                      <div className="p-3 bg-muted/30 border border-border rounded-lg">
+                        <h4 className="text-sm font-semibold text-foreground mb-1">Your Request:</h4>
+                        <p className="text-sm text-muted-foreground italic">"{previewResult.originalDescription}"</p>
+                      </div>
+                    )}
+
+                    {previewResult.explanation && (
+                      <p className="text-sm text-muted-foreground">{previewResult.explanation}</p>
+                    )}
+                    {showFlowDetails ? renderFlowPreview() : (
+                      <button
+                        onClick={() => setShowFlowDetails(true)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Show Flow Preview
+                      </button>
+                    )}
+                    <JsonSyntaxHighlight data={previewResult.workflow} />
+                    <button
+                      onClick={handleCreateFromPreview}
+                      disabled={creatingFromPreview}
+                      className="w-full px-4 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {creatingFromPreview ? 'Creating in n8n...' : 'Create in n8n'}
+                    </button>
+                  </div>
                 )}
               </>
             ) : (
@@ -544,6 +675,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
                         </div>
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-green-400 mb-2">Workflow Created Successfully!</h3>
+                          {generationResult.originalDescription && (
+                            <div className="mb-3 p-2 bg-muted/20 border border-border/30 rounded">
+                              <p className="text-xs font-semibold text-green-300 mb-1">Your Request:</p>
+                              <p className="text-xs text-muted-foreground italic">"{generationResult.originalDescription}"</p>
+                            </div>
+                          )}
                           <div className="space-y-1">
                             <p className="text-sm text-green-300">
                               <span className="font-medium">Workflow ID:</span> {generationResult.n8nWorkflowId}
@@ -555,6 +692,55 @@ const SimplifiedWorkflowPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Workflow JSON Viewer (Feature #276) */}
+                    {generationResult.workflow && (
+                      <div className="border border-border/50 rounded-lg overflow-hidden bg-card/50">
+                        <button
+                          onClick={() => setShowWorkflowJSON(!showWorkflowJSON)}
+                          className="w-full p-3 flex justify-between items-center hover:bg-muted/20 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                            </svg>
+                            <span className="text-sm font-medium text-foreground">View Workflow JSON</span>
+                          </div>
+                          <svg
+                            className={`w-4 h-4 text-muted-foreground transition-transform ${showWorkflowJSON ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        {showWorkflowJSON && (
+                          <div className="border-t border-border/50 bg-muted/10">
+                            <div className="p-4">
+                              <div className="relative">
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(JSON.stringify(generationResult.workflow, null, 2));
+                                  }}
+                                  className="absolute top-2 right-2 px-3 py-1 text-xs bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 rounded transition-colors"
+                                  title="Copy to clipboard"
+                                >
+                                  Copy JSON
+                                </button>
+                                <pre className="text-xs text-foreground/90 bg-background/50 p-4 rounded border border-border/30 overflow-x-auto max-h-96 overflow-y-auto">
+                                  <code>{JSON.stringify(generationResult.workflow, null, 2)}</code>
+                                </pre>
+                              </div>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                This is the raw workflow JSON that was created in your n8n instance.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Credentials Required Section */}
                     {generationResult.credentials && generationResult.credentials.length > 0 && (
@@ -676,18 +862,8 @@ const SimplifiedWorkflowPage: React.FC = () => {
             )}
           </div>
 
-          {/* Info Section */}
-          <div className="bg-card/50 rounded-lg p-4 border border-border/50">
-            <p className="text-sm text-muted-foreground text-center">
-              Your API keys are stored locally in your browser and are only sent directly to n8n and Google AI services.
-              <br />
-              <span className="text-primary">No account required</span> - just enter your credentials and start creating workflows.
-            </p>
-          </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };

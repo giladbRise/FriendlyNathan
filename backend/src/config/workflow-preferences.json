@@ -1,0 +1,141 @@
+{
+  "version": "1.0",
+  "description": "Organization-wide workflow generation preferences and best practices",
+
+  "nodePreferences": {
+    "ai": {
+      "description": "Preferred AI/LLM nodes for different tasks - Use chain+model pattern with Edit Fields input",
+      "default": "@n8n/n8n-nodes-langchain.chainLlm",
+      "preferredPattern": "chain_with_model",
+      "requiresEditFieldsInput": true,
+      "alternatives": [
+        "@n8n/n8n-nodes-langchain.toolLlm",
+        "n8n-nodes-base.openAi",
+        "@n8n/n8n-nodes-langchain.chainSummarization"
+      ],
+      "modelNodes": {
+        "gemini": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "openai": "@n8n/n8n-nodes-langchain.lmChatOpenAi"
+      },
+      "inputPreparation": {
+        "nodeType": "n8n-nodes-base.set",
+        "fieldName": "chatInput",
+        "fieldType": "string",
+        "description": "Edit Fields node that formats data for the LLM chain"
+      },
+      "operations": {
+        "chat": {
+          "preferredChain": "@n8n/n8n-nodes-langchain.chainLlm",
+          "preferredModel": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+          "displayAs": "Basic LLM Chain + Google Gemini",
+          "useStandalone": false,
+          "requiresChain": true,
+          "requiresModelConnection": true,
+          "connectionType": "ai_model"
+        },
+        "summarize": {
+          "preferredChain": "@n8n/n8n-nodes-langchain.chainLlm",
+          "preferredModel": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+          "displayAs": "Basic LLM Chain + Google Gemini",
+          "useStandalone": false,
+          "requiresChain": true,
+          "requiresModelConnection": true,
+          "connectionType": "ai_model"
+        },
+        "textGeneration": {
+          "preferredChain": "@n8n/n8n-nodes-langchain.chainLlm",
+          "preferredModel": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+          "displayAs": "Basic LLM Chain + Google Gemini",
+          "useStandalone": false,
+          "requiresChain": true,
+          "requiresModelConnection": true,
+          "connectionType": "ai_model"
+        }
+      }
+    },
+
+    "communication": {
+      "description": "Preferred communication nodes",
+      "slack": {
+        "preferredNode": "n8n-nodes-base.slack",
+        "defaultOperation": "post",
+        "defaultResource": "message",
+        "fallbackChannel": "#general"
+      },
+      "email": {
+        "preferredNode": "n8n-nodes-base.gmail",
+        "alternative": "n8n-nodes-base.microsoftOutlook"
+      }
+    },
+
+    "storage": {
+      "description": "Preferred storage nodes",
+      "spreadsheet": {
+        "preferredNode": "n8n-nodes-base.googleSheets",
+        "alternative": "n8n-nodes-base.microsoftExcel",
+        "defaultOperation": "append"
+      }
+    }
+  },
+
+  "smartDefaults": {
+    "description": "Smart defaults based on property patterns",
+    "patterns": [
+      {
+        "propertyName": "prompt",
+        "propertyType": "string",
+        "contextualDefault": "Generate based on node name and workflow description"
+      },
+      {
+        "propertyName": "channel",
+        "propertyType": "string",
+        "nodeType": "n8n-nodes-base.slack",
+        "extractFromDescription": "C[A-Z0-9]{8,}",
+        "fallback": "#general"
+      },
+      {
+        "propertyName": "operation",
+        "propertyType": "options",
+        "defaultStrategy": "first_option_or_most_common"
+      }
+    ]
+  },
+
+  "validationRules": {
+    "description": "Organization-wide validation and correction rules",
+    "required": {
+      "aiNodes": {
+        "mustHavePrompt": true,
+        "promptMinLength": 10,
+        "mustUseChainPattern": true,
+        "mustHaveModelConnection": true,
+        "mustHaveEditFieldsInput": true
+      },
+      "chainNodes": {
+        "mustConnectToModel": true,
+        "preferredModels": ["@n8n/n8n-nodes-langchain.lmChatGoogleGemini"],
+        "connectionType": "ai_model"
+      },
+      "slackNodes": {
+        "mustHaveChannel": true,
+        "extractChannelFromDescription": true
+      }
+    },
+    "corrections": {
+      "autoCorrectCasing": true,
+      "fuzzyMatchThreshold": 0.7,
+      "learnFromCorrections": true,
+      "autoAddEditFields": true,
+      "autoConnectModels": true
+    }
+  },
+
+  "userGuidance": {
+    "description": "Guidance shown to users for specific scenarios",
+    "missingChannel": "Slack channel ID not found in description. Using default #general. Provide channel ID (e.g., C0A1CEBJWJF) for specific channels.",
+    "aiPromptGenerated": "AI prompt was auto-generated. Review and modify if needed.",
+    "spreadsheetIdVsUrl": "Using spreadsheet ID for better performance. URL-based access also supported.",
+    "aiPatternUsed": "Using Basic LLM Chain connected to Google Gemini model for AI operations. Input is formatted via Edit Fields node with 'chatInput' field.",
+    "editFieldsRequired": "Edit Fields node added before AI chain to format input data properly."
+  }
+}

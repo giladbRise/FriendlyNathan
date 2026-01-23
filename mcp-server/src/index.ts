@@ -8,10 +8,20 @@ import {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import axios, { AxiosError } from 'axios';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import os from 'node:os';
 
 // Environment variables for n8n connection
 const N8N_API_URL = process.env.N8N_API_URL || '';
 const N8N_API_KEY = process.env.N8N_API_KEY || '';
+
+// Cache configuration
+const CACHE_DIR = path.join(os.tmpdir(), 'n8n-mcp-cache');
+if (!fs.existsSync(CACHE_DIR)) {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+}
 
 // Node cache to store discovered nodes
 const NODE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache TTL
@@ -21,6 +31,30 @@ interface NodeCache {
   timestamp: number;
 }
 let nodeCache: NodeCache | null = null;
+
+// Serialization helper for Map
+function serializeCache(cache: NodeCache): string {
+  return JSON.stringify({
+    nodes: cache.nodes,
+    nodeTypes: Array.from(cache.nodeTypes.entries()),
+    timestamp: cache.timestamp,
+  });
+}
+
+// Deserialization helper for Map
+function deserializeCache(json: string): NodeCache {
+  const data = JSON.parse(json);
+  return {
+    nodes: data.nodes,
+    nodeTypes: new Map(data.nodeTypes),
+    timestamp: data.timestamp,
+  };
+}
+
+function getCacheFilePath(): string {
+  const hash = crypto.createHash('md5').update(N8N_API_URL).digest('hex');
+  return path.join(CACHE_DIR, `nodes_${hash}.json`);
+}
 
 interface N8nNodeType {
   name: string;
@@ -177,51 +211,81 @@ async function n8nRequest<T>(
  * before generating workflows
  */
 async function discoverAndCacheNodes(): Promise<NodeCache> {
-  // Return cached nodes if still valid
+  // 1. Try in-memory cache
   if (nodeCache && Date.now() - nodeCache.timestamp < NODE_CACHE_TTL_MS) {
-    console.error(`Using cached nodes (${nodeCache.nodes.length} nodes, cached ${Math.round((Date.now() - nodeCache.timestamp) / 1000)}s ago)`);
+    console.error(`Using in-memory cached nodes (${nodeCache.nodes.length} nodes)`);
     return nodeCache;
   }
 
-  console.error('Discovering available n8n nodes...');
+  // 2. Try file-based cache
+  const cacheFile = getCacheFilePath();
+  if (fs.existsSync(cacheFile)) {
+    try {
+      const fileContent = fs.readFileSync(cacheFile, 'utf-8');
+      const cached = deserializeCache(fileContent);
+      if (Date.now() - cached.timestamp < NODE_CACHE_TTL_MS) {
+        console.error(`Using file-based cached nodes (${cached.nodes.length} nodes, cached ${Math.round((Date.now() - cached.timestamp) / 1000)}s ago)`);
+        nodeCache = cached;
+        return cached;
+      }
+    } catch (err) {
+      console.error('Error reading/parsing cache file:', err);
+    }
+  }
+
+  console.error('Discovering available n8n nodes from API...');
+
+  let nodes: N8nNode[] = [];
+  const nodeTypes = new Map<string, N8nNodeType>();
+  let nodesError: unknown = null;
 
   try {
-    // Fetch all nodes
     const nodesResponse = await n8nRequest<{ data: N8nNode[] }>('GET', '/nodes');
-    const nodes = nodesResponse.data || [];
-
-    // Try to fetch node types with full schemas
-    const nodeTypes = new Map<string, N8nNodeType>();
-
-    try {
-      const nodeTypesResponse = await n8nRequest<{ data: N8nNodeType[] }>('GET', '/node-types');
-      const types = nodeTypesResponse.data || [];
-      for (const nodeType of types) {
-        nodeTypes.set(nodeType.name, nodeType);
-      }
-      console.error(`Fetched ${nodeTypes.size} node type configurations`);
-    } catch (nodeTypeError) {
-      console.error('Could not fetch node types (endpoint may not be available). Using basic node info only.');
-    }
-
-    // Create cache
-    nodeCache = {
-      nodes,
-      nodeTypes,
-      timestamp: Date.now(),
-    };
-
-    console.error(`Cached ${nodes.length} nodes, ${nodeTypes.size} with full schemas`);
-    return nodeCache;
+    nodes = nodesResponse.data || [];
   } catch (error) {
-    console.error('Failed to discover nodes:', error);
-    // Return empty cache on error
+    nodesError = error;
+    console.error('Failed to fetch /nodes:', error);
+  }
+
+  try {
+    const nodeTypesResponse = await n8nRequest<{ data: N8nNodeType[] }>('GET', '/node-types');
+    const types = nodeTypesResponse.data || [];
+    for (const nodeType of types) {
+      nodeTypes.set(nodeType.name, nodeType);
+    }
+    console.error(`Fetched ${nodeTypes.size} node type configurations`);
+  } catch (nodeTypeError) {
+    console.error('Could not fetch node types (endpoint may not be available). Using basic node info only.');
+  }
+
+  if (nodes.length === 0 && nodeTypes.size === 0) {
+    console.error('Failed to discover nodes and node types:', nodesError || 'Unknown error');
+    // Return empty cache but don't save it to file to trigger retry next time
     return {
       nodes: [],
       nodeTypes: new Map(),
       timestamp: Date.now(),
     };
   }
+
+  const newCache = {
+    nodes,
+    nodeTypes,
+    timestamp: Date.now(),
+  };
+
+  // Update memory cache
+  nodeCache = newCache;
+
+  // Update file cache
+  try {
+    fs.writeFileSync(cacheFile, serializeCache(newCache));
+  } catch (err) {
+    console.error('Failed to write cache file:', err);
+  }
+
+  console.error(`Cached ${nodes.length} nodes, ${nodeTypes.size} with full schemas`);
+  return newCache;
 }
 
 /**

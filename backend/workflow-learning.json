@@ -1,0 +1,1277 @@
+{
+  "patterns": [
+    {
+      "id": "use_chain_with_model_pattern",
+      "issuePattern": "Using standalone AI nodes without proper chain+model setup",
+      "fixApplied": "ALWAYS use Basic LLM Chain (@n8n/n8n-nodes-langchain.chainLlm) connected to Google Gemini Chat Model (@n8n/n8n-nodes-langchain.lmChatGoogleGemini) with ai_model connection type",
+      "description": "Correct AI pattern: Edit Fields (with chatInput field) → Basic LLM Chain → Google Gemini Model (ai_model connection)",
+      "nodeTypes": [
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set"
+      ],
+      "count": 15,
+      "lastSeen": "2026-01-23T00:00:00.000Z",
+      "createdAt": "2026-01-23T00:00:00.000Z"
+    },
+    {
+      "id": "require_edit_fields_before_chain",
+      "issuePattern": "Basic LLM Chain without Edit Fields input preparation",
+      "fixApplied": "Add Edit Fields (Set) node before the chain to format input data with 'chatInput' field (string type)",
+      "description": "AI chains require properly formatted input - use Edit Fields to create chatInput field",
+      "nodeTypes": [
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm"
+      ],
+      "count": 12,
+      "lastSeen": "2026-01-23T00:00:00.000Z",
+      "createdAt": "2026-01-23T00:00:00.000Z"
+    },
+    {
+      "id": "the_workflow_uses_a_manual_trigger_instead_of_a_sc_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow uses a Manual Trigger instead of a Schedule Trigger set to 20-minute intervals as requested.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger set to run daily at 09:00.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 2,
+      "lastSeen": "2026-01-23T07:50:17.839Z",
+      "createdAt": "2026-01-21T17:13:53.926Z"
+    },
+    {
+      "id": "replace_the_manual_trigger_with_a_schedule_trigger_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Replace the Manual Trigger with a Schedule Trigger node configured to run every 20 minutes.",
+      "fixApplied": "Updated parallel connections so Slack, Email, and Google Sheets are updated simultaneously with the AI output.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 3,
+      "lastSeen": "2026-01-23T07:56:58.006Z",
+      "createdAt": "2026-01-21T17:13:53.928Z"
+    },
+    {
+      "id": "the__summarize_with_gemini__node___n8n_n8n_nodes_l_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The 'Summarize with Gemini' node (@n8n/n8n-nodes-langchain.lmChatGoogleGemini) is a Language Model provider node. In n8n, these nodes cannot stand alone in the workflow; they must be connected to a 'Basic LLM Chain' or 'AI Agent' node to execute.",
+      "fixApplied": "Integrated the Google Gemini Model into a 'Basic LLM Chain' node as AI models cannot execute standalone in n8n.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.250Z",
+      "createdAt": "2026-01-20T22:23:59.250Z"
+    },
+    {
+      "id": "missing_aggregation__the_workflow_processes_each_e_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Missing aggregation: The workflow processes each email individually. To 'summary all of them' as requested, an 'Item Lists' node or 'Aggregate' node is required to combine all email contents into a single string before sending it to the AI.",
+      "fixApplied": "Added an 'Item Lists' node to aggregate all individual emails into a single list before summarization, satisfying the requirement to 'summary all of them'.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.251Z",
+      "createdAt": "2026-01-20T22:23:59.251Z"
+    },
+    {
+      "id": "prompt_missing__there_is_no_prompt_defined_to_tell_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Prompt missing: There is no prompt defined to tell Gemini what to do with the email data (e.g., 'Summarize the following emails...').",
+      "fixApplied": "Configured a specific prompt in the LLM Chain to instruct Gemini to summarize the combined email snippets.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.251Z",
+      "createdAt": "2026-01-20T22:23:59.251Z"
+    },
+    {
+      "id": "data_mapping_error__the__mark_as_unread__node__gma_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Data mapping error: The 'Mark as Unread' node (Gmail) requires a Message ID or Thread ID to be specified in the parameters to function correctly, which is missing.",
+      "fixApplied": "Fixed the 'Mark as Unread' node by mapping the 'Message ID' using an expression '{{ $json.id }}' from the Gmail 'Get Emails' node.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.252Z",
+      "createdAt": "2026-01-20T22:23:59.252Z"
+    },
+    {
+      "id": "insert_an__item_lists__node_after_the_gmail_nodes__n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Insert an 'Item Lists' node after the Gmail nodes to 'Summarize' or 'Join' the email bodies into a single text field.",
+      "fixApplied": "Updated data mapping in Slack and Google Sheets to correctly reference the summary generated by the AI chain.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.252Z",
+      "createdAt": "2026-01-20T22:23:59.252Z"
+    },
+    {
+      "id": "replace_the_gemini_node_with_a__basic_llm_chain__a_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Replace the Gemini node with a 'Basic LLM Chain' and connect the Gemini model node to its 'Model' input.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.252Z",
+      "createdAt": "2026-01-20T22:23:59.252Z"
+    },
+    {
+      "id": "in_the__basic_llm_chain__node__add_a_prompt_using__n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "In the 'Basic LLM Chain' node, add a prompt using expressions to reference the aggregated email text.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.253Z",
+      "createdAt": "2026-01-20T22:23:59.253Z"
+    },
+    {
+      "id": "verify_that_the__mark_as_unread__node_is_set_to_us_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Verify that the 'Mark as Unread' node is set to use 'Expression' for the Message ID, referencing '{{ $json.id }}' from the Gmail 'Get Emails' node.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:23:59.253Z",
+      "createdAt": "2026-01-20T22:23:59.253Z"
+    },
+    {
+      "id": "the_gmail__get_all__operation__node_1__only_retrie_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Gmail 'Get All' operation (node_1) only retrieves email 'snippets' (roughly the first 200 characters). If the emails are long, the Gemini summary may be incomplete. For full accuracy, use a Gmail 'Get' node to fetch the full message body for each email before aggregation.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger for automated execution.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:24:51.561Z",
+      "createdAt": "2026-01-20T22:24:51.561Z"
+    },
+    {
+      "id": "consider_adding_a__filter__node_after__get_emails__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Consider adding a 'Filter' node after 'Get Emails' to check if any messages were found. This prevents the workflow from continuing and potentially erroring out in the LLM or Aggregation nodes when there is no data to process.",
+      "fixApplied": "Added a Gmail 'Get' node after the initial list to fetch the full text body of each email instead of just the snippet, ensuring more accurate summaries.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:24:51.563Z",
+      "createdAt": "2026-01-20T22:24:51.563Z"
+    },
+    {
+      "id": "the__manual_trigger__is_great_for_testing__but_you_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Manual Trigger' is great for testing, but you may want to replace it with a 'Schedule' trigger to run this flow automatically every day or every few days.",
+      "fixApplied": "Inserted a Filter node to check if any emails were found before proceeding, preventing errors in the aggregation and LLM nodes.",
+      "description": "Create a flow detecting all emails i got from janna trobilo in the last 3 days. next mark them as \"unread\", next summary all of them using gemini, and send me the summary in slack channel id C0A1CEBJWJF, in parallel i want to label the flow summary details in the following excel: https://docs.google.com/spreadsheets/d/1CCfWq34ZXeiIOQUudU6nNQ4G95Eczx4nSIiWdbnPi8g/edit?gid=0#gid=0",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-20T22:24:51.564Z",
+      "createdAt": "2026-01-20T22:24:51.564Z"
+    },
+    {
+      "id": "the_workflow_is_missing_the_bigquery_node_required_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow is missing the BigQuery node required to execute the user's SQL query.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger set to 20-minute intervals.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.468Z",
+      "createdAt": "2026-01-21T16:26:00.468Z"
+    },
+    {
+      "id": "the__schedule__trigger_is_missing__the_current__ma_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Schedule' trigger is missing; the current 'Manual' trigger does not meet the 20-minute interval requirement.",
+      "fixApplied": "Added Google BigQuery node with the user's specific SQL query to fetch time-series data.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.470Z",
+      "createdAt": "2026-01-21T16:26:00.470Z"
+    },
+    {
+      "id": "there_is_no_logic__code_node_or_filter_node__to_ca_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "There is no logic (Code node or Filter node) to calculate the 60% revenue drop between time intervals as requested.",
+      "fixApplied": "Added a Code node to group data by supply_partner and calculate the percentage drop between the two most recent 15-minute intervals.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.471Z",
+      "createdAt": "2026-01-21T16:26:00.471Z"
+    },
+    {
+      "id": "the_data_flow_is_broken__the_slack_node_expects_pr_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The data flow is broken: the Slack node expects properties like 'summary' or 'text' which are not generated by the manual trigger.",
+      "fixApplied": "Added an IF node to filter results where the revenue drop is greater than 60%.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.471Z",
+      "createdAt": "2026-01-21T16:26:00.471Z"
+    },
+    {
+      "id": "add_a__schedule_trigger__node_set_to_20_minute_int_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a 'Schedule Trigger' node set to 20-minute intervals.",
+      "fixApplied": "Added a Set node to construct a human-readable alert message containing the publisher name, drop percentage, and revenue values.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.472Z",
+      "createdAt": "2026-01-21T16:26:00.472Z"
+    },
+    {
+      "id": "add_a__google_bigquery__node_using_the_user_s_prov_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a 'Google BigQuery' node using the user's provided SQL query.",
+      "fixApplied": "Fixed Slack node data mapping to use the dynamically generated message from the workflow pipeline.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.472Z",
+      "createdAt": "2026-01-21T16:26:00.472Z"
+    },
+    {
+      "id": "implement_a__code__node_to_process_the_time_series_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Implement a 'Code' node to process the time-series data: group by supply_partner, compare the latest revenue value against the previous one, and calculate the percentage change.",
+      "fixApplied": "Applied improvement",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.473Z",
+      "createdAt": "2026-01-21T16:26:00.473Z"
+    },
+    {
+      "id": "add_a__filter__node_to_only_pass_items_where_the_r_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a 'Filter' node to only pass items where the revenue decrease is > 60%.",
+      "fixApplied": "Applied improvement",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.473Z",
+      "createdAt": "2026-01-21T16:26:00.473Z"
+    },
+    {
+      "id": "use_a__set__or__edit_image__node_to_format_a_human_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a 'Set' or 'Edit Image' node to format a human-readable alert message before the Slack node.",
+      "fixApplied": "Applied improvement",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:00.473Z",
+      "createdAt": "2026-01-21T16:26:00.473Z"
+    },
+    {
+      "id": "the_slack_channel_id___cb8660efbe40001623c96___app_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Slack Channel ID ('cb8660efbe40001623c96') appears to be a fragment of the supply partner ID from the user's example query rather than a valid Slack Channel ID. This will need to be updated to a real channel name or ID.",
+      "fixApplied": "Updated BigQuery SQL to use TIMESTAMP_TRUNC(timestamp, MINUTE) ensuring consistent grouping of 15-minute intervals.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:45.589Z",
+      "createdAt": "2026-01-21T16:26:45.589Z"
+    },
+    {
+      "id": "the_workflow_runs_every_20_minutes_but_the_data_is_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow runs every 20 minutes but the data is bucketed every 15 minutes. To avoid getting alerted for the same drop multiple times, consider adding a check to ensure the 'latest.timestamp' is within the last 20 minutes.",
+      "fixApplied": "Rewrote Code node logic to compare the absolute latest bucket in the dataset against the previous bucket for all partners.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:45.593Z",
+      "createdAt": "2026-01-21T16:26:45.593Z"
+    },
+    {
+      "id": "the_current_logic_only_detects_a_drop_if_the_publi_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The current logic only detects a drop if the publisher still appears in the latest data set. If a publisher's revenue drops so much that they disappear from the results entirely (0 impressions/revenue), this logic won't trigger. A more robust approach would be to fetch all active publishers and compare against the latest bucket.",
+      "fixApplied": "Fixed 'Disappearance' edge case: The logic now correctly detects a 100% drop if a publisher appears in the previous window but is missing (0 revenue/impressions) in the latest window.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:45.593Z",
+      "createdAt": "2026-01-21T16:26:45.593Z"
+    },
+    {
+      "id": "in_the_bigquery_node__consider_using__timestamp_tr_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "In the BigQuery node, consider using `TIMESTAMP_TRUNC(timestamp, MINUTE)` if the source data isn't already perfectly bucketed into 15-minute intervals to ensure the 'GROUP BY' works as expected.",
+      "fixApplied": "Added a Recency Filter in the Code node to ensure alerts only trigger for data generated in the last 20-25 minutes, preventing redundant alerts for the same historical drop.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than 60% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : SELECT\n  timestamp,\n  supply_partner,\n  SUM(impressions) AS impressions,\n  SUM(revenue) AS revenue\nFROM `streamrail.bi_production.seller_live_data_spark`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)\n--and supply_partner = '673cb8660efbe40001623c96_Yahoo-'\nGROUP BY 1,2\nORDER BY timestamp;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T16:26:45.594Z",
+      "createdAt": "2026-01-21T16:26:45.594Z"
+    },
+    {
+      "id": "the_workflow_is_missing_the_google_bigquery_node_r_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow is missing the Google BigQuery node required to execute the SQL query provided by the user.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger configured for 20-minute intervals.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:13:53.924Z",
+      "createdAt": "2026-01-21T17:13:53.924Z"
+    },
+    {
+      "id": "there_is_no_data_flow_or_logic_between_the_trigger_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "There is no data flow or logic between the trigger and the Slack node; the Slack node has no source data to report on.",
+      "fixApplied": "Added a Set node to format the BigQuery output into a readable Slack notification using expressions.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:13:53.927Z",
+      "createdAt": "2026-01-21T17:13:53.927Z"
+    },
+    {
+      "id": "the_sql_query_logic__the_core_of_the_request__is_c_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The SQL query logic (the core of the request) is completely absent from the workflow JSON.",
+      "fixApplied": "Corrected the Slack node configuration to reference the formatted alert message from the preceding node.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:13:53.927Z",
+      "createdAt": "2026-01-21T17:13:53.927Z"
+    },
+    {
+      "id": "add_a_google_bigquery_node_using_the__execute_quer_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Google BigQuery node using the 'Execute Query' operation and insert the SQL provided in the request.",
+      "fixApplied": "Applied improvement",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:13:53.928Z",
+      "createdAt": "2026-01-21T17:13:53.928Z"
+    },
+    {
+      "id": "insert_an__html__or__set__node_to_format_the_resul_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Insert an 'HTML' or 'Set' node to format the results from BigQuery into a readable string for the Slack alert.",
+      "fixApplied": "Applied improvement",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:13:53.929Z",
+      "createdAt": "2026-01-21T17:13:53.929Z"
+    },
+    {
+      "id": "configure_the_slack_node_to_reference_the_specific_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Configure the Slack node to reference the specific output fields from the BigQuery node (e.g., {{ $json.supply_org }}, {{ $json.change_pct }}).",
+      "fixApplied": "Applied improvement",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:13:53.930Z",
+      "createdAt": "2026-01-21T17:13:53.930Z"
+    },
+    {
+      "id": "alert_duplication__the_bigquery_sql_uses_a_1_hour__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Alert Duplication: The BigQuery SQL uses a 1-hour lookback (INTERVAL 1 HOUR), but the workflow triggers every 20 minutes. This means a single revenue drop event will be detected and alerted on multiple times (likely 3 times) before falling out of the query window. Consider narrowing the SQL WHERE clause to only the most recent completed 15-minute bucket or using a 'Wait' or 'Redis' node to deduplicate alerts.",
+      "fixApplied": "Deduplication Logic: Modified the BigQuery SQL final WHERE clause to filter by 'ts_15m >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 20 MINUTE)'. This ensures a specific drop bucket is only reported once per its 20-minute trigger window.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.errorTrigger",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:14:30.954Z",
+      "createdAt": "2026-01-21T17:14:30.954Z"
+    },
+    {
+      "id": "slack_channel__ensure_the_hardcoded_channel_id__c0_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Slack Channel: Ensure the hardcoded channel ID 'C0A1CEBJWJF' is updated to your specific Slack channel ID.",
+      "fixApplied": "SQL Stability: Increased the CTE lookback interval to 2 hours. This provides the 'LAG' window enough historical context to find the previous 15-minute bucket even at the edge of the processing cycle.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.errorTrigger",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:14:30.958Z",
+      "createdAt": "2026-01-21T17:14:30.958Z"
+    },
+    {
+      "id": "error_handling__consider_adding_an__error_trigger__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Error Handling: Consider adding an 'Error Trigger' node to be notified if the BigQuery connection fails or the SQL syntax is rejected due to schema changes.",
+      "fixApplied": "Error Handling: Integrated an 'Error Trigger' node connected to a Slack notification node to alert the team if BigQuery fails or the SQL schema changes.",
+      "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.googleBigQuery",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.errorTrigger",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-21T17:14:30.959Z",
+      "createdAt": "2026-01-21T17:14:30.959Z"
+    },
+    {
+      "id": "the_workflow_is_missing_the_anthropic_node_require_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The workflow is missing the Anthropic node required to test Claude AI.",
+      "fixApplied": "Added a Set node to define a reusable prompt for both AI models.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.353Z",
+      "createdAt": "2026-01-22T12:05:02.353Z"
+    },
+    {
+      "id": "the_workflow_is_missing_the_google_generative_ai_n_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The workflow is missing the Google Generative AI node required to test Gemini AI.",
+      "fixApplied": "Integrated the Anthropic node to facilitate testing of Claude AI.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.354Z",
+      "createdAt": "2026-01-22T12:05:02.354Z"
+    },
+    {
+      "id": "there_are_no_connections_in_the_workflow__the_trig_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "There are no connections in the workflow; the trigger is isolated.",
+      "fixApplied": "Integrated the Google Generative AI node to facilitate testing of Gemini AI.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.355Z",
+      "createdAt": "2026-01-22T12:05:02.355Z"
+    },
+    {
+      "id": "there_is_no_mechanism__like_a_set_node_or_prompt_p_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "There is no mechanism (like a Set node or prompt parameter) to pass a prompt to the AI nodes.",
+      "fixApplied": "Connected the Manual Trigger to the Set node and branched to both AI nodes.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.356Z",
+      "createdAt": "2026-01-22T12:05:02.356Z"
+    },
+    {
+      "id": "add_an_anthropic_node_to_interact_with_claude__n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Add an Anthropic node to interact with Claude.",
+      "fixApplied": "Added a Merge node to consolidate outputs from both AI models into a single view for success verification.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.357Z",
+      "createdAt": "2026-01-22T12:05:02.357Z"
+    },
+    {
+      "id": "add_a_google_generative_ai_node_to_interact_with_g_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Add a Google Generative AI node to interact with Gemini.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.358Z",
+      "createdAt": "2026-01-22T12:05:02.358Z"
+    },
+    {
+      "id": "connect_the_manual_trigger_to_these_nodes__n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Connect the Manual Trigger to these nodes.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.358Z",
+      "createdAt": "2026-01-22T12:05:02.358Z"
+    },
+    {
+      "id": "consider_using_an__ai_agent__or__basic_llm_chain___n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Consider using an 'AI Agent' or 'Basic LLM Chain' node if using the newer n8n AI sub-system, or standard action nodes for simpler testing.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.359Z",
+      "createdAt": "2026-01-22T12:05:02.359Z"
+    },
+    {
+      "id": "add_a__wait__or__merge__node_if_you_want_to_see_bo_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Add a 'Wait' or 'Merge' node if you want to see both results together at the end.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:02.359Z",
+      "createdAt": "2026-01-22T12:05:02.359Z"
+    },
+    {
+      "id": "enable__continue_on_fail___settings___on_error___c_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Enable 'Continue on Fail' (Settings > On Error > Continue) for both the Claude and Gemini nodes. This ensures that if one AI provider fails (e.g., due to an invalid API key), the workflow still completes so you can see the result of the other.",
+      "fixApplied": "Enabled 'Continue on Fail' for Claude AI node to prevent workflow stoppage on API errors.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge",
+        "n8n-nodes-base.code"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:43.341Z",
+      "createdAt": "2026-01-22T12:05:43.341Z"
+    },
+    {
+      "id": "consider_adding_a__post_bin__or__code__node_after__n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Consider adding a 'Post-bin' or 'Code' node after the Merge node to format the output into a simple 'Success/Failure' summary for easier reading.",
+      "fixApplied": "Enabled 'Continue on Fail' for Gemini AI node to ensure independent testing.",
+      "description": "create a workflow to test both claude ai and gemini ai it starts manually , passing someprompt to these nodes and i just want to know if it succeed ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.anthropic",
+        "n8n-nodes-base.googleGenerativeAi",
+        "n8n-nodes-base.merge",
+        "n8n-nodes-base.code"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-22T12:05:43.341Z",
+      "createdAt": "2026-01-22T12:05:43.341Z"
+    },
+    {
+      "id": "missing__email__output_node__the_workflow_sends_to_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing 'Email' output node; the workflow sends to Slack and Google Sheets but ignores the requirement to send via email.",
+      "fixApplied": "Added an Item Lists node (Summarize/Join) to merge multiple emails into a single text block so the AI processes them as one instance.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.841Z",
+      "createdAt": "2026-01-23T07:50:17.841Z"
+    },
+    {
+      "id": "the_emails_are_not_merged_before_ai_processing__th_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The emails are not merged before AI processing. The Gmail node outputs multiple items, so the AI will run separately for every email found rather than checking one merged instance.",
+      "fixApplied": "Corrected the LangChain implementation by introducing a 'Basic LLM Chain' and properly connecting the Google Gemini model node to it.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.842Z",
+      "createdAt": "2026-01-23T07:50:17.842Z"
+    },
+    {
+      "id": "incorrect_ai_node_implementation__the__google_gemi_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Incorrect AI node implementation: The 'Google Gemini' node is a Model node (lmChatGoogleGemini), which in n8n must be connected to a 'Chain' or 'Agent' node. It cannot be used as a standalone action node in the main flow.",
+      "fixApplied": "Moved the AI prompt from the Model node to the Chain node as required by n8n architecture.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.842Z",
+      "createdAt": "2026-01-23T07:50:17.842Z"
+    },
+    {
+      "id": "the_prompt_is_currently_inside_the_model_node_para_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The prompt is currently inside the Model node parameters, which is not where prompts are handled in n8n's LangChain implementation (they belong in a Chain or Agent node).",
+      "fixApplied": "Added a Gmail Send node to fulfill the requirement of receiving action items via email.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.843Z",
+      "createdAt": "2026-01-23T07:50:17.843Z"
+    },
+    {
+      "id": "add_an__item_lists__node_after_the_gmail_node_to___n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'Item Lists' node after the Gmail node to 'Summarize' (Join) all email bodies into a single text block.",
+      "fixApplied": "Enhanced the AI prompt to specifically request a sorted, well-designed list of action items as per user request.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 2,
+      "lastSeen": "2026-01-23T07:56:58.007Z",
+      "createdAt": "2026-01-23T07:50:17.845Z"
+    },
+    {
+      "id": "use_a__basic_llm_chain__or__ai_agent__node__and_co_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a 'Basic LLM Chain' or 'AI Agent' node, and connect the Gemini model to its Model input.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.846Z",
+      "createdAt": "2026-01-23T07:50:17.846Z"
+    },
+    {
+      "id": "add_a_gmail__send__node__or_similar__to_fulfill_th_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Gmail 'Send' node (or similar) to fulfill the requirement of receiving action items via email.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.847Z",
+      "createdAt": "2026-01-23T07:50:17.847Z"
+    },
+    {
+      "id": "include_a__wait__or__merge__node_if_you_need_to_en_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Include a 'Wait' or 'Merge' node if you need to ensure parallel actions finish, though the current branch logic for Slack/Sheets is acceptable for n8n.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.848Z",
+      "createdAt": "2026-01-23T07:50:17.848Z"
+    },
+    {
+      "id": "improve_the_ai_prompt_to_specifically_ask_for_a__w_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Improve the AI prompt to specifically ask for a 'well-designed markdown list' to satisfy the 'well designed' requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:50:17.848Z",
+      "createdAt": "2026-01-23T07:50:17.848Z"
+    },
+    {
+      "id": "the_workflow_uses_a__manual_trigger__instead_of_a__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow uses a 'Manual Trigger' instead of a 'Schedule Trigger', so it will not run daily at 9am as requested.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger configured for 09:00 AM daily.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.002Z",
+      "createdAt": "2026-01-23T07:56:58.002Z"
+    },
+    {
+      "id": "the__google_gemini__node__type__lmchatgooglegemini_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Google Gemini' node (type: lmChatGoogleGemini) is a model provider node and cannot exist as a standalone action in the main workflow; it must be connected to a 'Basic LLM Chain' or 'AI Agent' node.",
+      "fixApplied": "Integrated a 'Basic LLM Chain' node to properly host the Gemini model provider.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.003Z",
+      "createdAt": "2026-01-23T07:56:58.003Z"
+    },
+    {
+      "id": "missing_an__aggregate__or__item_lists__node__witho_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing an 'Aggregate' or 'Item Lists' node. Without it, the workflow will process each email individually rather than merging them into 'one instance' for the AI to analyze collectively.",
+      "fixApplied": "Added an 'Aggregate' node to merge the text from multiple emails into a single block for holistic AI analysis.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.004Z",
+      "createdAt": "2026-01-23T07:56:58.004Z"
+    },
+    {
+      "id": "the_requirement_to__send_via_email__is_completely__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The requirement to 'send via email' is completely missing; only Slack and Google Sheets are implemented.",
+      "fixApplied": "Added a Gmail 'Send' node to fulfill the missing email notification requirement.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.004Z",
+      "createdAt": "2026-01-23T07:56:58.004Z"
+    },
+    {
+      "id": "the_logic_flow_is_incorrect___prepare_ai_input__is_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The logic flow is incorrect: 'Prepare AI Input' is placed after the AI node, meaning the AI is receiving raw email item data (which usually contains metadata, not just text) and the formatting happens too late.",
+      "fixApplied": "Corrected the workflow logic by placing the AI node after the data aggregation and before the notifications.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.005Z",
+      "createdAt": "2026-01-23T07:56:58.005Z"
+    },
+    {
+      "id": "use_a__basic_llm_chain__node_to_wrap_the_gemini_mo_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a 'Basic LLM Chain' node to wrap the Gemini model, and refine the prompt to specifically request a 'well-designed list of action items' as per the user's design requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.008Z",
+      "createdAt": "2026-01-23T07:56:58.008Z"
+    },
+    {
+      "id": "add_a_gmail__send__or__outlook__node_at_the_end_of_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Gmail 'Send' or 'Outlook' node at the end of the workflow to fulfill the email notification requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.009Z",
+      "createdAt": "2026-01-23T07:56:58.009Z"
+    },
+    {
+      "id": "ensure_the_google_sheets_node_has_a_valid_mapping__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Ensure the Google Sheets node has a valid mapping for the 'Action Items' list generated by the AI.",
+      "fixApplied": "Applied improvement",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:56:58.009Z",
+      "createdAt": "2026-01-23T07:56:58.009Z"
+    },
+    {
+      "id": "the_gmail__getall__operation__node_gmail_get__only_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Gmail 'getAll' operation (node_gmail_get) only retrieves message metadata and snippets; it does not return the full email body ('text' field). The 'Merge Emails' node will find no 'text' field to aggregate, causing the AI to receive empty input.",
+      "fixApplied": "Inserted a Gmail 'Get' node ('Gmail Fetch Body') to retrieve full email content using IDs from the 'GetAll' node.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:57:44.347Z",
+      "createdAt": "2026-01-23T07:57:44.347Z"
+    },
+    {
+      "id": "the_workflow_lacks_a_gmail__get__node_to_retrieve__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow lacks a Gmail 'Get' node to retrieve the actual content of each message identified in the 'Get All' step.",
+      "fixApplied": "Added an 'HTML to Text' Code node to sanitize email content, ensuring the LLM receives clean text and handles cases where only HTML is available.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:57:44.349Z",
+      "createdAt": "2026-01-23T07:57:44.349Z"
+    },
+    {
+      "id": "insert_a_gmail_node_with_the__get__operation_betwe_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Insert a Gmail node with the 'Get' operation between 'Gmail Get Emails' and 'Merge Emails'. Configure it to use the Message ID from the first node to fetch the full body content.",
+      "fixApplied": "Updated the 'Merge Emails' node to aggregate the 'clean_text' field produced by the sanitization step.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:57:44.350Z",
+      "createdAt": "2026-01-23T07:57:44.350Z"
+    },
+    {
+      "id": "ensure_the__merge_emails__node_is_configured_to_wa_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Ensure the 'Merge Emails' node is configured to wait for all items from the 'Get' node before continuing.",
+      "fixApplied": "Corrected connection logic so the AI processes the single aggregated output once and distributes it to Slack, Gmail, and Google Sheets in parallel.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:57:44.351Z",
+      "createdAt": "2026-01-23T07:57:44.351Z"
+    },
+    {
+      "id": "in_the_google_sheets_node__ensure_the_spreadsheet__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "In the Google Sheets node, ensure the spreadsheet ID and Sheet name are correctly configured as the current values are placeholders.",
+      "fixApplied": "Updated Google Sheets column mapping to use the correct AI output reference ($json.text).",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:57:44.352Z",
+      "createdAt": "2026-01-23T07:57:44.352Z"
+    },
+    {
+      "id": "consider_adding_an__html_to_text__node_if_the_emai_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Consider adding an 'HTML to Text' node if the emails contain complex HTML to improve AI processing accuracy.",
+      "fixApplied": "Ensured all nodes use modern versions and corrected data references between nodes.",
+      "description": "Every day at 9am get all emails from Nir Ingabr (nir.ingabr@risecodes.com) and merge them to one instance that will be checked by AI and will find any action items. Then send me via email and also via slack the entire action items sorted as list and well designed. Also in parallel to sending - please also add those action items to a google sheet. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-23T07:57:44.353Z",
+      "createdAt": "2026-01-23T07:57:44.353Z"
+    }
+  ],
+  "version": "1.0"
+}

@@ -208,7 +208,8 @@ export class WorkflowLoggerService {
     generationId: string,
     success: boolean,
     workflowId?: string,
-    error?: string
+    error?: string,
+    errorDetails?: any
   ): void {
     if (success) {
       this.info(generationId, 'N8N_CREATION', 'Workflow created in n8n', {
@@ -218,6 +219,7 @@ export class WorkflowLoggerService {
     } else {
       this.error(generationId, 'N8N_CREATION', 'Failed to create workflow in n8n', {
         error,
+        errorDetails,
         success: false,
       });
     }
