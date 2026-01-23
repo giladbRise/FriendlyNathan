@@ -105,7 +105,7 @@ const RegisterPage: React.FC = () => {
       <div className="max-w-md w-full bg-card rounded-lg shadow-xl p-8 border border-border">
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold text-foreground mb-2">Create Account</h1>
-          <p className="text-muted-foreground">Join RISE n8n Workflow Builder</p>
+          <p className="text-muted-foreground">Join Friendly Nathan (n8n)</p>
         </div>
 
         {successMessage && (

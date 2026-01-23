@@ -1,7 +1,7 @@
 {
-  "name": "rise-n8n-frontend",
+  "name": "friendly-nathan-frontend",
   "version": "1.0.0",
-  "description": "Frontend for RISE n8n Workflow Builder",
+  "description": "Frontend for Friendly Nathan (n8n)",
   "type": "module",
   "scripts": {
     "dev": "vite",

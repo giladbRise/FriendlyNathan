@@ -52,7 +52,7 @@ const WorkflowCreatePage: React.FC = () => {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [showManualEntry, setShowManualEntry] = useState(false);
 
-  // Default RISE n8n URL
+  // Default n8n URL
   const DEFAULT_N8N_URL = 'https://n8n.risecodes.com/';
 
   // State for manual entry form
@@ -506,7 +506,7 @@ const WorkflowCreatePage: React.FC = () => {
                         className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Pre-filled with RISE n8n URL. Change if using a different instance.
+                        Pre-filled with default n8n URL. Change if using a different instance.
                       </p>
                     </div>
 

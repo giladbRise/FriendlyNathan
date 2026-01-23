@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png" alt="n8n" width="100"/>
 </p>
 
-<h1 align="center">FriendlyNathan</h1>
+<h1 align="center">Friendly Nathan (n8n)</h1>
 
 <p align="center">
   <strong>AI-Powered n8n Workflow Generator</strong><br/>
@@ -24,16 +24,16 @@
 
 ---
 
-## What is FriendlyNathan?
+## What is Friendly Nathan?
 
-FriendlyNathan bridges the gap between **what you want to automate** and **how to build it in n8n**. Instead of spending hours configuring nodes, connections, and parameters — simply describe your workflow in natural language.
+Friendly Nathan bridges the gap between **what you want to automate** and **how to build it in n8n**. Instead of spending hours configuring nodes, connections, and parameters — simply describe your workflow in natural language.
 
 ```
 "Every morning at 9am, check my Gmail for unread emails with attachments,
  save the attachments to Google Drive, and send me a Slack summary"
 ```
 
-**FriendlyNathan generates a complete, deployable n8n workflow in seconds.**
+**Friendly Nathan generates a complete, deployable n8n workflow in seconds.**
 
 ---
 
@@ -123,8 +123,8 @@ Connect to any n8n instance (self-hosted or cloud). One-click deployment with au
 
 ```bash
 # Clone the repository
-git clone https://github.com/giladbRise/FriendlyNathan.git
-cd FriendlyNathan
+git clone https://github.com/giladbRise/Friendly Nathan.git
+cd Friendly Nathan
 
 # Install all dependencies
 npm install
@@ -176,7 +176,7 @@ Write what you want to automate in plain English:
 
 ## AI Node Configuration
 
-FriendlyNathan uses the **chain+model pattern** for AI nodes — the recommended architecture for n8n:
+Friendly Nathan uses the **chain+model pattern** for AI nodes — the recommended architecture for n8n:
 
 ```
 ┌─────────────┐    main    ┌───────────────┐   ai_model   ┌─────────────────────┐
@@ -194,7 +194,7 @@ This pattern ensures:
 
 ## Auto-Improvement System
 
-FriendlyNathan automatically detects and fixes common workflow issues:
+Friendly Nathan automatically detects and fixes common workflow issues:
 
 | Issue Type | Auto-Fix |
 |------------|----------|
@@ -211,7 +211,7 @@ The system iterates up to 3 times to ensure workflow quality before presenting t
 ## Project Structure
 
 ```
-FriendlyNathan/
+Friendly Nathan/
 ├── backend/
 │   ├── src/
 │   │   ├── controllers/          # API endpoint handlers
@@ -310,7 +310,7 @@ lsof -ti:5173 | xargs kill -9
 
 ## Built for RISE
 
-FriendlyNathan is optimized for **RISE** organizational workflows:
+Friendly Nathan is optimized for **RISE** organizational workflows:
 
 - Enterprise-ready security
 - Slack integration for team communication

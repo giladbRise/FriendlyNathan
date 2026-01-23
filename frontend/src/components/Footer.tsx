@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>© {currentYear} RISE n8n Workflow Builder</span>
+            <span>© {currentYear} Friendly Nathan (n8n)</span>
             <span className="hidden sm:inline">•</span>
             <span className="text-muted-foreground/60">v{version}</span>
           </div>

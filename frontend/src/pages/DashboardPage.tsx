@@ -143,7 +143,7 @@ const DashboardPage: React.FC = () => {
               Welcome, {user?.firstName || user?.email}!
             </h2>
             <p className="text-muted-foreground mb-4">
-              You have successfully logged in to the RISE n8n Workflow Builder.
+              You have successfully logged in to Friendly Nathan (n8n).
             </p>
             <button
               onClick={() => navigate('/workflow/create')}

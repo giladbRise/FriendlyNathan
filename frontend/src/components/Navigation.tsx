@@ -86,12 +86,12 @@ const Navigation: React.FC = () => {
               onClick={() => navigate('/dashboard')}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              {/* RISE Logo */}
+              {/* Friendly Nathan Logo */}
               <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/70 rounded-lg flex items-center justify-center shadow-glow-blue">
-                <span className="text-primary-foreground font-bold text-sm">R</span>
+                <span className="text-primary-foreground font-bold text-sm">FN</span>
               </div>
               <h1 className="text-lg md:text-xl font-bold text-foreground truncate">
-                RISE n8n Workflow Builder
+                Friendly Nathan (n8n)
               </h1>
             </button>
           </div>

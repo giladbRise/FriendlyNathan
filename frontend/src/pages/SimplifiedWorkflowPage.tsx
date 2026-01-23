@@ -41,7 +41,7 @@ const STORAGE_KEYS = {
   GEMINI_API_KEY: 'rise_gemini_api_key',
 };
 
-// Default RISE n8n URL
+// Default n8n URL
 const DEFAULT_N8N_URL = 'https://n8n.risecodes.com/';
 
 const SimplifiedWorkflowPage: React.FC = () => {
@@ -362,10 +362,10 @@ const SimplifiedWorkflowPage: React.FC = () => {
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/70 rounded-lg flex items-center justify-center shadow-glow-blue">
-                <span className="text-primary-foreground font-bold text-lg">R</span>
+                <span className="text-primary-foreground font-bold text-lg">FN</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">RISE n8n Workflow Builder</h1>
+                <h1 className="text-xl font-bold text-foreground">Friendly Nathan (n8n)</h1>
                 <p className="text-xs text-muted-foreground">AI-Powered Workflow Generation</p>
               </div>
             </div>
@@ -441,7 +441,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   disabled={generating}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Pre-filled with RISE n8n URL. Change if using a different instance.
+                  Pre-filled with default n8n URL. Change if using a different instance.
                 </p>
               </div>
 

@@ -1,7 +1,7 @@
 {
-  "name": "rise-n8n-workflow-builder",
+  "name": "friendly-nathan",
   "version": "1.0.0",
-  "description": "AI-powered n8n workflow builder for RISE employees",
+  "description": "Friendly Nathan (n8n) - AI-powered n8n workflow builder",
   "private": true,
   "workspaces": [
     "backend",
@@ -31,9 +31,9 @@
     "automation",
     "ai",
     "gemini",
-    "rise"
+    "friendly-nathan"
   ],
-  "author": "RISE Development Team",
+  "author": "Friendly Nathan Team",
   "license": "PROPRIETARY",
   "devDependencies": {
     "concurrently": "^8.2.2",
