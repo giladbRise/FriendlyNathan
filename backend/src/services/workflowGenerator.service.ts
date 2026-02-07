@@ -30,16 +30,12 @@ function generateUniqueWorkflowName(description: string, prefix?: string): strin
     if (lowerDesc.includes('email') || lowerDesc.includes('gmail')) keywords.push('Email');
     if (lowerDesc.includes('slack')) keywords.push('Slack');
     if (lowerDesc.includes('http') || lowerDesc.includes('webhook') || lowerDesc.includes('api')) keywords.push('HTTP');
-    if (lowerDesc.includes('google sheet') || lowerDesc.includes('spreadsheet')) keywords.push('Sheets');
-    if (lowerDesc.includes('excel')) keywords.push('Excel');
-    if (lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('openai') || lowerDesc.includes('gpt')) keywords.push('AI');
-    if (lowerDesc.includes('summarize') || lowerDesc.includes('summary')) keywords.push('Summary');
+    if (lowerDesc.includes('google sheet') || lowerDesc.includes('spreadsheet') || lowerDesc.includes('excel')) keywords.push('Sheets');
+    if (lowerDesc.includes('google doc') || lowerDesc.includes('document')) keywords.push('Docs');
+    if (lowerDesc.includes('google drive') || lowerDesc.includes('drive')) keywords.push('Drive');
+    if (lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('summarize') || lowerDesc.includes('summary')) keywords.push('AI');
     if (lowerDesc.includes('schedule') || lowerDesc.includes('cron')) keywords.push('Scheduled');
     if (lowerDesc.includes('database') || lowerDesc.includes('postgres') || lowerDesc.includes('mysql')) keywords.push('DB');
-    if (lowerDesc.includes('discord')) keywords.push('Discord');
-    if (lowerDesc.includes('telegram')) keywords.push('Telegram');
-    if (lowerDesc.includes('airtable')) keywords.push('Airtable');
-    if (lowerDesc.includes('notion')) keywords.push('Notion');
     if (lowerDesc.includes('conditional') || lowerDesc.includes('if ') || lowerDesc.includes('switch')) keywords.push('Conditional');
     if (lowerDesc.includes('loop') || lowerDesc.includes('each') || lowerDesc.includes('batch')) keywords.push('Loop');
 
@@ -203,68 +199,6 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/httprequest/',
     contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
-  'n8n-nodes-base.airtable': {
-    type: 'airtableApi',
-    displayName: 'Airtable API',
-    instructions: 'Generate a personal access token from your Airtable account.',
-    steps: [
-      'Go to airtable.com/account and click "Developer hub"',
-      'Click "Create new token" under Personal access tokens',
-      'Give your token a name and select the required scopes',
-      'Add the bases you want to access',
-      'Copy the generated token',
-      'In n8n, create Airtable API credentials and paste the token',
-    ],
-    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/airtable/',
-    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
-  },
-  'n8n-nodes-base.notion': {
-    type: 'notionApi',
-    displayName: 'Notion API',
-    instructions: 'Create a Notion integration and share pages with it.',
-    steps: [
-      'Go to notion.so/my-integrations and click "New integration"',
-      'Name your integration and select the workspace',
-      'Copy the "Internal Integration Token"',
-      'In Notion, share the pages you want to access with your integration',
-      'In n8n, create Notion API credentials and paste the token',
-    ],
-    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/notion/',
-    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
-  },
-  // Microsoft Excel
-  'n8n-nodes-base.microsoftExcel': {
-    type: 'microsoftExcelOAuth2Api',
-    displayName: 'Microsoft Excel OAuth2',
-    instructions: 'Set up OAuth 2.0 credentials in Azure Active Directory to access Excel files in OneDrive or SharePoint.',
-    steps: [
-      'Go to portal.azure.com and navigate to Azure Active Directory',
-      'Click "App registrations" and then "New registration"',
-      'Name your application and select supported account types',
-      'Add n8n callback URL to redirect URIs',
-      'Under "API permissions", add Microsoft Graph permissions (Files.ReadWrite)',
-      'Create a client secret under "Certificates & secrets"',
-      'Copy the Application (client) ID and client secret',
-      'In n8n, create Microsoft Excel OAuth2 credentials',
-    ],
-    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/microsoft/',
-    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
-  },
-  // OpenAI
-  'n8n-nodes-base.openAi': {
-    type: 'openAiApi',
-    displayName: 'OpenAI API',
-    instructions: 'Create an API key from your OpenAI account to use GPT and other models.',
-    steps: [
-      'Go to platform.openai.com and sign in or create an account',
-      'Navigate to API Keys section',
-      'Click "Create new secret key"',
-      'Copy the API key (it won\'t be shown again)',
-      'In n8n, create OpenAI API credentials and paste the key',
-    ],
-    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/openai/',
-    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
-  },
   // Google Gemini (via Google Palm API)
   '@n8n/n8n-nodes-langchain.lmChatGoogleGemini': {
     type: 'googlePalmApi',
@@ -279,38 +213,6 @@ const CREDENTIAL_MAP: Record<string, CredentialRequirement> = {
       'In n8n, create Google PaLM/Gemini API credentials and paste the key',
     ],
     documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/google/',
-    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
-  },
-  // Discord
-  'n8n-nodes-base.discord': {
-    type: 'discordApi',
-    displayName: 'Discord API',
-    instructions: 'Create a Discord bot and get its token to send messages.',
-    steps: [
-      'Go to discord.com/developers/applications',
-      'Click "New Application" and name your bot',
-      'Navigate to the "Bot" tab and click "Add Bot"',
-      'Copy the bot token',
-      'Enable necessary Intents (Message Content Intent if reading messages)',
-      'Invite the bot to your server via OAuth2 > URL Generator',
-      'In n8n, create Discord credentials and paste the bot token',
-    ],
-    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/discord/',
-    contactInfo: 'Contact your IT administrator or email support@rise.com for help',
-  },
-  // Telegram
-  'n8n-nodes-base.telegram': {
-    type: 'telegramApi',
-    displayName: 'Telegram Bot API',
-    instructions: 'Create a Telegram bot via BotFather to send and receive messages.',
-    steps: [
-      'Open Telegram and search for @BotFather',
-      'Send /newbot to create a new bot',
-      'Follow the prompts to name your bot',
-      'Copy the HTTP API token provided',
-      'In n8n, create Telegram API credentials and paste the token',
-    ],
-    documentationUrl: 'https://docs.n8n.io/integrations/builtin/credentials/telegram/',
     contactInfo: 'Contact your IT administrator or email support@rise.com for help',
   },
   // GitHub

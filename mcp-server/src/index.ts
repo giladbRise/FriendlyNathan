@@ -129,12 +129,16 @@ const NODE_SUGGESTIONS: Record<string, { nodes: string[]; description: string }>
     description: 'Use Slack node to send messages or interact with Slack',
   },
   email: {
-    nodes: ['n8n-nodes-base.emailSend', 'n8n-nodes-base.gmail'],
-    description: 'Use Email Send (SMTP) or Gmail for email operations',
+    nodes: ['n8n-nodes-base.gmail', 'n8n-nodes-base.emailSend'],
+    description: 'Use Gmail for email operations (Google ecosystem only)',
   },
   google: {
-    nodes: ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.gmail', 'n8n-nodes-base.googleDrive'],
-    description: 'Google Sheets, Gmail, and Drive integrations',
+    nodes: ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.gmail', 'n8n-nodes-base.googleDrive', 'n8n-nodes-base.googleDocs'],
+    description: 'Google Sheets, Gmail, Docs, and Drive integrations',
+  },
+  ai: {
+    nodes: ['@n8n/n8n-nodes-langchain.chainLlm', '@n8n/n8n-nodes-langchain.lmChatGoogleGemini', 'n8n-nodes-base.set'],
+    description: 'AI via chain+model pattern: Edit Fields (chatInput) → Basic LLM Chain → Google Gemini Chat Model',
   },
   database: {
     nodes: ['n8n-nodes-base.postgres', 'n8n-nodes-base.mysql', 'n8n-nodes-base.mongodb'],
@@ -334,26 +338,21 @@ function analyzeDescription(description: string): { suggestedNodes: string[]; re
     }
   }
 
-  // Check for specific services
-  if (lowerDesc.includes('airtable')) {
-    suggestedNodes.push('n8n-nodes-base.airtable');
-    reasoning.push('Airtable integration for database operations');
+  // Redirect non-Google services to Google equivalents
+  if (lowerDesc.includes('airtable') || lowerDesc.includes('notion') || lowerDesc.includes('excel')) {
+    suggestedNodes.push('n8n-nodes-base.googleSheets');
+    reasoning.push('Using Google Sheets (Google ecosystem — replaces Airtable/Notion/Excel)');
   }
-  if (lowerDesc.includes('notion')) {
-    suggestedNodes.push('n8n-nodes-base.notion');
-    reasoning.push('Notion integration for workspace management');
+  if (lowerDesc.includes('outlook') || lowerDesc.includes('microsoft')) {
+    suggestedNodes.push('n8n-nodes-base.gmail');
+    reasoning.push('Using Gmail (Google ecosystem — replaces Outlook)');
   }
-  if (lowerDesc.includes('discord')) {
-    suggestedNodes.push('n8n-nodes-base.discord');
-    reasoning.push('Discord integration for chat messages');
-  }
-  if (lowerDesc.includes('telegram')) {
-    suggestedNodes.push('n8n-nodes-base.telegram');
-    reasoning.push('Telegram integration for messaging');
-  }
-  if (lowerDesc.includes('openai') || lowerDesc.includes('gpt') || lowerDesc.includes('ai')) {
-    suggestedNodes.push('n8n-nodes-base.openAi');
-    reasoning.push('OpenAI integration for AI-powered operations');
+  // AI always uses chain+model pattern with Gemini
+  if (lowerDesc.includes('openai') || lowerDesc.includes('gpt') || lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('summarize')) {
+    suggestedNodes.push('@n8n/n8n-nodes-langchain.chainLlm');
+    suggestedNodes.push('@n8n/n8n-nodes-langchain.lmChatGoogleGemini');
+    suggestedNodes.push('n8n-nodes-base.set');
+    reasoning.push('AI via chain+model: Edit Fields (chatInput) → Basic LLM Chain → Google Gemini Chat Model');
   }
 
   return { suggestedNodes, reasoning };

@@ -81,9 +81,27 @@ The pipeline loops up to **3 times**, re-submitting to Gemini after each fix unt
 
 ---
 
-## AI Node Pattern (Chain + Model)
+## Strict Rules
 
-n8n's LangChain integration requires a specific node architecture. Friendly Nathan generates this automatically:
+These rules are enforced across the entire codebase (backend, MCP server, and AI prompts):
+
+### 1. Google Ecosystem Only
+
+All generated workflows use **only Google products** for productivity and communication:
+
+| Category | Use | Never Use |
+|----------|-----|-----------|
+| Email | Gmail | Microsoft Outlook |
+| Spreadsheets | Google Sheets | Microsoft Excel, Airtable |
+| Documents | Google Docs | Notion |
+| File storage | Google Drive | OneDrive, Dropbox |
+| AI/LLM | Google Gemini (via Vertex/chain pattern) | OpenAI, standalone GPT nodes |
+
+If a user requests a non-Google service, the system substitutes the Google equivalent and notes the substitution.
+
+### 2. AI Node Pattern (Chain + Model) — Mandatory
+
+All AI operations **must** use the three-node chain+model pattern:
 
 ```
 ┌─────────────┐    main    ┌───────────────┐   ai_model   ┌─────────────────────┐
@@ -92,10 +110,16 @@ n8n's LangChain integration requires a specific node architecture. Friendly Nath
 └─────────────┘            └───────────────┘              └─────────────────────┘
 ```
 
-- **Edit Fields** prepares the `chatInput` field required by the chain
-- **Basic LLM Chain** orchestrates the AI call
-- **Gemini Chat Model** executes the actual LLM request
-- Connection types: `main` (data flow) and `ai_model` (model binding)
+- **Edit Fields** (`n8n-nodes-base.set`) — prepares a `chatInput` string field with `{{ $json.chatInput }}`
+- **Basic LLM Chain** (`@n8n/n8n-nodes-langchain.chainLlm`) — orchestrates the AI call
+- **Google Gemini Chat Model** (`@n8n/n8n-nodes-langchain.lmChatGoogleGemini`) — connected via `ai_model` connection type
+
+**Never** use standalone OpenAI nodes, standalone Gemini nodes without a chain, or any AI node without this pattern.
+
+### 3. Connection Types
+
+- `main` — standard data flow between nodes
+- `ai_model` — model binding from Basic LLM Chain to Google Gemini Chat Model
 
 ---
 

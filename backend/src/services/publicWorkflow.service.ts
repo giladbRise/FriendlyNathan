@@ -32,15 +32,11 @@ function generateUniqueWorkflowName(description: string): string {
   if (lowerDesc.includes('slack')) keywords.push('Slack');
   if (lowerDesc.includes('http') || lowerDesc.includes('webhook') || lowerDesc.includes('api')) keywords.push('HTTP');
   if (lowerDesc.includes('google sheet') || lowerDesc.includes('spreadsheet')) keywords.push('Sheets');
-  if (lowerDesc.includes('excel')) keywords.push('Excel');
-  if (lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('openai') || lowerDesc.includes('gpt')) keywords.push('AI');
-  if (lowerDesc.includes('summarize') || lowerDesc.includes('summary')) keywords.push('Summary');
+  if (lowerDesc.includes('google doc') || lowerDesc.includes('document')) keywords.push('Docs');
+  if (lowerDesc.includes('google drive') || lowerDesc.includes('drive')) keywords.push('Drive');
+  if (lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('summarize') || lowerDesc.includes('summary')) keywords.push('AI');
   if (lowerDesc.includes('schedule') || lowerDesc.includes('cron')) keywords.push('Scheduled');
   if (lowerDesc.includes('database') || lowerDesc.includes('postgres') || lowerDesc.includes('mysql')) keywords.push('DB');
-  if (lowerDesc.includes('discord')) keywords.push('Discord');
-  if (lowerDesc.includes('telegram')) keywords.push('Telegram');
-  if (lowerDesc.includes('airtable')) keywords.push('Airtable');
-  if (lowerDesc.includes('notion')) keywords.push('Notion');
 
   // Build prefix from keywords (max 3)
   const prefix = keywords.length > 0
@@ -1065,34 +1061,21 @@ export class PublicWorkflowService {
       // HTTP & API
       { keywords: ['http', 'request', 'api call', 'fetch', 'url', 'rest api', 'endpoint'], nodeType: 'n8n-nodes-base.httpRequest' },
 
-      // Communication
+      // Communication — Google ecosystem only
       { keywords: ['slack', 'message slack', 'slack channel', 'slack message'], nodeType: 'n8n-nodes-base.slack' },
-      { keywords: ['gmail'], nodeType: 'n8n-nodes-base.gmail' },
-      { keywords: ['outlook', 'microsoft outlook', 'office 365'], nodeType: 'n8n-nodes-base.microsoftOutlook' },
-      { keywords: ['imap'], nodeType: 'n8n-nodes-base.imap' },
-      { keywords: ['email', 'inbox', 'mail'], nodeType: 'n8n-nodes-base.gmail' },
-      { keywords: ['email', 'inbox', 'mail'], nodeType: 'n8n-nodes-base.microsoftOutlook' },
+      { keywords: ['gmail', 'email', 'inbox', 'mail', 'outlook'], nodeType: 'n8n-nodes-base.gmail' },
       { keywords: ['send email', 'smtp', 'mail send'], nodeType: 'n8n-nodes-base.emailSend' },
-      { keywords: ['discord', 'discord message'], nodeType: 'n8n-nodes-base.discord' },
-      { keywords: ['telegram', 'telegram message'], nodeType: 'n8n-nodes-base.telegram' },
 
-      // Spreadsheets & Documents
-      { keywords: ['google sheet', 'spreadsheet', 'sheets', 'google sheets'], nodeType: 'n8n-nodes-base.googleSheets' },
-      { keywords: ['excel', 'xlsx', 'xls', 'microsoft excel'], nodeType: 'n8n-nodes-base.microsoftExcel' },
-      { keywords: ['spreadsheet file', 'read excel', 'write excel', 'csv file', 'csv'], nodeType: 'n8n-nodes-base.spreadsheetFile' },
+      // Google Workspace — Sheets, Docs, Drive only (no Excel, Airtable, Notion)
+      { keywords: ['google sheet', 'spreadsheet', 'sheets', 'google sheets', 'excel', 'xlsx', 'xls'], nodeType: 'n8n-nodes-base.googleSheets' },
+      { keywords: ['google doc', 'document', 'docs'], nodeType: 'n8n-nodes-base.googleDocs' },
+      { keywords: ['google drive', 'drive', 'file storage'], nodeType: 'n8n-nodes-base.googleDrive' },
+      { keywords: ['csv file', 'csv', 'spreadsheet file'], nodeType: 'n8n-nodes-base.spreadsheetFile' },
 
-      // AI/LLM Nodes
-      { keywords: ['openai', 'gpt', 'chatgpt', 'gpt-4', 'gpt-3'], nodeType: 'n8n-nodes-base.openAi' },
-      { keywords: ['gemini', 'google ai', 'palm', 'bard'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
-      { keywords: ['ai', 'artificial intelligence', 'llm', 'language model', 'chat ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      // AI/LLM Nodes — chain+model pattern only (Edit Fields → chainLlm → lmChatGoogleGemini)
+      { keywords: ['gemini', 'google ai', 'palm', 'bard', 'openai', 'gpt', 'chatgpt', 'ai', 'artificial intelligence', 'llm', 'language model', 'chat ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['gemini', 'google ai', 'palm', 'bard', 'openai', 'gpt', 'chatgpt', 'ai', 'llm'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
       { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary', 'summary'], nodeType: '@n8n/n8n-nodes-langchain.chainSummarization' },
-
-      // Project Management & Productivity
-      { keywords: ['airtable', 'airtable base'], nodeType: 'n8n-nodes-base.airtable' },
-      { keywords: ['notion', 'notion page', 'notion database'], nodeType: 'n8n-nodes-base.notion' },
-      { keywords: ['github', 'repo', 'repository', 'git', 'pull request', 'issue'], nodeType: 'n8n-nodes-base.github' },
-      { keywords: ['jira', 'jira issue', 'jira ticket'], nodeType: 'n8n-nodes-base.jira' },
-      { keywords: ['trello', 'trello board', 'trello card'], nodeType: 'n8n-nodes-base.trello' },
 
       // Databases
       { keywords: ['postgres', 'postgresql', 'database', 'sql'], nodeType: 'n8n-nodes-base.postgres' },
@@ -1449,7 +1432,6 @@ export class PublicWorkflowService {
       const fallbackGeminiTypes = [
         '@n8n/n8n-nodes-langchain.chainSummarization',
         '@n8n/n8n-nodes-langchain.chainLlm',
-        'n8n-nodes-base.openAi',
         'n8n-nodes-base.code',
       ];
       const preferredType = pickAvailable(preferredGeminiTypes) || preferredGeminiTypes[0];
@@ -1514,9 +1496,7 @@ export class PublicWorkflowService {
     }
 
     if (intent.wantsSpreadsheet) {
-      const sheetTypes = intent.wantsGoogleSheets
-        ? ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.microsoftExcel', 'n8n-nodes-base.spreadsheetFile']
-        : ['n8n-nodes-base.microsoftExcel', 'n8n-nodes-base.googleSheets', 'n8n-nodes-base.spreadsheetFile'];
+      const sheetTypes = ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.spreadsheetFile'];
       const sheetNode = ensureNode(sheetTypes, 'Update Spreadsheet', {});
       const details = nodeTypeDetails?.get(sheetNode.type);
 
@@ -1613,7 +1593,6 @@ export class PublicWorkflowService {
       '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
       '@n8n/n8n-nodes-langchain.chainLlm',
       '@n8n/n8n-nodes-langchain.chainSummarization',
-      'n8n-nodes-base.openAi',
     ];
 
     const enhancedNodes = workflow.nodes.map((node) => {
@@ -1621,11 +1600,9 @@ export class PublicWorkflowService {
         return node;
       }
 
-      // Ensure the node has parameters
       const parameters = node.parameters || {};
 
-      // For lmChatGoogleGemini - it's a language model node, typically used in chains
-      // Just ensure model is set
+      // For lmChatGoogleGemini — model node in chain+model pattern
       if (node.type === '@n8n/n8n-nodes-langchain.lmChatGoogleGemini') {
         if (!parameters.model) {
           parameters.model = 'gemini-pro';
@@ -1633,27 +1610,17 @@ export class PublicWorkflowService {
         return { ...node, parameters };
       }
 
-      // For chainSummarization - ensure it has proper configuration
+      // For chainSummarization — ensure it has proper configuration
       if (node.type === '@n8n/n8n-nodes-langchain.chainSummarization') {
         if (!parameters.type) {
-          parameters.type = 'stuff'; // Default summarization type
+          parameters.type = 'stuff';
         }
         return { ...node, parameters };
       }
 
-      // For chainLlm - ensure it has a prompt
+      // For chainLlm — receives input via {{ $json.chatInput }}
       if (node.type === '@n8n/n8n-nodes-langchain.chainLlm') {
         if (!parameters.prompt && !parameters.promptTemplate) {
-          // Generate a default prompt based on the workflow description
-          const defaultPrompt = this.generateDefaultAIPrompt(description, node.name);
-          parameters.prompt = defaultPrompt;
-        }
-        return { ...node, parameters };
-      }
-
-      // For OpenAI node - ensure it has a prompt
-      if (node.type === 'n8n-nodes-base.openAi') {
-        if (!parameters.prompt && !parameters.text) {
           const defaultPrompt = this.generateDefaultAIPrompt(description, node.name);
           parameters.prompt = defaultPrompt;
         }

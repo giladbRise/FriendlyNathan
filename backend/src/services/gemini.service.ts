@@ -39,6 +39,7 @@ interface WorkflowNode {
 
 interface WorkflowConnection {
   main: Array<Array<{ node: string; type: string; index: number }>>;
+  ai_model?: Array<Array<{ node: string; type: string; index: number }>>;
 }
 
 interface N8nWorkflow {
@@ -478,7 +479,8 @@ Return ONLY valid JSON with this schema (no markdown):
       'n8n-nodes-base.slack',
       'n8n-nodes-base.googleSheets',
       'n8n-nodes-base.gmail',
-      'n8n-nodes-base.microsoftOutlook',
+      'n8n-nodes-base.googleDocs',
+      'n8n-nodes-base.googleDrive',
       'n8n-nodes-base.set',
       'n8n-nodes-base.code',
       'n8n-nodes-base.if',
@@ -494,8 +496,7 @@ Return ONLY valid JSON with this schema (no markdown):
       'n8n-nodes-base.dateTime',
       'n8n-nodes-base.wait',
       'n8n-nodes-base.respondToWebhook',
-      // AI/LLM nodes
-      'n8n-nodes-base.openAi',
+      // AI/LLM nodes — MUST use chain+model pattern (Edit Fields → chainLlm → lmChatGoogleGemini)
       '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
       '@n8n/n8n-nodes-langchain.chainLlm',
       '@n8n/n8n-nodes-langchain.chainSummarization',
@@ -584,8 +585,9 @@ ${nodeConfigSection}
 2. Create a complete workflow that implements ALL requested functionality
 3. Use appropriate trigger nodes (manualTrigger, webhook, schedule) based on context
 4. Chain nodes together properly with connections
-5. For email operations, use Gmail or Microsoft Outlook nodes
-6. **CRITICAL - AI Nodes (READ THIS CAREFULLY - THIS IS THE CORRECT PATTERN):**
+5. For email operations, use Gmail nodes ONLY (no Microsoft Outlook)
+6. For spreadsheet/document operations, use Google Sheets/Docs/Drive ONLY (no Microsoft Excel, no Airtable, no Notion)
+7. **CRITICAL - AI Nodes (READ THIS CAREFULLY - THIS IS THE CORRECT PATTERN):**
    - ALWAYS use the chain+model pattern for AI operations
    - Create THREE nodes for AI processing:
      a) Edit Fields node (n8n-nodes-base.set) to prepare input with "chatInput" field (string type)
@@ -595,13 +597,15 @@ ${nodeConfigSection}
    - The chainLlm node MUST have an "ai_model" connection to lmChatGoogleGemini
    - NEVER use standalone "@n8n/n8n-nodes-langchain.toolLlm"
    - NEVER use AI nodes without the Edit Fields → Chain → Model pattern
+   - NEVER use n8n-nodes-base.openAi — always use the Gemini chain+model pattern instead
    - The Edit Fields node should aggregate/format data into a single "chatInput" string field
-7. For Slack, use the Slack node with proper channel configuration
-8. Position nodes horizontally with 200px spacing starting at x=250
-9. **CRITICAL: Use the EXACT parameter names from the Node Configuration Reference above**
-10. For options/enums, use the exact values listed (e.g., "post" not "POST" for Slack operation)
-11. ONLY use node types from "Allowed Node Types". If a requested node is unavailable, choose the closest allowed node and reflect any assumptions in the explanation.
-12. If the user mentions specific tools or apps, ensure those nodes are included and configured appropriately.
+   - The chainLlm node receives its input via {{ $json.chatInput }} expression
+8. For Slack, use the Slack node with proper channel configuration
+9. Position nodes horizontally with 200px spacing starting at x=250
+10. **CRITICAL: Use the EXACT parameter names from the Node Configuration Reference above**
+11. For options/enums, use the exact values listed (e.g., "post" not "POST" for Slack operation)
+12. ONLY use node types from "Allowed Node Types". If a requested node is unavailable, choose the closest allowed Google ecosystem node and reflect any assumptions in the explanation.
+13. **SERVICE RESTRICTION: Only use Google ecosystem products** (Gmail, Google Sheets, Google Docs, Google Drive). If the user mentions Microsoft, Airtable, Notion, or other non-Google services, use the equivalent Google product instead and note the substitution in the explanation.
 ${learningGuidance || ''}
 ## Important Rules - READ CAREFULLY:
 - ALWAYS create ALL nodes needed to complete the ENTIRE request
@@ -618,10 +622,10 @@ ${learningGuidance || ''}
    - Example: If options are "Mark as Read", "Mark as Unread" - use "Mark as Unread", NOT "markUnread", NOT "unread"
    - Look at the Options list in Node Configuration Reference and copy the value EXACTLY
 
-2. **AI/LLM Nodes REQUIRE a Prompt**:
-   - Google Gemini (@n8n/n8n-nodes-langchain.lmChatGoogleGemini) MUST have a "prompt" or "text" parameter
-   - OpenAI nodes MUST have a "prompt" or "message" parameter
-   - The prompt should describe what the AI should do (e.g., "Summarize the following emails and extract key action items")
+2. **AI/LLM Nodes MUST Use Chain+Model Pattern**:
+   - ALWAYS create THREE nodes: Edit Fields (set chatInput) → Basic LLM Chain (@n8n/n8n-nodes-langchain.chainLlm) → Google Gemini Chat Model (@n8n/n8n-nodes-langchain.lmChatGoogleGemini)
+   - The chainLlm node gets input from {{ $json.chatInput }} and MUST connect to lmChatGoogleGemini via "ai_model" connection type
+   - NEVER use standalone OpenAI nodes or standalone Gemini nodes without the chain pattern
    - NEVER create an AI node without a prompt - it will fail
 
 3. **Slack Nodes Require Channel**:
@@ -897,7 +901,7 @@ Return ONLY valid JSON with this schema (no markdown):
     nodeIndex++;
 
     // Detect email operations
-    if (lowerDesc.includes('email') || lowerDesc.includes('gmail') || lowerDesc.includes('outlook')) {
+    if (lowerDesc.includes('email') || lowerDesc.includes('gmail') || lowerDesc.includes('mail')) {
       nodes.push({
         id: `node_${nodeIndex}`,
         name: 'Get Emails',
@@ -959,29 +963,65 @@ Return ONLY valid JSON with this schema (no markdown):
       nodeIndex++;
     }
 
-    // Detect summarization
-    if (lowerDesc.includes('summary') || lowerDesc.includes('summarize') || lowerDesc.includes('gemini')) {
+    // Detect summarization — use chain+model pattern (Edit Fields → chainLlm → lmChatGoogleGemini)
+    if (lowerDesc.includes('summary') || lowerDesc.includes('summarize') || lowerDesc.includes('gemini') || lowerDesc.includes('ai')) {
       const prevNodeName = nodes[nodes.length - 1].name;
+
+      // Step 1: Edit Fields node to prepare chatInput
       nodes.push({
         id: `node_${nodeIndex}`,
-        name: 'Summarize Content',
-        type: 'n8n-nodes-base.code',
-        typeVersion: 2,
+        name: 'Prepare AI Input',
+        type: 'n8n-nodes-base.set',
+        typeVersion: 3,
         position: [250 + nodeIndex * 200, 300],
         parameters: {
-          mode: 'runOnceForAllItems',
-          jsCode: `// Aggregate and summarize all email content
-const items = $input.all();
-const emailContents = items.map(item => item.json.snippet || item.json.body || '').join('\\n---\\n');
-
-// Basic fallback summary (AI unavailable)
-const summary = \`Summary of \${items.length} emails:\\n\${emailContents.slice(0, 500)}...\`;
-
-return [{ json: { summary, emailCount: items.length } }];`,
+          mode: 'manual',
+          assignments: {
+            assignments: [
+              {
+                id: 'chatInput',
+                name: 'chatInput',
+                value: '=Summarize the following content with key points and action items:\\n\\n{{ $json.snippet || $json.body || $json.text || JSON.stringify($json) }}',
+                type: 'string',
+              },
+            ],
+          },
         },
       });
       connections[prevNodeName] = {
-        main: [[{ node: 'Summarize Content', type: 'main', index: 0 }]],
+        main: [[{ node: 'Prepare AI Input', type: 'main', index: 0 }]],
+      };
+      nodeIndex++;
+
+      // Step 2: Basic LLM Chain node
+      nodes.push({
+        id: `node_${nodeIndex}`,
+        name: 'Basic LLM Chain',
+        type: '@n8n/n8n-nodes-langchain.chainLlm',
+        typeVersion: 1,
+        position: [250 + nodeIndex * 200, 300],
+        parameters: {},
+      });
+      connections['Prepare AI Input'] = {
+        main: [[{ node: 'Basic LLM Chain', type: 'main', index: 0 }]],
+      };
+      nodeIndex++;
+
+      // Step 3: Google Gemini Chat Model (connected via ai_model)
+      nodes.push({
+        id: `node_${nodeIndex}`,
+        name: 'Google Gemini Chat Model',
+        type: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
+        typeVersion: 1,
+        position: [250 + (nodeIndex - 1) * 200, 500],
+        parameters: {
+          model: 'gemini-pro',
+        },
+      });
+      // ai_model connection from chainLlm to Gemini
+      connections['Basic LLM Chain'] = {
+        ...connections['Basic LLM Chain'],
+        ai_model: [[{ node: 'Google Gemini Chat Model', type: 'ai_model', index: 0 }]],
       };
       nodeIndex++;
     }
