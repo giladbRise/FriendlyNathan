@@ -85,19 +85,19 @@ The pipeline loops up to **3 times**, re-submitting to Gemini after each fix unt
 
 These rules are enforced across the entire codebase (backend, MCP server, and AI prompts):
 
-### 1. Google Ecosystem Only
+### 1. Conditional Google Substitution
 
-All generated workflows use **only Google products** for productivity and communication:
+When a user requests certain categories of functionality, the system uses **Google products** and notes the substitution:
 
-| Category | Use | Never Use |
-|----------|-----|-----------|
-| Email | Gmail | Microsoft Outlook |
-| Spreadsheets | Google Sheets | Microsoft Excel, Airtable |
-| Documents | Google Docs | Notion |
-| File storage | Google Drive | OneDrive, Dropbox |
-| AI/LLM | Google Gemini (via Vertex/chain pattern) | OpenAI, standalone GPT nodes |
+| User Asks For | System Uses | Instead Of |
+|---------------|-------------|------------|
+| Email / inbox / mail | Gmail | Outlook, generic SMTP |
+| Spreadsheet / Excel / data table | Google Sheets | Excel, Airtable, Notion |
+| Documents / docs | Google Docs | — |
+| File storage / drive | Google Drive | OneDrive, Dropbox |
+| AI / GPT / summarize | Google Gemini (chain+model pattern) | OpenAI, standalone GPT nodes |
 
-If a user requests a non-Google service, the system substitutes the Google equivalent and notes the substitution.
+**Everything else is allowed as-is.** Databases (Postgres, MySQL, MongoDB), Slack, HTTP requests, webhooks, code nodes, conditionals, loops, and all other n8n nodes remain available without substitution.
 
 ### 2. AI Node Pattern (Chain + Model) — Mandatory
 

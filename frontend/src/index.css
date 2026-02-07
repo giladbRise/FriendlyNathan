@@ -23,50 +23,48 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
-  /* Dark Futuristic Theme - Friendly Nathan (n8n) */
+  /* Warm Dark Theme — Friendly Nathan */
   .dark {
-    /* #0A0E27 - Very dark blue-black background */
-    --background: 230 58% 10%;
-    /* Bright white text */
-    --foreground: 0 0% 100%;
+    /* Deep warm charcoal background */
+    --background: 20 14% 8%;
+    /* Warm off-white text */
+    --foreground: 35 20% 92%;
 
-    /* #1A1F3A - Dark blue-grey for cards and panels */
-    --card: 230 38% 16%;
-    --card-foreground: 0 0% 100%;
+    /* Slightly lighter warm dark for cards */
+    --card: 20 12% 12%;
+    --card-foreground: 35 20% 92%;
 
-    /* #1A1F3A - Dark blue-grey for popovers */
-    --popover: 230 38% 16%;
-    --popover-foreground: 0 0% 100%;
+    /* Warm dark for popovers */
+    --popover: 20 12% 12%;
+    --popover-foreground: 35 20% 92%;
 
-    /* #0066FF - Deep electric blue primary */
-    --primary: 220 100% 50%;
-    --primary-foreground: 0 0% 100%;
+    /* Peach/coral primary — warm and inviting */
+    --primary: 16 100% 66%;
+    --primary-foreground: 20 14% 8%;
 
-    /* #00D9FF - Cyan accent for secondary */
-    --secondary: 190 100% 50%;
-    --secondary-foreground: 230 58% 10%;
+    /* Warm gold secondary */
+    --secondary: 38 90% 60%;
+    --secondary-foreground: 20 14% 8%;
 
-    /* Muted - slightly lighter than background */
-    --muted: 230 38% 20%;
-    /* #A0AEC0 - Light grey-blue for muted text */
-    --muted-foreground: 215 19% 69%;
+    /* Muted — warm gray */
+    --muted: 20 10% 16%;
+    --muted-foreground: 25 10% 55%;
 
-    /* Accent - cyan */
-    --accent: 190 100% 50%;
-    --accent-foreground: 230 58% 10%;
+    /* Accent — soft sage green */
+    --accent: 150 30% 45%;
+    --accent-foreground: 20 14% 8%;
 
-    /* #FF3366 - Bright red for destructive */
-    --destructive: 345 100% 60%;
-    --destructive-foreground: 0 0% 100%;
+    /* Destructive — soft red */
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 35 20% 92%;
 
-    /* Border - slightly visible on dark background */
-    --border: 230 30% 25%;
-    --input: 230 30% 20%;
-    /* Ring - electric blue */
-    --ring: 220 100% 50%;
+    /* Warm borders */
+    --border: 20 10% 18%;
+    --input: 20 10% 14%;
+    --ring: 16 100% 66%;
   }
 }
 
@@ -79,27 +77,78 @@
   }
 }
 
-/* Custom utility classes for the futuristic theme */
+/* Nathan utility classes */
 @layer utilities {
   .text-cyan {
     color: #00D9FF;
   }
   .bg-surface {
-    background-color: #1A1F3A;
+    background-color: hsl(20 12% 12%);
   }
   .border-glow {
-    border-color: rgba(0, 217, 255, 0.3);
+    border-color: rgba(255, 154, 120, 0.3);
   }
   .text-success {
-    color: #00FF88;
+    color: #4ade80;
   }
   .text-error {
-    color: #FF3366;
+    color: #f87171;
   }
   .bg-success {
-    background-color: #00FF88;
+    background-color: #4ade80;
   }
   .bg-error {
-    background-color: #FF3366;
+    background-color: #f87171;
   }
+}
+
+/* Noise texture overlay for depth */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Custom scrollbar — warm tones */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(20 10% 25%);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(16 60% 50%);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(16 100% 66%), hsl(38 90% 60%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Frosted glass effect */
+.glass {
+  background: rgba(30, 24, 20, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Warm glow on focus */
+.warm-focus {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.warm-focus:focus-within {
+  box-shadow: 0 0 0 3px rgba(255, 154, 120, 0.15), 0 0 30px rgba(255, 154, 120, 0.1);
+  border-color: rgba(255, 154, 120, 0.4);
 }
