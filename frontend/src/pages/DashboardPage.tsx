@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { SkeletonActivityItem } from '../components/Skeleton';
+import { API_URL } from '../utils/api';
 
 interface RecentActivity {
   id: string;
@@ -29,7 +30,7 @@ const DashboardPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        'http://localhost:3000/api/workflows/activity?limit=10',
+        `${API_URL}/api/workflows/activity?limit=10`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

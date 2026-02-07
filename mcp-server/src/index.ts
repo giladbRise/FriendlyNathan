@@ -162,7 +162,7 @@ const NODE_SUGGESTIONS: Record<string, { nodes: string[]; description: string }>
 const server = new Server(
   {
     name: 'n8n-mcp-server',
-    version: '2.0.0', // Updated version with enhanced capabilities
+    version: '3.0.0',
   },
   {
     capabilities: {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { API_URL } from '../utils/api';
 
 const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
@@ -55,7 +56,7 @@ const ProfilePage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:3000/api/auth/profile',
+        `${API_URL}/api/auth/profile`,
         {
           firstName: profileData.firstName,
           lastName: profileData.lastName,
@@ -121,7 +122,7 @@ const ProfilePage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        'http://localhost:3000/api/auth/change-password',
+        `${API_URL}/api/auth/change-password`,
         {
           currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword,

@@ -1,5 +1,5 @@
 <project_specification>
-  <project_name>RISE n8n Workflow AI Builder</project_name>
+  <project_name>Friendly Nathan</project_name>
 
   <overview>
     A production-ready AI-powered web application that enables RISE employees to create n8n workflows through natural language descriptions. The system uses Google Gemini 3 Flash Preview to intelligently analyze available n8n nodes, generate optimal workflows, and create them directly in customer n8n instances via API. It provides comprehensive guidance for credentials, handles edge cases gracefully, and delivers seamless, working workflows ready for validation.

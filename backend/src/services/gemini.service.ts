@@ -421,10 +421,13 @@ Return ONLY valid JSON with this schema (no markdown):
     usingCustomKey: boolean
   ): Promise<string> {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
         }),

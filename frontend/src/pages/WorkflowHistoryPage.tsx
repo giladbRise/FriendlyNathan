@@ -4,6 +4,7 @@ import axios from 'axios';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { SkeletonTableRow } from '../components/Skeleton';
+import { API_URL } from '../utils/api';
 
 interface N8nInstanceInfo {
   name: string;
@@ -75,7 +76,7 @@ const WorkflowHistoryPage: React.FC = () => {
       params.append('sortOrder', sortOrder);
 
       const response = await axios.get<HistoryResponse>(
-        `http://localhost:3000/api/workflows/history?${params.toString()}`,
+        `${API_URL}/api/workflows/history?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

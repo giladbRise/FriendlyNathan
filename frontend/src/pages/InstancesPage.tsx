@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { API_URL } from '../utils/api';
 
 interface N8nInstance {
   id: string;
@@ -43,7 +44,7 @@ const InstancesPage: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:3000/api/n8n-instances', {
+      const response = await axios.get(`${API_URL}/api/n8n-instances`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setInstances(response.data.instances);
@@ -63,7 +64,7 @@ const InstancesPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:3000/api/n8n-instances/${instanceId}`,
+        `${API_URL}/api/n8n-instances/${instanceId}`,
         { isDefault: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -89,7 +90,7 @@ const InstancesPage: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:3000/api/n8n-instances/${instanceId}`, {
+      await axios.delete(`${API_URL}/api/n8n-instances/${instanceId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -169,7 +170,7 @@ const InstancesPage: React.FC = () => {
       const token = localStorage.getItem('token');
 
       await axios.put(
-        `http://localhost:3000/api/n8n-instances/${editingInstance.id}`,
+        `${API_URL}/api/n8n-instances/${editingInstance.id}`,
         updateData,
         { headers: { Authorization: `Bearer ${token}` } }
       );

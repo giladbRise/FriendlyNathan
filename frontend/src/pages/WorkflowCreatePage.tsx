@@ -4,6 +4,7 @@ import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import { API_URL } from '../utils/api';
 
 interface N8nInstance {
   id: string;
@@ -86,7 +87,7 @@ const WorkflowCreatePage: React.FC = () => {
 
   // Connect to socket.io for real-time updates
   useEffect(() => {
-    socketRef.current = io('http://localhost:3000');
+    socketRef.current = io(`${API_URL}`);
 
     socketRef.current.on('connect', () => {
       console.log('Socket connected:', socketRef.current?.id);
@@ -155,7 +156,7 @@ const WorkflowCreatePage: React.FC = () => {
     try {
       setLoadingInstances(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:3000/api/n8n-instances', {
+      const response = await axios.get(`${API_URL}/api/n8n-instances`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setInstances(response.data.instances);
@@ -197,7 +198,7 @@ const WorkflowCreatePage: React.FC = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        'http://localhost:3000/api/n8n-instances/validate',
+        `${API_URL}/api/n8n-instances/validate`,
         {
           url: manualForm.url,
           apiKey: manualForm.apiKey,
@@ -238,7 +239,7 @@ const WorkflowCreatePage: React.FC = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        'http://localhost:3000/api/n8n-instances',
+        `${API_URL}/api/n8n-instances`,
         {
           name: manualForm.name,
           url: manualForm.url,
@@ -294,7 +295,7 @@ const WorkflowCreatePage: React.FC = () => {
       const socketId = socketRef.current?.id;
 
       const response = await axios.post(
-        'http://localhost:3000/api/workflows/generate',
+        `${API_URL}/api/workflows/generate`,
         {
           instanceId: selectedInstanceId,
           description: workflowDescription,
@@ -349,7 +350,7 @@ const WorkflowCreatePage: React.FC = () => {
       const socketId = socketRef.current?.id;
 
       await axios.post(
-        `http://localhost:3000/api/workflows/${currentGenerationId}/cancel`,
+        `${API_URL}/api/workflows/${currentGenerationId}/cancel`,
         { socketId },
         {
           headers: { Authorization: `Bearer ${token}` },

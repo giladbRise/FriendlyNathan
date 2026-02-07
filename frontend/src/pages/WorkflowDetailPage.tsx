@@ -4,6 +4,7 @@ import axios from 'axios';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import JsonSyntaxHighlight from '../components/JsonSyntaxHighlight';
+import { API_URL } from '../utils/api';
 
 interface N8nInstanceInfo {
   id: string;
@@ -69,7 +70,7 @@ const WorkflowDetailPage: React.FC = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:3000/api/workflows/${id}`,
+        `${API_URL}/api/workflows/${id}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

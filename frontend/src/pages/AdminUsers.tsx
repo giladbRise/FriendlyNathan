@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { API_URL } from '../utils/api';
 
 interface User {
   id: string;
@@ -71,7 +72,7 @@ const AdminUsers: React.FC = () => {
       if (statusFilter !== 'all') params.append('isActive', statusFilter);
 
       const response = await axios.get<UsersResponse>(
-        `http://localhost:3000/api/admin/users?${params.toString()}`,
+        `${API_URL}/api/admin/users?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -142,7 +143,7 @@ const AdminUsers: React.FC = () => {
       const token = localStorage.getItem('token');
 
       await axios.put(
-        `http://localhost:3000/api/admin/users/${editingUser.id}`,
+        `${API_URL}/api/admin/users/${editingUser.id}`,
         {
           firstName: editForm.firstName || null,
           lastName: editForm.lastName || null,
@@ -175,7 +176,7 @@ const AdminUsers: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.delete(
-        `http://localhost:3000/api/admin/users/${userId}`,
+        `${API_URL}/api/admin/users/${userId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

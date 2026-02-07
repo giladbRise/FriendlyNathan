@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { API_URL } from '../utils/api';
 
 interface DashboardStats {
   users: {
@@ -34,7 +35,7 @@ const AdminDashboard: React.FC = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.get(
-        'http://localhost:3000/api/admin/stats',
+        `${API_URL}/api/admin/stats`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

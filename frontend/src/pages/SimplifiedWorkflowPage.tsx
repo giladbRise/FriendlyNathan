@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 import JsonSyntaxHighlight from '../components/JsonSyntaxHighlight';
+import { API_URL } from '../utils/api';
 
 interface CredentialRequirement {
   type: string;
@@ -88,7 +89,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
   // Connect to socket.io for real-time updates
   useEffect(() => {
-    socketRef.current = io('http://localhost:3000');
+    socketRef.current = io(`${API_URL}`);
 
     socketRef.current.on('connect', () => {
       console.log('Socket connected:', socketRef.current?.id);
@@ -143,7 +144,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
       // Call the public validation endpoint (no auth required)
       const response = await axios.post(
-        'http://localhost:3000/api/public/validate-n8n',
+        `${API_URL}/api/public/validate-n8n`,
         {
           url: n8nUrl,
           apiKey: n8nApiKey,
@@ -187,7 +188,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
       setGenerationProgress({ message: 'Generating preview...', progress: 50, estimatedTimeRemaining: null });
       const response = await axios.post(
-        'http://localhost:3000/api/public/preview-workflow',
+        `${API_URL}/api/public/preview-workflow`,
         {
           n8nUrl,
           n8nApiKey,
@@ -224,7 +225,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
     try {
       const response = await axios.post(
-        'http://localhost:3000/api/public/create-workflow',
+        `${API_URL}/api/public/create-workflow`,
         {
           n8nUrl,
           n8nApiKey,
@@ -309,7 +310,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
       const socketId = socketRef.current?.id;
 
       await axios.post(
-        `http://localhost:3000/api/public/cancel-workflow/${currentGenerationId}`,
+        `${API_URL}/api/public/cancel-workflow/${currentGenerationId}`,
         { socketId }
       );
 

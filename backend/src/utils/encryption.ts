@@ -1,8 +1,18 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 const IV_LENGTH = 16;
+
+function getEncryptionKey(): string {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      'ENCRYPTION_KEY environment variable is required. ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+  return key;
+}
 
 /**
  * Encrypts a string using AES-256-CBC
@@ -12,7 +22,7 @@ const IV_LENGTH = 16;
 export function encrypt(text: string): string {
   try {
     // Ensure encryption key is 32 bytes (64 hex characters)
-    const key = Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex');
+    const key = Buffer.from(getEncryptionKey().slice(0, 64), 'hex');
 
     // Generate a random initialization vector
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -40,7 +50,7 @@ export function encrypt(text: string): string {
 export function decrypt(encryptedText: string): string {
   try {
     // Ensure encryption key is 32 bytes (64 hex characters)
-    const key = Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex');
+    const key = Buffer.from(getEncryptionKey().slice(0, 64), 'hex');
 
     // Split IV and encrypted data
     const parts = encryptedText.split(':');

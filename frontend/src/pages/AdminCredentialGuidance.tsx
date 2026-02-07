@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { API_URL } from '../utils/api';
 
 interface CredentialTemplate {
   id: string;
@@ -69,7 +70,7 @@ const AdminCredentialGuidance: React.FC = () => {
       if (statusFilter !== 'all') params.append('isActive', statusFilter);
 
       const response = await axios.get<TemplatesResponse>(
-        `http://localhost:3000/api/credentials/guidance?${params.toString()}`,
+        `${API_URL}/api/credentials/guidance?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -185,7 +186,7 @@ const AdminCredentialGuidance: React.FC = () => {
       if (editingTemplate) {
         // Update existing template
         await axios.put(
-          `http://localhost:3000/api/credentials/guidance/${editingTemplate.id}`,
+          `${API_URL}/api/credentials/guidance/${editingTemplate.id}`,
           payload,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -195,7 +196,7 @@ const AdminCredentialGuidance: React.FC = () => {
       } else {
         // Create new template
         await axios.post(
-          'http://localhost:3000/api/credentials/guidance',
+          `${API_URL}/api/credentials/guidance`,
           payload,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -224,7 +225,7 @@ const AdminCredentialGuidance: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.delete(
-        `http://localhost:3000/api/credentials/guidance/${templateId}`,
+        `${API_URL}/api/credentials/guidance/${templateId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

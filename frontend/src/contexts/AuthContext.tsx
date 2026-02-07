@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../utils/api';
 
 interface User {
   id: string;
@@ -49,7 +50,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   // Refresh token function
   const refreshTokenFn = useCallback(async () => {

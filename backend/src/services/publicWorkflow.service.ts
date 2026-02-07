@@ -14,6 +14,7 @@ const prisma = new PrismaClient();
 // Cache TTL in milliseconds (1 hour)
 const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
 const PREVIEW_TTL_MS = 15 * 60 * 1000;
+const MAX_PREVIEW_CACHE_SIZE = 100;
 
 /**
  * Generate a unique workflow name based on description keywords
@@ -683,6 +684,15 @@ export class PublicWorkflowService {
 
   private storePreview(workflow: N8nWorkflow, previewId?: string, originalDescription?: string): string {
     this.cleanupExpiredPreviews();
+    // Evict oldest entries if cache is full
+    if (previewCache.size >= MAX_PREVIEW_CACHE_SIZE) {
+      const entriesToDelete = previewCache.size - MAX_PREVIEW_CACHE_SIZE + 1;
+      const iterator = previewCache.keys();
+      for (let i = 0; i < entriesToDelete; i++) {
+        const key = iterator.next().value;
+        if (key) previewCache.delete(key);
+      }
+    }
     const id = previewId || randomUUID();
     previewCache.set(id, { workflow, createdAt: Date.now(), originalDescription });
     return id;

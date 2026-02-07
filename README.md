@@ -2,11 +2,10 @@
   <img src="https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png" alt="n8n" width="100"/>
 </p>
 
-<h1 align="center">Friendly Nathan (n8n)</h1>
+<h1 align="center">Friendly Nathan</h1>
 
 <p align="center">
-  <strong>AI-Powered n8n Workflow Generator</strong><br/>
-  <em>Describe what you need in plain English. Get production-ready workflows instantly.</em>
+  <strong>Describe your automation in plain English. Get a production-ready n8n workflow in seconds.</strong>
 </p>
 
 <p align="center">
@@ -17,337 +16,253 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/License-RISE%20Internal-blue?style=flat-square" alt="License"/>
-  <img src="https://img.shields.io/badge/Version-2.0.0-green?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/Version-1.0.0-green?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/Status-Production-brightgreen?style=flat-square" alt="Status"/>
+  <img src="https://img.shields.io/badge/Node->=20-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node"/>
 </p>
 
 ---
 
-## What is Friendly Nathan?
+## What Does Friendly Nathan Do?
 
-Friendly Nathan bridges the gap between **what you want to automate** and **how to build it in n8n**. Instead of spending hours configuring nodes, connections, and parameters — simply describe your workflow in natural language.
+You tell it what you want to automate:
 
-```
-"Every morning at 9am, check my Gmail for unread emails with attachments,
- save the attachments to Google Drive, and send me a Slack summary"
-```
+> "Every morning at 9am, check my Gmail for unread emails with attachments,
+> save the attachments to Google Drive, and send me a Slack summary"
 
-**Friendly Nathan generates a complete, deployable n8n workflow in seconds.**
+Friendly Nathan turns that into a complete, deployable n8n workflow — nodes, connections, parameters, and all. No drag-and-drop required.
 
----
+### How It Works
 
-## Key Features
-
-### Intelligent Workflow Generation
-Powered by Google Gemini AI with deep n8n knowledge. Understands complex multi-step automation requirements and automatically selects the right nodes and configurations.
-
-### Auto-Improvement System
-Automatically detects and fixes workflow gaps. Iteratively improves workflows until they're production-ready — no technical intervention required.
-
-### Smart Templates Library
-10+ pre-built templates across 6 categories with fillable fields for quick customization:
-- **Communication** — Email processing, Slack notifications
-- **Data Processing** — Sheet sync, data transformation
-- **Notifications** — Multi-channel alerts, summaries
-- **Integrations** — CRM sync, cross-platform automation
-- **Scheduling** — Daily reports, periodic tasks
-- **AI-Powered** — Content generation, analysis workflows
-
-### Real-Time Progress
-Live generation progress via WebSocket. See each step as your workflow is being built with instant preview before deployment.
-
-### Direct n8n Integration
-Connect to any n8n instance (self-hosted or cloud). One-click deployment with automatic credential placeholder setup.
+1. **Connect** your n8n instance (self-hosted or cloud)
+2. **Describe** what you want to automate in plain English
+3. **Review** the generated workflow in a live preview
+4. **Deploy** to your n8n instance with one click
 
 ---
 
-## Architecture
+## Features
 
-```
-                              FRONTEND (React)
-    ┌─────────────────────────────────────────────────────────────────┐
-    │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-    │  │ Description │  │  Template   │  │     Workflow Preview    │  │
-    │  │   Input     │  │  Selector   │  │     & Deployment        │  │
-    │  └──────┬──────┘  └──────┬──────┘  └────────────┬────────────┘  │
-    └─────────┼────────────────┼──────────────────────┼───────────────┘
-              │                │                      │
-              ▼                ▼                      ▼
-    ┌─────────────────────────────────────────────────────────────────┐
-    │                        BACKEND (Express)                         │
-    │  ┌─────────────────────────────────────────────────────────────┐│
-    │  │                   Workflow Generation Pipeline               ││
-    │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐ ││
-    │  │  │  Parse   │─▶│ Generate │─▶│  Auto    │─▶│  Validate   │ ││
-    │  │  │ Request  │  │ Workflow │  │ Improve  │  │  & Deploy   │ ││
-    │  │  └──────────┘  └──────────┘  └──────────┘  └─────────────┘ ││
-    │  └─────────────────────────────────────────────────────────────┘│
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-    │  │ Gap Detection   │  │ Learning System │  │  Node Cache     │ │
-    │  │ Service         │  │ (Preferences)   │  │  (TTL-based)    │ │
-    │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-    └─────────────────────────────────────────────────────────────────┘
-              │                                           │
-              ▼                                           ▼
-    ┌─────────────────────┐                 ┌─────────────────────────┐
-    │   Google Gemini AI  │                 │      n8n Instance       │
-    │   (Workflow Logic)  │                 │   (Deployment Target)   │
-    └─────────────────────┘                 └─────────────────────────┘
-```
+| Feature | What It Does |
+|---------|-------------|
+| **Natural Language Generation** | Describe workflows in plain English. Gemini AI handles the rest. |
+| **Auto-Improvement** | Detects gaps (missing triggers, incomplete outputs) and fixes them automatically. Up to 3 refinement passes. |
+| **10 Ready-Made Templates** | Pre-built workflows across 7 categories with fillable fields. Skip the description and customize directly. |
+| **Live Progress** | WebSocket-powered real-time updates. Watch your workflow being built step by step. |
+| **One-Click Deploy** | Push directly to your n8n instance. Credential placeholders are set up automatically. |
+| **AI Node Support** | Uses n8n's chain+model pattern for LangChain-compatible AI nodes. |
 
----
+### Template Categories
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | React 18, TypeScript, TailwindCSS, Socket.io Client |
-| **Backend** | Node.js, Express, TypeScript, Socket.io |
-| **AI Engine** | Google Gemini Pro (via API) |
-| **Automation** | n8n (any instance) |
-| **Validation** | Zod schemas |
-| **Database** | PostgreSQL with Prisma ORM |
+- **Email Automation** (3 templates) — Gmail summaries, email-to-spreadsheet
+- **Data Collection** (2) — Webhook receivers, form submissions
+- **Reporting** (1) — Scheduled daily reports
+- **Monitoring** (1) — API health monitoring with alerts
+- **AI Processing** (1) — AI-powered content workflows
+- **Data Sync** (1) — Cross-platform data synchronization
+- **Notifications** (1) — Multi-channel alert systems
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- npm or yarn
-- Google Gemini API key
-- n8n instance (self-hosted or cloud)
 
-### Installation
+- Node.js 20+
+- npm 10+
+- Google Gemini API key ([get one here](https://aistudio.google.com/apikey))
+- n8n instance (self-hosted or cloud) with API access enabled
+
+### Install & Run
 
 ```bash
 # Clone the repository
-git clone https://github.com/giladbRise/Friendly Nathan.git
-cd Friendly Nathan
+git clone https://github.com/giladbRise/MCP-n8n.git
+cd MCP-n8n
 
-# Install all dependencies
+# Install all dependencies (backend + frontend + shared)
 npm install
 
-# Configure environment
+# Configure your environment
 cp backend/.env.example backend/.env
-# Edit backend/.env with your settings
+# Edit backend/.env — at minimum set GEMINI_API_KEY
 
-# Start the application
+# Start both servers
 npm run dev
 ```
 
+The frontend opens at `http://localhost:5173`. The backend API runs on `http://localhost:3000`.
+
 ### Environment Variables
 
-Create `backend/.env`:
+Create `backend/.env` (see `backend/.env.example`):
 
 ```env
 PORT=3000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 
-# Optional: Default Gemini API key (users can also provide their own)
+# Required: Your Gemini API key (users can also provide their own in the UI)
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
----
+### Docker
 
-## Usage
+```bash
+# Build and start everything
+docker-compose up --build
 
-### 1. Connect to n8n
-
-Enter your n8n instance URL and API key:
-- n8n URL: `https://your-n8n-instance.com`
-- API Key: `your-n8n-api-key`
-
-### 2. Describe Your Workflow
-
-Write what you want to automate in plain English:
-
-> "When a new row is added to my Google Sheet, extract the email address, send a welcome email using Gmail, and log the action to Slack"
-
-### 3. Preview & Deploy
-
-- Review the generated workflow
-- Click **"Create in n8n"** to deploy
-- Open directly in your n8n editor
-
----
-
-## AI Node Configuration
-
-Friendly Nathan uses the **chain+model pattern** for AI nodes — the recommended architecture for n8n:
-
-```
-┌─────────────┐    main    ┌───────────────┐   ai_model   ┌─────────────────────┐
-│ Edit Fields │ ─────────▶ │ Basic LLM     │ ───────────▶ │ Google Gemini Chat  │
-│ (chatInput) │            │ Chain         │              │ Model               │
-└─────────────┘            └───────────────┘              └─────────────────────┘
+# Or run in background
+docker-compose up -d
 ```
 
-This pattern ensures:
-- Proper input preparation with `chatInput` field
-- Correct connection types between nodes
-- Full compatibility with n8n's LangChain integration
+---
+
+## Connecting to n8n
+
+1. Open your n8n instance settings
+2. Generate an API key (Settings > API > Create API Key)
+3. In Friendly Nathan, enter:
+   - **n8n URL**: `https://your-n8n-instance.com`
+   - **API Key**: your generated key
+
+The app validates the connection before allowing workflow creation.
 
 ---
 
-## Auto-Improvement System
+## Tech Stack
 
-Friendly Nathan automatically detects and fixes common workflow issues:
-
-| Issue Type | Auto-Fix |
-|------------|----------|
-| Missing triggers | Adds appropriate trigger node |
-| Incomplete outputs | Adds output/notification nodes |
-| Vague data sources | Clarifies with specific node configurations |
-| Missing AI setup | Implements chain+model pattern |
-| Unclear conditions | Adds proper IF/Switch logic |
-
-The system iterates up to 3 times to ensure workflow quality before presenting the final result.
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18, TypeScript, TailwindCSS, Socket.io Client |
+| **Backend** | Node.js 20+, Express, TypeScript, Socket.io |
+| **AI** | Google Gemini Pro (via API) |
+| **Database** | PostgreSQL with Prisma ORM |
+| **Validation** | Zod schemas |
+| **Target** | Any n8n instance (self-hosted or cloud) |
 
 ---
 
 ## Project Structure
 
 ```
-Friendly Nathan/
-├── backend/
+MCP-n8n/
+├── backend/                    # Express API server
 │   ├── src/
-│   │   ├── controllers/          # API endpoint handlers
-│   │   ├── services/             # Business logic
-│   │   │   ├── gemini.service.ts              # AI generation
+│   │   ├── controllers/        # Request handlers
+│   │   ├── services/           # Business logic
+│   │   │   ├── gemini.service.ts              # Gemini AI integration
 │   │   │   ├── publicWorkflow.service.ts      # Workflow orchestration
 │   │   │   ├── workflow-gap-detector.service.ts
-│   │   │   ├── workflow-templates.service.ts
+│   │   │   ├── workflow-templates.service.ts   # 10 pre-built templates
 │   │   │   └── workflowGenerator.service.ts
-│   │   ├── routes/               # API routes
-│   │   ├── config/               # Configuration files
-│   │   └── middleware/           # Express middleware
-│   └── package.json
-├── frontend/
+│   │   ├── routes/             # API route definitions
+│   │   ├── config/             # App configuration
+│   │   └── middleware/         # Auth, validation, error handling
+│   └── prisma/                 # Database schema & migrations
+├── frontend/                   # React SPA
 │   ├── src/
-│   │   ├── pages/                # React pages
-│   │   ├── components/           # Reusable components
-│   │   └── services/             # API clients
-│   └── package.json
-├── mcp-server/                   # MCP protocol server
-└── README.md
+│   │   ├── pages/              # 16 route components
+│   │   ├── components/         # Reusable UI components
+│   │   ├── contexts/           # React Context (auth, etc.)
+│   │   └── services/           # API client layer
+├── mcp-server/                 # MCP protocol server
+├── prompts/                    # AI agent system prompts
+└── shared/                     # Shared TypeScript types
 ```
 
 ---
 
-## API Endpoints
+## API Reference
 
 ### Public Endpoints (No Auth Required)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/public/validate` | Validate n8n connection |
-| POST | `/api/public/generate` | Generate workflow |
-| POST | `/api/public/preview` | Preview workflow without creating |
-| POST | `/api/public/create` | Create workflow in n8n |
-| DELETE | `/api/public/cancel/:id` | Cancel generation |
 
-### Templates
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/templates` | List all templates |
-| GET | `/api/templates/categories` | Get template categories |
-| GET | `/api/templates/:id` | Get specific template |
+| `POST` | `/api/public/validate` | Validate n8n connection credentials |
+| `POST` | `/api/public/generate` | Generate a workflow from description |
+| `POST` | `/api/public/preview` | Preview workflow without deploying |
+| `POST` | `/api/public/create` | Deploy workflow to n8n instance |
+| `DELETE` | `/api/public/cancel/:id` | Cancel an in-progress generation |
+| `GET` | `/api/templates` | List all available templates |
+| `GET` | `/api/templates/categories` | Get template categories |
+| `GET` | `/api/templates/:id` | Get a specific template |
+| `GET` | `/health` | Health check |
+
+### Authenticated Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/*` | Registration, login, logout |
+| `*` | `/api/workflows/*` | CRUD operations on saved workflows |
+| `*` | `/api/n8n-instances/*` | Manage connected n8n instances |
+| `*` | `/api/admin/*` | Admin dashboard, user management |
 
 ---
 
-## Security Features
+## Security
 
-- **Encrypted API Keys**: AES-256 encryption for stored credentials
-- **JWT Authentication**: Secure token-based auth for protected endpoints
-- **No Credential Exposure**: API keys never logged or exposed in UI
-- **Input Validation**: Zod schemas validate all inputs
-- **Rate Limiting**: Prevents abuse of workflow generation
-
----
-
-## Docker Deployment
-
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Run in detached mode
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
+- **API Key Encryption**: AES-256-CBC for stored n8n credentials
+- **Authentication**: JWT tokens with bcrypt password hashing
+- **Input Validation**: Zod schemas on all endpoints
+- **HTTP Security**: Helmet.js headers, CORS configuration
+- **Rate Limiting**: Prevents abuse of generation endpoints
+- **Role-Based Access**: Employee and Admin roles with route protection
 
 ---
 
 ## Troubleshooting
 
 ### Port Already in Use
-```bash
-# Find and kill process using port 3000 (backend)
-lsof -ti:3000 | xargs kill -9
 
-# Find and kill process using port 5173 (frontend)
-lsof -ti:5173 | xargs kill -9
+```bash
+lsof -ti:3000 | xargs kill -9   # Backend
+lsof -ti:5173 | xargs kill -9   # Frontend
 ```
 
 ### Gemini API Issues
-- Verify `GEMINI_API_KEY` is set correctly in backend/.env
-- Check API quota in Google Cloud Console
+
+- Verify `GEMINI_API_KEY` is set in `backend/.env`
+- Check your API quota in [Google Cloud Console](https://console.cloud.google.com)
 - Ensure billing is enabled for your Google Cloud project
 
-### n8n Connection Issues
-- Verify n8n instance is accessible from your network
-- Check API key has correct permissions
-- Ensure n8n API is enabled in your instance
+### n8n Connection Fails
+
+- Confirm your n8n instance is accessible from your network
+- Verify the API key has correct permissions
+- Check that the n8n API is enabled (Settings > API)
+
+### Database Issues
+
+```bash
+cd backend
+npx prisma generate          # Regenerate Prisma client
+npx prisma migrate dev       # Apply pending migrations
+npx prisma studio            # Open database GUI
+```
 
 ---
 
-## Built for RISE
+## For Developers
 
-Friendly Nathan is optimized for **RISE** organizational workflows:
+See [ARCHITECTURE.md](ARCHITECTURE.md) for system design details, the auto-improvement pipeline, and AI node configuration patterns.
 
-- Enterprise-ready security
-- Slack integration for team communication
-- Google Workspace compatibility (Sheets, Drive, Gmail)
-- AI-powered automation with Gemini
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, coding standards, and how to submit changes.
 
 ---
 
 ## License
 
-Proprietary - RISE Internal Use Only
-
----
+Proprietary — RISE Internal Use Only
 
 ## Support
 
-For issues or questions:
 - Internal: Contact RISE DevOps team
-- Slack: #n8n-workflow-builder
+- Slack: `#n8n-workflow-builder`
 
 ---
 
 <p align="center">
-  <strong>Built with care by the RISE Team</strong><br/>
+  <strong>Built by the RISE Team</strong><br/>
   <em>Making workflow automation accessible to everyone</em>
 </p>
-
----
-
-**Version**: 2.0.0 | **Last Updated**: January 2026

@@ -30,7 +30,7 @@
     {
       "id": "replace_the_manual_trigger_with_a_schedule_trigger_n8nnodesbaseschedulerigger_n8n",
       "issuePattern": "Replace the Manual Trigger with a Schedule Trigger node configured to run every 20 minutes.",
-      "fixApplied": "Updated parallel connections so Slack, Email, and Google Sheets are updated simultaneously with the AI output.",
+      "fixApplied": "Fixed the Gmail node operation from 'send' (used as a getter incorrectly) to a proper 'send' for notification delivery",
       "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
       "nodeTypes": [
         "n8n-nodes-base.scheduleTrigger",
@@ -38,8 +38,8 @@
         "n8n-nodes-base.set",
         "n8n-nodes-base.slack"
       ],
-      "count": 3,
-      "lastSeen": "2026-01-23T07:56:58.006Z",
+      "count": 4,
+      "lastSeen": "2026-01-26T07:43:46.842Z",
       "createdAt": "2026-01-21T17:13:53.928Z"
     },
     {
@@ -1564,6 +1564,809 @@
       "count": 1,
       "lastSeen": "2026-01-23T11:35:44.395Z",
       "createdAt": "2026-01-23T11:35:44.395Z"
+    },
+    {
+      "id": "the_workflow_sequence_is_logically_reversed__it_at_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow sequence is logically reversed: it attempts to use AI and Set nodes before reading the Excel data.",
+      "fixApplied": "Changed trigger from Manual to Weekly Schedule node as requested.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.009Z",
+      "createdAt": "2026-01-25T07:57:20.009Z"
+    },
+    {
+      "id": "the_jira_node_is_entirely_missing__there_is_no_mec_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Jira node is entirely missing; there is no mechanism in this workflow to actually 'update automation in jira'.",
+      "fixApplied": "Reordered logic: Excel node now runs first to fetch the data source.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.011Z",
+      "createdAt": "2026-01-25T07:57:20.011Z"
+    },
+    {
+      "id": "the_trigger_is__manual___but_the_user_specifically_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The trigger is 'Manual', but the user specifically requested a 'once a week' schedule.",
+      "fixApplied": "Replaced the irrelevant AI prompt with a Code node that cleans trailing dashes and expands 'OW' and 'MM' aliases (Openweb, MinuteMedia, etc.).",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.013Z",
+      "createdAt": "2026-01-25T07:57:20.013Z"
+    },
+    {
+      "id": "the_ai_node_prompt___summarize_the_emails______is__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The AI node prompt ('Summarize the emails...') is completely irrelevant to the task of processing publisher names and generating JQL strings.",
+      "fixApplied": "Implemented JQL string generation logic to match the requested (summary ~ 'X' OR description ~ 'X') format.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.014Z",
+      "createdAt": "2026-01-25T07:57:20.014Z"
+    },
+    {
+      "id": "there_is_no_logic__code_node_or_ai__to_handle_the__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "There is no logic (Code node or AI) to handle the specific string manipulations requested (removing dashes, adding aliases like 'MinuteMedia', formatting the OR condition).",
+      "fixApplied": "Repurposed the Gemini AI node to act as a verification layer for 100% accuracy of the JQL string.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.015Z",
+      "createdAt": "2026-01-25T07:57:20.015Z"
+    },
+    {
+      "id": "the_workflow_lacks_an_http_request_or_jira_node_to_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow lacks an HTTP Request or Jira node to interact with the Jira Automation API (which is required to update rules via URL).",
+      "fixApplied": "Added an HTTP Request node configured to update the specific Jira Automation Rule ID identified in the user's URL.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.016Z",
+      "createdAt": "2026-01-25T07:57:20.016Z"
+    },
+    {
+      "id": "change_the_trigger_to_a__schedule__node_set_to_wee_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Change the trigger to a 'Schedule' node set to weekly.",
+      "fixApplied": "Added aggregation logic within the Code node to combine all Excel rows into a single JQL query.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.017Z",
+      "createdAt": "2026-01-25T07:57:20.017Z"
+    },
+    {
+      "id": "place_the_microsoft_excel_node_at_the_beginning_of_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Place the Microsoft Excel node at the beginning of the workflow to fetch the publisher list.",
+      "fixApplied": "Applied improvement",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.018Z",
+      "createdAt": "2026-01-25T07:57:20.018Z"
+    },
+    {
+      "id": "use_a_code_node_or_an_ai_node_with_a_correct_promp_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a Code node or an AI node with a correct prompt to transform the Excel array into the specific JQL string format: (summary ~ 'X' OR description ~ 'X'...).",
+      "fixApplied": "Applied improvement",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.020Z",
+      "createdAt": "2026-01-25T07:57:20.020Z"
+    },
+    {
+      "id": "add_a_jira_node_or_an__http_request__node_using_th_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Jira node or an 'HTTP Request' node using the Jira Automation API to PATCH/PUT the rule configuration.",
+      "fixApplied": "Applied improvement",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.021Z",
+      "createdAt": "2026-01-25T07:57:20.021Z"
+    },
+    {
+      "id": "include_a__limit__or__aggregate__node_to_ensure_th_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Include a 'Limit' or 'Aggregate' node to ensure the list from Excel is combined into a single string before sending to Jira.",
+      "fixApplied": "Applied improvement",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:57:20.022Z",
+      "createdAt": "2026-01-25T07:57:20.022Z"
+    },
+    {
+      "id": "the_jira_automation_api_does_not_allow_updating_a__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Jira Automation API does not allow updating a single condition by sending only a 'text' parameter. To update a rule, you must fetch the entire rule JSON structure via a GET request, modify the specific JQL component within that structure, and then PUT the entire object back.",
+      "fixApplied": "Added GET request to fetch the existing Jira Automation rule structure before updating.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.924Z",
+      "createdAt": "2026-01-25T07:58:16.924Z"
+    },
+    {
+      "id": "the_workflow_lacks_a_get_request_to_retrieve_the_e_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow lacks a GET request to retrieve the existing rule configuration, making it impossible to perform a valid update while maintaining the rule's triggers and actions.",
+      "fixApplied": "Corrected Update node to send the complete rule JSON payload via PUT instead of just a 'text' parameter.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.926Z",
+      "createdAt": "2026-01-25T07:58:16.926Z"
+    },
+    {
+      "id": "relying_on_an_ai_node_to__return_only_the_string___n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Relying on an AI node to 'Return ONLY the string' for the final JQL poses a significant risk to the '100% accuracy' requirement. For long lists of publishers, LLMs may truncate the response, hit token limits, or introduce subtle syntax errors.",
+      "fixApplied": "Improved Alias logic in Code node to be bidirectional (e.g., handles 'OW' to 'Openweb' and vice versa).",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.927Z",
+      "createdAt": "2026-01-25T07:58:16.927Z"
+    },
+    {
+      "id": "the_alias_logic_in_the_code_node_is_unidirectional_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The alias logic in the Code node is unidirectional. If the Excel contains 'Openweb', it will not add the 'OW' alias; it only adds aliases if the input is exactly 'OW' or 'MM'.",
+      "fixApplied": "Pivoted AI node role from generation to validation to prevent data truncation or hallucinations in the long JQL string.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.929Z",
+      "createdAt": "2026-01-25T07:58:16.929Z"
+    },
+    {
+      "id": "add_an_http_request_node_at_the_start_to_get_the_c_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an HTTP Request node at the start to GET the current automation rule configuration from Jira.",
+      "fixApplied": "Added an IF node (Is JQL Valid?) to halt the workflow if the AI detects syntax errors or inconsistencies.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.930Z",
+      "createdAt": "2026-01-25T07:58:16.930Z"
+    },
+    {
+      "id": "use_a_code_node_to_find_the_jql_condition_inside_t_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a Code node to find the JQL condition inside the rule JSON (usually under 'components') and replace its value with the newly generated JQL string.",
+      "fixApplied": "Added a 'Prepare Payload' Code node to surgically inject the new JQL into the correct component of the Jira rule JSON.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.932Z",
+      "createdAt": "2026-01-25T07:58:16.932Z"
+    },
+    {
+      "id": "instead_of_having_the_ai_return_the_whole_string___n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Instead of having the AI return the whole string, use the AI node only to flag potential errors (returning 'OK' or 'Error: message') and proceed with the Code-generated string if valid to ensure 100% data integrity.",
+      "fixApplied": "Updated Jira API endpoints and added required 'application/json' headers for Cloud Automation compatibility.",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.933Z",
+      "createdAt": "2026-01-25T07:58:16.933Z"
+    },
+    {
+      "id": "update_the_alias_logic_to_check_for_both_the_abbre_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Update the alias logic to check for both the abbreviation and the full name (e.g., if Name includes 'Openweb' OR 'OW') to ensure all variations are captured regardless of Excel input style.",
+      "fixApplied": "Applied improvement",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.935Z",
+      "createdAt": "2026-01-25T07:58:16.935Z"
+    },
+    {
+      "id": "add__application_json__headers_to_the_http_request_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add 'application/json' headers to the HTTP Request and ensure the Jira Cloud API endpoint is correct (standard public API for Cloud Automation is often `https://api.atlassian.com/automation/tenant/{tenantId}/rule/{ruleId}`).",
+      "fixApplied": "Applied improvement",
+      "description": "In jira, i have automation under following URL: https://risecodes.atlassian.net/jira/software/c/projects/DBDO/settings/automate#/rule/019b5703-1eea-738d-a3cd-272b6cde2490/72a6faf5-099e-449d-a6e9-2018a734ccdf - it contains JQL IF condition: (summary ~ \"Aditude\" OR description ~ \"Aditude\" OR summary ~ \"Anyclip\" OR description ~ \"Anyclip\" OR summary ~ \"ArenaGroup\" OR description ~ \"ArenaGroup\" OR summary ~ \"Azerion\" OR description ~ \"Azerion\" OR summary ~ \"Bidgency\" OR description ~ \"Bidgency\" OR summary ~ \"Kleinanzeigen\" OR description ~ \"Kleinanzeigen\" OR summary ~ \"Boredpanda\" OR description ~ \"Boredpanda\" OR summary ~ \"Britannica\" OR description ~ \"Britannica\" OR summary ~ \"Buzzfeed\" OR description ~ \"Buzzfeed\" OR summary ~ \"Connatix\" OR description ~ \"Connatix\" OR summary ~ \"DailyMotion\" OR description ~ \"DailyMotion\" OR summary ~ \"DotdashMeredith\" OR description ~ \"DotdashMeredith\" OR summary ~ \"EX.CO\" OR description ~ \"EX.CO\" OR summary ~ \"Freestar\" OR description ~ \"Freestar\" OR summary ~ \"Future\" OR description ~ \"Future\" OR summary ~ \"Hometalk\" OR description ~ \"Hometalk\" OR summary ~ \"IMDB\" OR description ~ \"IMDB\" OR summary ~ \"Insticator\" OR description ~ \"Insticator\" OR summary ~ \"Medal.tv\" OR description ~ \"Medal.tv\" OR summary ~ \"Mediavine\" OR description ~ \"Mediavine\" OR summary ~ \"Microsoft\" OR description ~ \"Microsoft\" OR summary ~ \"OptimaNetwork\" OR description ~ \"OptimaNetwork\" OR summary ~ \"PlayWire\" OR description ~ \"PlayWire\" OR summary ~ \"Primis\" OR description ~ \"Primis\" OR summary ~ \"Pubnative\" OR description ~ \"Pubnative\" OR summary ~ \"Quizlet\" OR description ~ \"Quizlet\" OR summary ~ \"Smartlify\" OR description ~ \"Smartlify\" OR summary ~ \"Valnetinc\" OR description ~ \"Valnetinc\" OR summary ~ \"Venatus\" OR description ~ \"Venatus\" OR summary ~ \"Viously\" OR description ~ \"Viously\" OR summary ~ \"Yahoo\" OR description ~ \"Yahoo\" OR summary ~ \"ZiffDavis\" OR description ~ \"ZiffDavis\" OR summary ~ \"Dailymail\" OR description ~ \"Dailymail\" OR summary ~ \"Algorix\" OR description ~ \"Algorix\" OR summary ~ \"AppLovin\" OR description ~ \"AppLovin\" OR summary ~ \"Aura\" OR description ~ \"Aura\" OR summary ~ \"DigitalTurbine\" OR description ~ \"DigitalTurbine\" OR summary ~ \"Gadsme\" OR description ~ \"Gadsme\" OR summary ~ \"Nimbus\" OR description ~ \"Nimbus\" OR summary ~ \"OakeverGames\" OR description ~ \"OakeverGames\" OR summary ~ \"StapleGames\" OR description ~ \"StapleGames\" OR summary ~ \"Verve\" OR description ~ \"Verve\" OR summary ~ \"Easybrain\" OR description ~ \"Easybrain\" OR summary ~ \"MM\" OR description ~ \"MM\" OR summary ~ \"Openweb\" OR description ~ \"Openweb\" OR summary ~ \"OW\" OR description ~ \"OW\" OR summary ~ \"MinuteMedia\" OR description ~ \"MinuteMedia\" OR summary ~ \"SheMedia\" OR description ~ \"SheMedia\")\n\nThis conditions contains our top customer. \nWhere did i take them from? This excel - the column named \"publisher name\" is the list (i removed the dash sign at end, added more aliases to Openweb (OW) and MM (Minute or minutemedia or minute media).\n\nI would like to create a process scheduled once a week, to read the list from excel and update my automation in jira. we must keep same structure of the automation IF. We must remove dashes before, maybe ai can prepare the string. WE MUST BE 100% accurate all the time and verify ourselves. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.microsoftExcel",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-25T07:58:16.936Z",
+      "createdAt": "2026-01-25T07:58:16.936Z"
+    },
+    {
+      "id": "the_workflow_uses_gmail_as_the_data_source_instead_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow uses Gmail as the data source instead of Slack channels as requested.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger configured for 30-minute intervals",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.832Z",
+      "createdAt": "2026-01-26T07:43:46.832Z"
+    },
+    {
+      "id": "the__google_gemini_model__node_is_a_sub_node__mode_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Google Gemini Model' node is a sub-node (Model Provider) and cannot be placed directly in the main flow; it must be connected to an 'AI Agent' or 'Basic LLM Chain' node.",
+      "fixApplied": "Changed source node from Gmail to Slack 'Get All' messages to fetch channel history",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.835Z",
+      "createdAt": "2026-01-26T07:43:46.835Z"
+    },
+    {
+      "id": "the__get_emails__node_is_configured_with_the__send_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Get Emails' node is configured with the 'send' operation instead of 'list' or 'get', and it is fetching emails instead of Slack messages.",
+      "fixApplied": "Introduced an Aggregate node to group multiple Slack messages into a single context for the AI",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.838Z",
+      "createdAt": "2026-01-26T07:43:46.838Z"
+    },
+    {
+      "id": "the__manual_trigger__is_used_instead_of_a__schedul_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Manual Trigger' is used instead of a 'Schedule Trigger' required for the 30-minute interval.",
+      "fixApplied": "Corrected the AI implementation by using a 'Basic LLM Chain' and connecting the 'Google Gemini Model' as a sub-node",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.839Z",
+      "createdAt": "2026-01-26T07:43:46.839Z"
+    },
+    {
+      "id": "the_workflow_only_outputs_to_slack_and_fails_to_se_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow only outputs to Slack and fails to send the required email notification.",
+      "fixApplied": "Added a Gmail Send node to fulfill the requirement of sending the summary via email",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.840Z",
+      "createdAt": "2026-01-26T07:43:46.840Z"
+    },
+    {
+      "id": "add_slack__get_many__or__history__nodes_to_iterate_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add Slack 'Get Many' or 'History' nodes to iterate through the specified channels.",
+      "fixApplied": "Applied improvement",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.843Z",
+      "createdAt": "2026-01-26T07:43:46.843Z"
+    },
+    {
+      "id": "use_an__ai_agent__node_and_connect_the_google_gemi_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use an 'AI Agent' node and connect the Google Gemini Model to it to handle the summarization and critical issue detection.",
+      "fixApplied": "Applied improvement",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.845Z",
+      "createdAt": "2026-01-26T07:43:46.845Z"
+    },
+    {
+      "id": "add_a_gmail__send__node_at_the_end_of_the_flow_to__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Gmail 'Send' node at the end of the flow to satisfy the email requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:43:46.848Z",
+      "createdAt": "2026-01-26T07:43:46.848Z"
+    },
+    {
+      "id": "the__get_slack_history__node_fetches_the_last_50_m_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Get Slack History' node fetches the last 50 messages regardless of when they were sent, which means it will summarize the same old messages every 30 minutes rather than just the new ones.",
+      "fixApplied": "Added 'Oldest' filter to Slack node using $now.minus({ minutes: 30 }) to fetch only recent messages.",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.589Z",
+      "createdAt": "2026-01-26T07:44:35.589Z"
+    },
+    {
+      "id": "the_workflow_only_supports_one_channel_id__whereas_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow only supports one channel ID, whereas the user requested to monitor 'few slack channels'.",
+      "fixApplied": "Introduced a 'Define Channels' Set node to allow monitoring multiple Slack channels dynamically.",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.592Z",
+      "createdAt": "2026-01-26T07:44:35.592Z"
+    },
+    {
+      "id": "the__basic_llm_chain__uses______json_text_____afte_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Basic LLM Chain' uses '{{ $json.text }}' after an Aggregate node; in n8n, this will typically only pass the first message of the aggregated array to the AI, rather than the full combined text of all messages.",
+      "fixApplied": "Configured the Slack History node to use expressions for the channel ID, enabling looping over multiple channels.",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.595Z",
+      "createdAt": "2026-01-26T07:44:35.595Z"
+    },
+    {
+      "id": "in_the_slack_node__set_the__oldest__filter_to______n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "In the Slack node, set the 'Oldest' filter to '{{ $now.minus({ minutes: 30 }).toSeconds() }}' to ensure only messages from the last 30 minutes are processed.",
+      "fixApplied": "Updated Aggregate node to join all message 'text' fields into a single 'combinedText' string with delimiters.",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.596Z",
+      "createdAt": "2026-01-26T07:44:35.596Z"
+    },
+    {
+      "id": "use_a__loop___split_in_batches__node_or_multiple_s_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a 'Loop' (Split In Batches) node or multiple Slack nodes to iterate through a list of 'few' channel IDs.",
+      "fixApplied": "Added a Filter node to stop the workflow if no messages are found, saving LLM tokens and preventing empty notifications.",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.598Z",
+      "createdAt": "2026-01-26T07:44:35.598Z"
+    },
+    {
+      "id": "configure_the_aggregate_node_to__concatenate__the__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Configure the Aggregate node to 'Concatenate' the text fields into a single string so the LLM receives the entire conversation history at once.",
+      "fixApplied": "Corrected the LLM Chain prompt to reference the full aggregated 'combinedText' instead of a single message.",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.600Z",
+      "createdAt": "2026-01-26T07:44:35.600Z"
+    },
+    {
+      "id": "add_a__filter__or__if__node_after_the_slack_node_t_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a 'Filter' or 'If' node after the Slack node to check if any messages were returned; this prevents the LLM and notification nodes from running (and wasting tokens) when there is no new activity.",
+      "fixApplied": "Applied improvement",
+      "description": "I would like to have a flow running every 30 min. taking info from few slack channels, detecting critical things / subject / issues - summarizing it and sending me back to slack and email. \n",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.filter",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T07:44:35.602Z",
+      "createdAt": "2026-01-26T07:44:35.602Z"
+    },
+    {
+      "id": "the__google_gemini_model__node_is_a_sub_node_provi_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The 'Google Gemini Model' node is a sub-node/provider and cannot be used as a standalone action in the main execution path. It must be connected to a 'Basic LLM Chain' or 'AI Agent' node.",
+      "fixApplied": "Replaced standalone Gemini node with a 'Basic LLM Chain' node to properly execute AI logic within the workflow path.",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.262Z",
+      "createdAt": "2026-01-26T14:34:51.262Z"
+    },
+    {
+      "id": "the_request_to__send_me_a_good_looking_email__is_c_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The request to 'send me a good looking email' is completely missing; there is no node to send the HTML/CSS email summary.",
+      "fixApplied": "Fixed the 'Mark as Unread' Gmail node by adding the required expression '{{ $json.id }}' to the Message ID parameter.",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.265Z",
+      "createdAt": "2026-01-26T14:34:51.265Z"
+    },
+    {
+      "id": "the__mark_as_unread__gmail_node_is_missing_the_req_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The 'Mark as Unread' Gmail node is missing the required 'Message ID' parameter, which is necessary to identify which emails to update.",
+      "fixApplied": "Added an 'Aggregate Emails' code node to combine all email snippets into one prompt, allowing the AI to filter for importance across the entire set at once.",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.268Z",
+      "createdAt": "2026-01-26T14:34:51.268Z"
+    },
+    {
+      "id": "the_workflow_lacks_logic_to_specifically_filter_fo_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "The workflow lacks logic to specifically filter for 'most important' emails as requested; it currently attempts to summarize all fetched emails in bulk (which will likely fail or exceed token limits if many emails are returned).",
+      "fixApplied": "Added a Gmail 'Send' node to deliver the summary as a 'good looking' HTML/CSS email as requested.",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.269Z",
+      "createdAt": "2026-01-26T14:34:51.269Z"
+    },
+    {
+      "id": "add_a__basic_llm_chain__or__ai_agent__node_and_con_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Add a 'Basic LLM Chain' or 'AI Agent' node and connect the Gemini model to its 'Model' input.",
+      "fixApplied": "Updated the AI prompt to specifically instruct the model to identify importance and design a professional HTML summary.",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.271Z",
+      "createdAt": "2026-01-26T14:34:51.271Z"
+    },
+    {
+      "id": "add_a_gmail__send__node_at_the_end_of_the_flow_wit_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Add a Gmail 'Send' node at the end of the flow with 'HTML' enabled to send the designed summary.",
+      "fixApplied": "Added regex to the Slack node to strip HTML tags from the AI response for a cleaner chat notification while preserving HTML for the email node.",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.272Z",
+      "createdAt": "2026-01-26T14:34:51.272Z"
+    },
+    {
+      "id": "use_an__aggregate__node_before_the_ai_node_if_you__n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "Use an 'Aggregate' node before the AI node if you want to summarize all emails at once, or use a loop/split-in-batches if processing them individually to determine importance.",
+      "fixApplied": "Applied improvement",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.274Z",
+      "createdAt": "2026-01-26T14:34:51.274Z"
+    },
+    {
+      "id": "in_the__mark_as_unread__node__use_an_expression_li_n8nnodesbasemanualrigger_n8nno",
+      "issuePattern": "In the 'Mark as Unread' node, use an expression like '{{ $json.id }}' to reference the message ID from the fetch node.",
+      "fixApplied": "Applied improvement",
+      "description": "i would like to create a flow where we read all emails from nir.ingbar@risecodes.com , understand using AI the most important emails from the last 3 days , mark them as unread and send me slack message with AI summary of those, also send me a good looking email (design it with HTML and CSS). ",
+      "nodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-01-26T14:34:51.275Z",
+      "createdAt": "2026-01-26T14:34:51.275Z"
     }
   ],
   "version": "1.0"

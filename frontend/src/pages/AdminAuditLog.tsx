@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { API_URL } from '../utils/api';
 
 interface User {
   id: string;
@@ -82,7 +83,7 @@ const AdminAuditLog: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        'http://localhost:3000/api/admin/users?limit=50',
+        `${API_URL}/api/admin/users?limit=50`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -109,7 +110,7 @@ const AdminAuditLog: React.FC = () => {
       if (endDate) params.append('endDate', endDate);
 
       const response = await axios.get<AuditLogResponse>(
-        `http://localhost:3000/api/admin/audit-log?${params.toString()}`,
+        `${API_URL}/api/admin/audit-log?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -164,7 +165,7 @@ const AdminAuditLog: React.FC = () => {
       if (endDate) params.append('endDate', endDate);
 
       const response = await axios.get<AuditLogResponse>(
-        `http://localhost:3000/api/admin/audit-log?${params.toString()}`,
+        `${API_URL}/api/admin/audit-log?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
