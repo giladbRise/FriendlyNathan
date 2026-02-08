@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
-import { Settings, Eye, EyeOff, ExternalLink, ChevronDown, Sparkles, Copy, Check, X, Loader2, RotateCcw, Zap, ArrowRight } from 'lucide-react';
+import { Settings, Eye, EyeOff, ExternalLink, ChevronDown, Sparkles, Copy, Check, X, Loader2, RotateCcw, Zap, ArrowRight, Sun, Heart } from 'lucide-react';
 import JsonSyntaxHighlight from '../components/JsonSyntaxHighlight';
 import { API_URL } from '../utils/api';
 
@@ -48,36 +48,44 @@ const DEFAULT_N8N_URL = 'https://n8n.risecodes.com/';
 // Nathan's mood states drive his expressions
 type NathanMood = 'idle' | 'listening' | 'thinking' | 'excited' | 'success' | 'error';
 
-// The friendly blob avatar for Nathan
-const NathanAvatar: React.FC<{ mood: NathanMood; size?: 'sm' | 'md' | 'lg' }> = ({ mood, size = 'md' }) => {
-  const sizeMap = { sm: 48, md: 80, lg: 120 };
+// Friendly greeting based on time of day
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning!';
+  if (hour < 17) return 'Good afternoon!';
+  return 'Good evening!';
+};
+
+// The friendly blob avatar for Nathan — bigger, bouncier, more expressive
+const NathanAvatar: React.FC<{ mood: NathanMood; size?: 'sm' | 'md' | 'lg' | 'xl' }> = ({ mood, size = 'md' }) => {
+  const sizeMap = { sm: 52, md: 80, lg: 130, xl: 160 };
   const s = sizeMap[size];
 
   const eyeVariants: Record<NathanMood, { left: string; right: string }> = {
     idle: { left: 'translate(0, 0)', right: 'translate(0, 0)' },
     listening: { left: 'translate(-1px, -1px)', right: 'translate(1px, -1px)' },
-    thinking: { left: 'translate(2px, -1px)', right: 'translate(2px, -1px)' },
-    excited: { left: 'translate(0, -2px) scale(1.2)', right: 'translate(0, -2px) scale(1.2)' },
-    success: { left: 'translate(0, 0) scale(1.1)', right: 'translate(0, 0) scale(1.1)' },
+    thinking: { left: 'translate(3px, -1px)', right: 'translate(3px, -1px)' },
+    excited: { left: 'translate(0, -2px) scale(1.3)', right: 'translate(0, -2px) scale(1.3)' },
+    success: { left: 'translate(0, 0) scale(1.15)', right: 'translate(0, 0) scale(1.15)' },
     error: { left: 'translate(0, 2px)', right: 'translate(0, 2px)' },
   };
 
   const mouthPath: Record<NathanMood, string> = {
-    idle: 'M 30 58 Q 40 64 50 58',
-    listening: 'M 32 60 Q 40 63 48 60',
-    thinking: 'M 33 58 Q 40 60 47 58',
-    excited: 'M 28 56 Q 40 68 52 56',
-    success: 'M 26 54 Q 40 70 54 54',
-    error: 'M 32 62 Q 40 56 48 62',
+    idle: 'M 30 58 Q 40 66 50 58',
+    listening: 'M 32 59 Q 40 65 48 59',
+    thinking: 'M 34 60 Q 40 58 46 60',
+    excited: 'M 27 55 Q 40 72 53 55',
+    success: 'M 25 53 Q 40 74 55 53',
+    error: 'M 32 63 Q 40 57 48 63',
   };
 
   const blobColors: Record<NathanMood, string[]> = {
     idle: ['#ff9a78', '#ffb08a'],
     listening: ['#ffb08a', '#ffd0b8'],
-    thinking: ['#e6a070', '#ff9a78'],
+    thinking: ['#e6a070', '#ffc09a'],
     excited: ['#ff7a50', '#ffb08a'],
-    success: ['#4ade80', '#86efac'],
-    error: ['#f87171', '#fca5a5'],
+    success: ['#34d399', '#6ee7b7'],
+    error: ['#fb7185', '#fda4af'],
   };
 
   const colors = blobColors[mood];
@@ -86,14 +94,14 @@ const NathanAvatar: React.FC<{ mood: NathanMood; size?: 'sm' | 'md' | 'lg' }> = 
   return (
     <motion.div
       className="relative inline-flex"
-      animate={mood === 'thinking' ? { rotate: [0, -2, 2, -1, 0] } : { rotate: 0 }}
-      transition={{ duration: 2, repeat: mood === 'thinking' ? Infinity : 0, ease: 'easeInOut' }}
+      animate={mood === 'thinking' ? { rotate: [0, -3, 3, -1, 0] } : mood === 'excited' ? { rotate: [0, -2, 2, 0] } : { rotate: 0 }}
+      transition={{ duration: mood === 'excited' ? 0.4 : 2, repeat: mood === 'thinking' || mood === 'excited' ? Infinity : 0, ease: 'easeInOut' }}
     >
       <svg width={s} height={s} viewBox="0 0 80 80" fill="none">
-        {/* Glow behind blob */}
+        {/* Warm glow behind blob */}
         <defs>
           <radialGradient id={`nathan-glow-${mood}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={colors[0]} stopOpacity="0.3" />
+            <stop offset="0%" stopColor={colors[0]} stopOpacity="0.35" />
             <stop offset="100%" stopColor={colors[0]} stopOpacity="0" />
           </radialGradient>
           <linearGradient id={`nathan-fill-${mood}`} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -103,85 +111,115 @@ const NathanAvatar: React.FC<{ mood: NathanMood; size?: 'sm' | 'md' | 'lg' }> = 
         </defs>
         {/* Ambient glow */}
         <circle cx="40" cy="40" r="38" fill={`url(#nathan-glow-${mood})`} />
-        {/* Body blob — use CSS scale instead of SVG attribute animation */}
+        {/* Body blob */}
         <motion.ellipse
           cx="40" cy="40" rx="28" ry="26"
           fill={`url(#nathan-fill-${mood})`}
           style={{ transformOrigin: '40px 40px' }}
           animate={mood === 'idle'
-            ? { scaleX: [1, 0.98, 1], scaleY: [1, 1.03, 1] }
+            ? { scaleX: [1, 0.97, 1], scaleY: [1, 1.04, 1] }
             : mood === 'excited'
-            ? { scaleX: [1, 1.04, 0.96, 1], scaleY: [1, 0.92, 1.08, 1] }
+            ? { scaleX: [1, 1.06, 0.94, 1], scaleY: [1, 0.9, 1.1, 1] }
+            : mood === 'success'
+            ? { scaleX: [1, 1.03, 1], scaleY: [1, 1.03, 1] }
             : { scaleX: 1, scaleY: 1 }
           }
-          transition={{ duration: mood === 'excited' ? 0.6 : 3, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: mood === 'excited' ? 0.5 : 3, repeat: Infinity, ease: 'easeInOut' }}
         />
         {/* Left eye */}
         <motion.circle
-          cx="32" cy="38" r={mood === 'success' ? 3.5 : 3}
-          fill="#1e1814"
-          style={{ transform: eyes.left, transformOrigin: '32px 38px' }}
+          cx="32" cy="37" r={mood === 'success' ? 3.5 : mood === 'excited' ? 3.8 : 3}
+          fill="#2d1f14"
+          style={{ transform: eyes.left, transformOrigin: '32px 37px' }}
         />
         {/* Right eye */}
         <motion.circle
-          cx="48" cy="38" r={mood === 'success' ? 3.5 : 3}
-          fill="#1e1814"
-          style={{ transform: eyes.right, transformOrigin: '48px 38px' }}
+          cx="48" cy="37" r={mood === 'success' ? 3.5 : mood === 'excited' ? 3.8 : 3}
+          fill="#2d1f14"
+          style={{ transform: eyes.right, transformOrigin: '48px 37px' }}
         />
-        {/* Eye highlights */}
-        <circle cx="33.5" cy="36.5" r="1" fill="white" opacity="0.8" />
-        <circle cx="49.5" cy="36.5" r="1" fill="white" opacity="0.8" />
+        {/* Eye sparkle highlights */}
+        <circle cx="33.5" cy="35.5" r="1.2" fill="white" opacity="0.9" />
+        <circle cx="49.5" cy="35.5" r="1.2" fill="white" opacity="0.9" />
         {/* Mouth */}
         <motion.path
           d={mouthPath[mood]}
-          stroke="#1e1814"
-          strokeWidth="2"
+          stroke="#2d1f14"
+          strokeWidth="2.2"
           strokeLinecap="round"
-          fill="none"
+          fill={mood === 'excited' || mood === 'success' ? '#2d1f14' : 'none'}
+          fillOpacity={mood === 'excited' || mood === 'success' ? 0.15 : 0}
           initial={false}
         />
-        {/* Blush cheeks */}
-        <circle cx="24" cy="44" r="4" fill={colors[0]} opacity="0.3" />
-        <circle cx="56" cy="44" r="4" fill={colors[0]} opacity="0.3" />
+        {/* Rosy blush cheeks */}
+        <circle cx="22" cy="44" r="5" fill="#ff6b6b" opacity="0.18" />
+        <circle cx="58" cy="44" r="5" fill="#ff6b6b" opacity="0.18" />
+        {/* Tiny sparkle for success/excited */}
+        {(mood === 'success' || mood === 'excited') && (
+          <>
+            <motion.circle
+              cx="62" cy="22" r="1.5" fill="#fbbf24"
+              animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: 0 }}
+            />
+            <motion.circle
+              cx="18" cy="26" r="1" fill="#fbbf24"
+              animate={{ opacity: [0, 1, 0], scale: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}
+            />
+            <motion.circle
+              cx="55" cy="14" r="1" fill="#34d399"
+              animate={{ opacity: [0, 1, 0], scale: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: 1 }}
+            />
+          </>
+        )}
       </svg>
     </motion.div>
   );
 };
 
-// Floating particles background
-const FloatingParticles: React.FC = () => {
-  const particles = useMemo(() =>
-    Array.from({ length: 20 }, (_, i) => ({
+// Sunny floating shapes background
+const SunnyBackground: React.FC = () => {
+  const shapes = useMemo(() =>
+    Array.from({ length: 15 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
-      size: Math.random() * 3 + 1,
-      duration: Math.random() * 10 + 15,
-      delay: Math.random() * 5,
-      opacity: Math.random() * 0.15 + 0.05,
+      size: Math.random() * 24 + 8,
+      duration: Math.random() * 12 + 18,
+      delay: Math.random() * 8,
+      opacity: Math.random() * 0.12 + 0.04,
+      type: ['circle', 'ring', 'dot'][Math.floor(Math.random() * 3)] as string,
+      color: ['hsl(14 90% 58%)', 'hsl(172 66% 50%)', 'hsl(45 96% 58%)', 'hsl(330 80% 65%)'][Math.floor(Math.random() * 4)],
     })), []);
 
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-      {particles.map((p) => (
+      {shapes.map((s) => (
         <motion.div
-          key={p.id}
-          className="absolute rounded-full bg-primary/30"
+          key={s.id}
+          className="absolute"
           style={{
-            width: p.size,
-            height: p.size,
-            left: `${p.x}%`,
-            top: `${p.y}%`,
-            opacity: p.opacity,
+            width: s.size,
+            height: s.size,
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            opacity: s.opacity,
+            borderRadius: s.type === 'circle' ? '50%' : s.type === 'ring' ? '50%' : '50%',
+            background: s.type === 'circle' ? s.color : 'transparent',
+            border: s.type === 'ring' ? `2px solid ${s.color}` : 'none',
+            boxShadow: s.type === 'dot' ? `inset 0 0 0 ${s.size / 2}px ${s.color}` : 'none',
           }}
           animate={{
-            y: [0, -30, 0],
-            x: [0, Math.random() * 20 - 10, 0],
-            opacity: [p.opacity, p.opacity * 1.5, p.opacity],
+            y: [0, -20, 0],
+            x: [0, Math.random() * 15 - 7, 0],
+            rotate: [0, s.type === 'ring' ? 180 : 0, s.type === 'ring' ? 360 : 0],
+            opacity: [s.opacity, s.opacity * 1.8, s.opacity],
           }}
           transition={{
-            duration: p.duration,
-            delay: p.delay,
+            duration: s.duration,
+            delay: s.delay,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
@@ -193,10 +231,10 @@ const FloatingParticles: React.FC = () => {
 
 // Suggestion chips for quick workflow ideas
 const SUGGESTIONS = [
-  'Read new Gmail emails and save to Google Sheets',
-  'Summarize Google Docs with AI daily',
-  'Webhook receives data, process with Gemini, store in database',
-  'Monitor Google Sheet changes and send email alerts',
+  { emoji: '📧', text: 'Read new Gmail emails and save to Google Sheets' },
+  { emoji: '🤖', text: 'Summarize Google Docs with AI daily' },
+  { emoji: '🔗', text: 'Webhook receives data, process with Gemini, store in database' },
+  { emoji: '📊', text: 'Monitor Google Sheet changes and send email alerts' },
 ];
 
 const SimplifiedWorkflowPage: React.FC = () => {
@@ -414,7 +452,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: colIndex * 0.1 + nodeIndex * 0.05 }}
-                      className="rounded-xl border border-border bg-card/80 px-3 py-2.5 text-xs shadow-soft hover:shadow-soft-lg hover:border-primary/30 transition-all"
+                      className="rounded-2xl border-2 border-primary/10 bg-white px-3 py-2.5 text-xs shadow-sm hover:shadow-md hover:border-primary/30 transition-all card-hover"
                     >
                       <div className="font-semibold text-sm text-foreground">{node.name}</div>
                       <div className="text-[10px] text-muted-foreground truncate mt-0.5 opacity-70">{node.type.split('.').pop()}</div>
@@ -434,29 +472,30 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
-      {/* Subtle noise texture */}
-      <div className="noise-overlay" />
+      {/* Dot pattern texture */}
+      <div className="fixed inset-0 dot-pattern pointer-events-none" aria-hidden="true" />
 
       {/* Warm gradient orbs in background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-primary/5 blur-3xl animate-blob" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-secondary/5 blur-3xl animate-blob" style={{ animationDelay: '3s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/3 blur-3xl animate-glow-pulse" />
+        <div className="absolute -top-32 -right-32 w-[400px] h-[400px] rounded-full bg-gradient-to-br from-primary/10 to-accent/10 blur-3xl animate-blob" />
+        <div className="absolute -bottom-32 -left-32 w-[350px] h-[350px] rounded-full bg-gradient-to-tr from-secondary/10 to-primary/8 blur-3xl animate-blob" style={{ animationDelay: '3s' }} />
+        <div className="absolute top-1/3 right-1/4 w-[250px] h-[250px] rounded-full bg-accent/6 blur-3xl animate-glow-pulse" />
       </div>
 
-      <FloatingParticles />
+      <SunnyBackground />
 
-      {/* Header — minimal, warm */}
-      <header className="relative z-10 border-b border-border/50">
+      {/* Header — bright, cheerful */}
+      <header className="relative z-10 bg-white/70 backdrop-blur-md border-b border-primary/10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-3">
               <NathanAvatar mood={nathanMood} size="sm" />
               <div>
-                <h1 className="text-lg font-display font-bold text-foreground tracking-tight">
+                <h1 className="text-lg font-display font-bold text-foreground tracking-tight flex items-center gap-1.5">
                   Friendly Nathan
+                  <Sun className="w-4 h-4 text-accent inline" />
                 </h1>
-                <p className="text-[11px] text-muted-foreground tracking-wide uppercase">
+                <p className="text-[11px] text-primary/60 tracking-wide uppercase font-medium">
                   n8n workflow builder
                 </p>
               </div>
@@ -464,23 +503,23 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className={`p-2.5 rounded-xl transition-all ${
+              className={`relative p-2.5 rounded-2xl transition-all ${
                 showSettings
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
               }`}
               title="Settings"
             >
               <Settings className="w-5 h-5" />
-              {validationSuccess && !showSettings && (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full" />
+              {n8nApiKey && !showSettings && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-secondary rounded-full border-2 border-white" />
               )}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Settings Panel — slides down */}
+      {/* Settings Panel — slides down with bright styling */}
       <AnimatePresence>
         {showSettings && (
           <motion.div
@@ -488,31 +527,35 @@ const SimplifiedWorkflowPage: React.FC = () => {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="relative z-10 overflow-hidden border-b border-border/50"
+            className="relative z-10 overflow-hidden border-b border-primary/10 bg-white/50 backdrop-blur-sm"
           >
             <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-display font-semibold text-foreground uppercase tracking-wider">Configuration</h2>
+                <h2 className="text-sm font-display font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-primary" />
+                  Configuration
+                </h2>
                 <div className="flex items-center gap-3">
                   {(n8nApiKey || geminiApiKey) && (
                     <button onClick={handleClearCredentials} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
                       Clear all
                     </button>
                   )}
-                  <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground transition-colors p-1 hover:bg-primary/5 rounded-lg">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground mb-5">
+              <p className="text-xs text-muted-foreground mb-5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-secondary inline-block" />
                 Saved locally in your browser. Never sent to our servers.
               </p>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* n8n URL */}
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
                     n8n Instance URL
                   </label>
                   <input
@@ -520,14 +563,14 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     value={n8nUrl}
                     onChange={(e) => { setN8nUrl(e.target.value); setValidationSuccess(''); }}
                     placeholder={DEFAULT_N8N_URL}
-                    className="w-full px-3.5 py-2.5 border border-border rounded-xl bg-input text-foreground text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all warm-focus"
+                    className="w-full px-4 py-3 border-2 border-border rounded-2xl bg-white text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all friendly-focus"
                     disabled={generating}
                   />
                 </div>
 
                 {/* n8n API Key */}
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
                     n8n API Key <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
@@ -536,13 +579,13 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       value={n8nApiKey}
                       onChange={(e) => { setN8nApiKey(e.target.value); setValidationSuccess(''); }}
                       placeholder="Your n8n API key"
-                      className="w-full px-3.5 py-2.5 border border-border rounded-xl bg-input text-foreground text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all pr-12 warm-focus"
+                      className="w-full px-4 py-3 border-2 border-border rounded-2xl bg-white text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all pr-12 friendly-focus"
                       disabled={generating}
                     />
                     <button
                       type="button"
                       onClick={() => setShowApiKeys(!showApiKeys)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                     >
                       {showApiKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -551,7 +594,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
                 {/* Gemini API Key */}
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
                     Gemini API Key <span className="text-muted-foreground/50">(optional)</span>
                   </label>
                   <div className="relative">
@@ -560,20 +603,20 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       value={geminiApiKey}
                       onChange={(e) => setGeminiApiKey(e.target.value)}
                       placeholder="AIzaSy..."
-                      className="w-full px-3.5 py-2.5 border border-border rounded-xl bg-input text-foreground text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all pr-12 warm-focus"
+                      className="w-full px-4 py-3 border-2 border-border rounded-2xl bg-white text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all pr-12 friendly-focus"
                       disabled={generating}
                     />
                     <button
                       type="button"
                       onClick={() => setShowGeminiKey(!showGeminiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                     >
                       {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
                     From{' '}
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
                       Google AI Studio
                     </a>
                   </p>
@@ -585,14 +628,14 @@ const SimplifiedWorkflowPage: React.FC = () => {
                 <button
                   onClick={handleValidateConnection}
                   disabled={validating || generating || !n8nUrl || !n8nApiKey}
-                  className="px-5 py-2 bg-muted hover:bg-muted/80 text-foreground text-sm font-medium rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 bg-foreground/5 hover:bg-foreground/10 text-foreground text-sm font-semibold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed border-2 border-border"
                 >
                   {validating ? 'Testing...' : 'Test Connection'}
                 </button>
 
                 <AnimatePresence mode="wait">
                   {validationSuccess && (
-                    <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-accent flex items-center gap-1.5">
+                    <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-secondary font-medium flex items-center gap-1.5">
                       <Check className="w-4 h-4" /> {validationSuccess}
                     </motion.p>
                   )}
@@ -615,7 +658,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
           {!generationResult ? (
             <div className="flex-1 flex flex-col">
 
-              {/* Hero section with Nathan */}
+              {/* Hero section with Nathan — bright and welcoming */}
               {!previewResult && !generating && workflowDescription.length === 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -624,17 +667,38 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   className="text-center mb-8 sm:mb-12"
                 >
                   <motion.div
-                    className="inline-block mb-4"
-                    animate={{ y: [0, -8, 0] }}
+                    className="inline-block mb-5"
+                    animate={{ y: [0, -10, 0] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                   >
-                    <NathanAvatar mood="idle" size="lg" />
+                    <NathanAvatar mood="idle" size="xl" />
                   </motion.div>
-                  <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground tracking-tight mb-3">
-                    Hey, I'm <span className="gradient-text">Nathan</span>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-sm font-medium text-primary mb-2"
+                  >
+                    {getGreeting()} <span className="text-accent">&#9728;</span>
+                  </motion.p>
+                  <h2 className="font-display text-3xl sm:text-5xl font-extrabold text-foreground tracking-tight mb-3">
+                    I'm <span className="gradient-text">Nathan</span>, your
+                    <br className="hidden sm:block" />
+                    <span className="relative inline-block">
+                      workflow buddy
+                      <motion.span
+                        className="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-secondary rounded-full"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ delay: 0.5, duration: 0.6, ease: 'easeOut' }}
+                        style={{ transformOrigin: 'left' }}
+                      />
+                    </span>
                   </h2>
-                  <p className="text-muted-foreground text-base sm:text-lg max-w-md mx-auto leading-relaxed">
-                    Tell me what workflow you need and I'll build it for you in n8n. No coding required.
+                  <p className="text-muted-foreground text-base sm:text-lg max-w-lg mx-auto leading-relaxed mt-4">
+                    Tell me what you need and I'll build it for you in n8n.
+                    <br className="hidden sm:block" />
+                    No coding required — just describe it in your own words!
                   </p>
                 </motion.div>
               )}
@@ -645,14 +709,14 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="absolute -top-14 left-0 right-0 flex items-center justify-center gap-3"
+                    className="absolute -top-16 left-0 right-0 flex items-center justify-center gap-3"
                   >
                     <NathanAvatar mood="thinking" size="sm" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{generationProgress.message || 'Thinking...'}</p>
-                      <div className="mt-1.5 w-48 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <p className="text-sm font-semibold text-foreground">{generationProgress.message || 'Thinking...'}</p>
+                      <div className="mt-1.5 w-52 h-2 bg-primary/10 rounded-full overflow-hidden">
                         <motion.div
-                          className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
+                          className="h-full bg-gradient-to-r from-primary via-accent to-secondary rounded-full"
                           animate={{ width: `${generationProgress.progress}%` }}
                           transition={{ duration: 0.5 }}
                         />
@@ -661,12 +725,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   </motion.div>
                 )}
 
-                <div className={`relative rounded-2xl border transition-all duration-300 ${
+                <div className={`relative rounded-3xl border-2 transition-all duration-300 friendly-focus ${
                   generating
-                    ? 'border-primary/30 shadow-glow-peach'
+                    ? 'border-primary/40 shadow-lg shadow-primary/10'
                     : workflowDescription.length > 0
-                    ? 'border-border/80 shadow-soft-lg'
-                    : 'border-border/50 shadow-soft'
+                    ? 'border-primary/20 shadow-lg shadow-primary/5'
+                    : 'border-border shadow-md'
                 }`}>
                   <textarea
                     ref={textareaRef}
@@ -674,7 +738,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     onChange={(e) => setWorkflowDescription(e.target.value)}
                     placeholder="Describe the workflow you want to create..."
                     rows={4}
-                    className="w-full px-5 py-4 bg-card/60 text-foreground rounded-2xl resize-none focus:outline-none text-base leading-relaxed placeholder:text-muted-foreground/50"
+                    className="w-full px-5 py-4 bg-white/80 backdrop-blur-sm text-foreground rounded-3xl resize-none focus:outline-none text-base leading-relaxed placeholder:text-muted-foreground/40"
                     disabled={generating}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && isReadyToGenerate && !generating) {
@@ -684,10 +748,10 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   />
 
                   {/* Bottom bar inside textarea container */}
-                  <div className="flex items-center justify-between px-5 py-3 border-t border-border/30">
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-border/30 bg-white/40 rounded-b-3xl">
                     <div className="flex items-center gap-2">
                       {workflowDescription.length > 0 && (
-                        <span className={`text-xs ${workflowDescription.length < 10 ? 'text-destructive/70' : 'text-muted-foreground/50'}`}>
+                        <span className={`text-xs font-medium ${workflowDescription.length < 10 ? 'text-destructive/70' : 'text-muted-foreground/50'}`}>
                           {workflowDescription.length} chars
                         </span>
                       )}
@@ -697,7 +761,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       {workflowDescription.length > 0 && !generating && (
                         <button
                           onClick={() => setWorkflowDescription('')}
-                          className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted/50"
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-xl hover:bg-foreground/5 font-medium"
                         >
                           Clear
                         </button>
@@ -706,17 +770,19 @@ const SimplifiedWorkflowPage: React.FC = () => {
                         <button
                           onClick={handleCancelGeneration}
                           disabled={cancelling}
-                          className="text-xs text-destructive/80 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive/10"
+                          className="text-xs text-destructive/80 hover:text-destructive transition-colors px-3 py-1.5 rounded-xl hover:bg-destructive/5 font-medium"
                         >
                           {cancelling ? 'Cancelling...' : 'Cancel'}
                         </button>
                       )}
-                      <button
+                      <motion.button
                         onClick={handleGenerateWorkflow}
                         disabled={generating || !isReadyToGenerate}
-                        className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl font-medium text-sm transition-all ${
+                        whileHover={isReadyToGenerate && !generating ? { scale: 1.02 } : {}}
+                        whileTap={isReadyToGenerate && !generating ? { scale: 0.98 } : {}}
+                        className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl font-bold text-sm transition-all ${
                           isReadyToGenerate && !generating
-                            ? 'bg-primary text-primary-foreground hover:shadow-glow-peach active:scale-[0.98]'
+                            ? 'bg-gradient-to-r from-primary to-primary/90 text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30'
                             : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
                         }`}
                       >
@@ -731,7 +797,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                             Generate
                           </>
                         )}
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
                 </div>
@@ -741,18 +807,18 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center text-[11px] text-muted-foreground/40 mt-2"
+                    className="text-center text-[11px] text-muted-foreground/50 mt-2.5"
                   >
-                    Press <kbd className="px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground/60 font-mono text-[10px]">{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground/60 font-mono text-[10px]">Enter</kbd> to generate
+                    Press <kbd className="px-1.5 py-0.5 rounded-md bg-white text-muted-foreground/60 font-mono text-[10px] border border-border shadow-sm">{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}</kbd> + <kbd className="px-1.5 py-0.5 rounded-md bg-white text-muted-foreground/60 font-mono text-[10px] border border-border shadow-sm">Enter</kbd> to generate
                   </motion.p>
                 )}
 
                 {/* Not ready hint */}
                 {!isReadyToGenerate && !generating && !previewResult && workflowDescription.length === 0 && (
-                  <div className="mt-1.5">
+                  <div className="mt-2">
                     {!n8nApiKey && (
                       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-xs text-muted-foreground/60">
-                        <button onClick={() => setShowSettings(true)} className="text-primary/70 hover:text-primary underline underline-offset-2 transition-colors">
+                        <button onClick={() => setShowSettings(true)} className="text-primary hover:text-primary/80 font-semibold underline underline-offset-2 transition-colors">
                           Set up your n8n connection
                         </button>
                         {' '}to get started
@@ -762,29 +828,35 @@ const SimplifiedWorkflowPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Suggestion chips */}
+              {/* Suggestion chips — bigger, more playful */}
               {!generating && !previewResult && workflowDescription.length === 0 && n8nApiKey && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="mt-6 sm:mt-8"
+                  className="mt-8 sm:mt-10"
                 >
-                  <p className="text-xs text-muted-foreground/50 mb-3 text-center uppercase tracking-wider font-medium">Try an idea</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
+                  <p className="text-xs text-muted-foreground/60 mb-4 text-center uppercase tracking-wider font-semibold flex items-center justify-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-accent" />
+                    Try an idea
+                  </p>
+                  <div className="flex flex-wrap gap-2.5 justify-center">
                     {SUGGESTIONS.map((suggestion, i) => (
                       <motion.button
                         key={i}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.4 + i * 0.08 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 + i * 0.08, type: 'spring', stiffness: 300, damping: 20 }}
+                        whileHover={{ scale: 1.03, y: -2 }}
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => {
-                          setWorkflowDescription(suggestion);
+                          setWorkflowDescription(suggestion.text);
                           textareaRef.current?.focus();
                         }}
-                        className="px-3.5 py-2 text-xs text-muted-foreground bg-muted/30 hover:bg-muted/50 border border-border/30 hover:border-primary/20 rounded-full transition-all hover:text-foreground hover:shadow-soft"
+                        className="px-4 py-2.5 text-sm text-foreground/70 bg-white/80 hover:bg-white border-2 border-border/50 hover:border-primary/20 rounded-2xl transition-all hover:text-foreground shadow-sm hover:shadow-md font-medium"
                       >
-                        {suggestion}
+                        <span className="mr-1.5">{suggestion.emoji}</span>
+                        {suggestion.text}
                       </motion.button>
                     ))}
                   </div>
@@ -798,7 +870,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="mt-4 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-start gap-2"
+                    className="mt-4 px-5 py-3.5 rounded-2xl bg-destructive/5 border-2 border-destructive/15 text-sm text-destructive flex items-start gap-2.5"
                   >
                     <X className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     <span>{error}</span>
@@ -819,12 +891,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <NathanAvatar mood="excited" size="sm" />
                       <div>
-                        <h3 className="font-display font-semibold text-foreground">Here's your workflow!</h3>
-                        <p className="text-xs text-muted-foreground">Review it below and deploy when ready</p>
+                        <h3 className="font-display font-bold text-foreground text-lg">Here's your workflow!</h3>
+                        <p className="text-xs text-muted-foreground">Review it below and deploy when you're ready</p>
                       </div>
                       <button
                         onClick={() => setPreviewResult(null)}
-                        className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-xl hover:bg-foreground/5"
                         disabled={creatingFromPreview}
                       >
                         Dismiss
@@ -833,8 +905,8 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
                     {/* Original request */}
                     {previewResult.originalDescription && (
-                      <div className="px-4 py-3 bg-muted/20 rounded-xl border border-border/30">
-                        <p className="text-xs text-muted-foreground/70 mb-1 uppercase tracking-wider font-medium">Your request</p>
+                      <div className="px-5 py-3.5 bg-primary/5 rounded-2xl border-2 border-primary/10">
+                        <p className="text-xs text-primary/60 mb-1 uppercase tracking-wider font-semibold">Your request</p>
                         <p className="text-sm text-foreground/80 italic">"{previewResult.originalDescription}"</p>
                       </div>
                     )}
@@ -844,9 +916,9 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     )}
 
                     {/* Flow preview */}
-                    <div className="rounded-2xl border border-border/50 bg-card/40 p-4 space-y-4">
+                    <div className="rounded-3xl border-2 border-border/50 bg-white/60 backdrop-blur-sm p-5 space-y-4">
                       {showFlowDetails ? renderFlowPreview() : (
-                        <button onClick={() => setShowFlowDetails(true)} className="text-xs text-primary hover:underline">
+                        <button onClick={() => setShowFlowDetails(true)} className="text-xs text-primary hover:underline font-medium">
                           Show flow preview
                         </button>
                       )}
@@ -857,13 +929,13 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Deploy button */}
+                    {/* Deploy button — big, cheerful, inviting */}
                     <motion.button
                       onClick={handleCreateFromPreview}
                       disabled={creatingFromPreview}
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
-                      className="w-full py-4 bg-gradient-to-r from-primary via-primary to-secondary text-primary-foreground font-display font-bold text-lg rounded-2xl transition-all shadow-glow-peach hover:shadow-glow-peach-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full py-4 bg-gradient-to-r from-primary via-primary to-secondary text-white font-display font-extrabold text-lg rounded-3xl transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {creatingFromPreview ? (
                         <>
@@ -890,32 +962,28 @@ const SimplifiedWorkflowPage: React.FC = () => {
             >
               {generationResult.success ? (
                 <>
-                  {/* Success celebration */}
-                  <div className="text-center py-4">
+                  {/* Success celebration — big and joyful */}
+                  <div className="text-center py-6">
                     <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                      className="inline-block mb-4"
+                      initial={{ scale: 0, rotate: -20 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+                      className="inline-block mb-5"
                     >
-                      <NathanAvatar mood="success" size="lg" />
+                      <NathanAvatar mood="success" size="xl" />
                     </motion.div>
-                    <motion.h2
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
-                      className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-2"
+                      transition={{ delay: 0.3 }}
                     >
-                      Workflow is <span className="text-accent">live!</span>
-                    </motion.h2>
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.4 }}
-                      className="text-muted-foreground"
-                    >
-                      {generationResult.nodesUsed} nodes created in your n8n instance
-                    </motion.p>
+                      <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-foreground mb-2">
+                        Your workflow is <span className="text-secondary">live!</span> <span className="text-accent">&#127881;</span>
+                      </h2>
+                      <p className="text-muted-foreground text-lg">
+                        {generationResult.nodesUsed} nodes created in your n8n instance
+                      </p>
+                    </motion.div>
                   </div>
 
                   {/* Original request */}
@@ -924,9 +992,9 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 }}
-                      className="px-4 py-3 bg-muted/20 rounded-xl border border-border/30"
+                      className="px-5 py-3.5 bg-primary/5 rounded-2xl border-2 border-primary/10"
                     >
-                      <p className="text-xs text-muted-foreground/70 mb-1 uppercase tracking-wider font-medium">Built from your request</p>
+                      <p className="text-xs text-primary/60 mb-1 uppercase tracking-wider font-semibold">Built from your request</p>
                       <p className="text-sm text-foreground/80 italic">"{generationResult.originalDescription}"</p>
                     </motion.div>
                   )}
@@ -937,14 +1005,14 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.4 }}
-                      className="rounded-2xl border border-border/50 overflow-hidden"
+                      className="rounded-3xl border-2 border-border/50 overflow-hidden bg-white/60"
                     >
                       <button
                         onClick={() => setShowWorkflowJSON(!showWorkflowJSON)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors"
+                        className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-foreground/3 transition-colors"
                       >
-                        <span className="text-sm font-medium text-foreground flex items-center gap-2">
-                          <span className="text-xs font-mono text-muted-foreground">{'{ }'}</span>
+                        <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <span className="text-xs font-mono text-primary/50 bg-primary/5 px-2 py-0.5 rounded-lg">{'{ }'}</span>
                           Workflow JSON
                         </span>
                         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showWorkflowJSON ? 'rotate-180' : ''}`} />
@@ -957,15 +1025,15 @@ const SimplifiedWorkflowPage: React.FC = () => {
                             exit={{ height: 0 }}
                             className="overflow-hidden border-t border-border/30"
                           >
-                            <div className="p-4 relative">
+                            <div className="p-5 relative">
                               <button
                                 onClick={handleCopyJSON}
-                                className="absolute top-6 right-6 z-10 px-3 py-1.5 text-xs bg-muted/80 hover:bg-muted text-foreground rounded-lg transition-colors flex items-center gap-1.5"
+                                className="absolute top-7 right-7 z-10 px-3.5 py-2 text-xs bg-white hover:bg-foreground/5 text-foreground rounded-xl transition-colors flex items-center gap-1.5 shadow-sm border border-border font-medium"
                               >
-                                {copiedJSON ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                {copiedJSON ? <Check className="w-3 h-3 text-secondary" /> : <Copy className="w-3 h-3" />}
                                 {copiedJSON ? 'Copied!' : 'Copy'}
                               </button>
-                              <pre className="text-xs text-foreground/80 bg-background/50 p-4 rounded-xl border border-border/30 overflow-x-auto max-h-96 overflow-y-auto font-mono">
+                              <pre className="text-xs text-foreground/80 bg-foreground/3 p-4 rounded-2xl border border-border/30 overflow-x-auto max-h-96 overflow-y-auto font-mono">
                                 <code>{JSON.stringify(generationResult.workflow, null, 2)}</code>
                               </pre>
                             </div>
@@ -981,9 +1049,9 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5 }}
-                      className="rounded-2xl border border-secondary/20 bg-secondary/5 p-5"
+                      className="rounded-3xl border-2 border-secondary/20 bg-secondary/5 p-6"
                     >
-                      <h4 className="font-display font-semibold text-secondary mb-1">Credentials Needed</h4>
+                      <h4 className="font-display font-bold text-secondary text-lg mb-1">Credentials Needed</h4>
                       <p className="text-xs text-muted-foreground mb-4">
                         Configure these in your n8n instance to activate the workflow
                       </p>
@@ -991,17 +1059,17 @@ const SimplifiedWorkflowPage: React.FC = () => {
                         {generationResult.credentials.map((cred, index) => {
                           const isExpanded = expandedCredentials.has(cred.type);
                           return (
-                            <div key={index} className="rounded-xl border border-secondary/10 bg-card/50 overflow-hidden">
+                            <div key={index} className="rounded-2xl border-2 border-secondary/10 bg-white/60 overflow-hidden">
                               <button
                                 onClick={() => {
                                   const newExpanded = new Set(expandedCredentials);
                                   isExpanded ? newExpanded.delete(cred.type) : newExpanded.add(cred.type);
                                   setExpandedCredentials(newExpanded);
                                 }}
-                                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
+                                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-foreground/3 transition-colors"
                               >
                                 <div>
-                                  <h5 className="font-semibold text-sm text-foreground">{cred.displayName}</h5>
+                                  <h5 className="font-bold text-sm text-foreground">{cred.displayName}</h5>
                                   <p className="text-xs text-muted-foreground">{cred.instructions}</p>
                                 </div>
                                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ml-2 ${isExpanded ? 'rotate-180' : ''}`} />
@@ -1016,7 +1084,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                                   >
                                     <div className="px-4 pb-4 border-t border-border/30 pt-3">
                                       {cred.steps?.length > 0 && (
-                                        <ol className="list-decimal list-inside space-y-1 mb-3">
+                                        <ol className="list-decimal list-inside space-y-1.5 mb-3">
                                           {cred.steps.map((step, si) => (
                                             <li key={si} className="text-sm text-muted-foreground">{step}</li>
                                           ))}
@@ -1024,12 +1092,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
                                       )}
                                       <div className="flex flex-wrap gap-3">
                                         {cred.documentationUrl && (
-                                          <a href={cred.documentationUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                                          <a href={cred.documentationUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium">
                                             Docs <ExternalLink className="w-3 h-3" />
                                           </a>
                                         )}
                                         {cred.videoUrl && (
-                                          <a href={cred.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                                          <a href={cred.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium">
                                             Video guide <ExternalLink className="w-3 h-3" />
                                           </a>
                                         )}
@@ -1052,19 +1120,21 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     transition={{ delay: 0.6 }}
                     className="space-y-3"
                   >
-                    <a
+                    <motion.a
                       href={generationResult.n8nWorkflowUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-4 bg-gradient-to-r from-primary via-primary to-secondary text-primary-foreground font-display font-bold text-lg rounded-2xl transition-all shadow-glow-peach hover:shadow-glow-peach-lg"
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      className="flex items-center justify-center gap-2 w-full py-4 bg-gradient-to-r from-primary via-primary to-secondary text-white font-display font-extrabold text-lg rounded-3xl transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30"
                     >
                       Open in n8n <ExternalLink className="w-5 h-5" />
-                    </a>
+                    </motion.a>
                     <button
                       onClick={handleNewWorkflow}
-                      className="flex items-center justify-center gap-2 w-full py-3 bg-muted/30 hover:bg-muted/50 text-foreground font-medium rounded-2xl transition-all border border-border/30"
+                      className="flex items-center justify-center gap-2 w-full py-3.5 bg-white/80 hover:bg-white text-foreground font-semibold rounded-3xl transition-all border-2 border-border/50 hover:border-primary/20 shadow-sm hover:shadow-md"
                     >
-                      <RotateCcw className="w-4 h-4" /> Create another
+                      <RotateCcw className="w-4 h-4" /> Create another workflow
                     </button>
                   </motion.div>
                 </>
@@ -1072,14 +1142,18 @@ const SimplifiedWorkflowPage: React.FC = () => {
                 /* Error result */
                 <div className="text-center py-8">
                   <NathanAvatar mood="error" size="lg" />
-                  <h2 className="font-display text-2xl font-bold text-foreground mt-4 mb-2">Oops, something went wrong</h2>
-                  <p className="text-muted-foreground mb-6">{generationResult.error}</p>
-                  <button
+                  <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-foreground mt-5 mb-2">
+                    Oops, something went wrong
+                  </h2>
+                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">{generationResult.error}</p>
+                  <motion.button
                     onClick={handleNewWorkflow}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-medium rounded-2xl transition-all hover:shadow-glow-peach"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-primary to-primary/90 text-white font-bold rounded-3xl transition-all shadow-md shadow-primary/20 hover:shadow-lg"
                   >
                     <RotateCcw className="w-4 h-4" /> Let's try again
-                  </button>
+                  </motion.button>
                 </div>
               )}
             </motion.div>
@@ -1087,13 +1161,13 @@ const SimplifiedWorkflowPage: React.FC = () => {
         </div>
       </main>
 
-      {/* Minimal footer */}
-      <footer className="relative z-10 border-t border-border/30 py-4">
+      {/* Cheerful footer */}
+      <footer className="relative z-10 border-t border-primary/5 py-4 bg-white/30">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground/40">
-            Friendly Nathan &middot; AI-powered n8n workflows
+          <p className="text-[11px] text-muted-foreground/50 font-medium flex items-center gap-1">
+            Made with <Heart className="w-3 h-3 text-primary/40 inline fill-current" /> by Friendly Nathan
           </p>
-          <p className="text-[11px] text-muted-foreground/30">
+          <p className="text-[11px] text-muted-foreground/40">
             Powered by Gemini
           </p>
         </div>

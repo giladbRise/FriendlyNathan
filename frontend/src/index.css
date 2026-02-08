@@ -4,67 +4,63 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Sunny Cream — Friendly Nathan's bright theme */
+    --background: 38 50% 97%;
+    --foreground: 25 30% 16%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 25 30% 16%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.75rem;
+    --popover-foreground: 25 30% 16%;
+
+    /* Vibrant coral-orange primary */
+    --primary: 14 90% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Bright teal secondary */
+    --secondary: 172 66% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Soft warm gray muted */
+    --muted: 35 25% 93%;
+    --muted-foreground: 25 10% 50%;
+
+    /* Sunny yellow accent */
+    --accent: 45 96% 58%;
+    --accent-foreground: 25 30% 16%;
+
+    /* Soft red destructive */
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 20% 88%;
+    --input: 35 20% 92%;
+    --ring: 14 90% 58%;
+    --radius: 1rem;
   }
 
-  /* Warm Dark Theme — Friendly Nathan */
+  /* Dark variant kept for other pages that still use .dark */
   .dark {
-    /* Deep warm charcoal background */
     --background: 20 14% 8%;
-    /* Warm off-white text */
     --foreground: 35 20% 92%;
-
-    /* Slightly lighter warm dark for cards */
     --card: 20 12% 12%;
     --card-foreground: 35 20% 92%;
-
-    /* Warm dark for popovers */
     --popover: 20 12% 12%;
     --popover-foreground: 35 20% 92%;
-
-    /* Peach/coral primary — warm and inviting */
-    --primary: 16 100% 66%;
-    --primary-foreground: 20 14% 8%;
-
-    /* Warm gold secondary */
-    --secondary: 38 90% 60%;
-    --secondary-foreground: 20 14% 8%;
-
-    /* Muted — warm gray */
+    --primary: 14 90% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 172 66% 50%;
+    --secondary-foreground: 0 0% 100%;
     --muted: 20 10% 16%;
     --muted-foreground: 25 10% 55%;
-
-    /* Accent — soft sage green */
-    --accent: 150 30% 45%;
+    --accent: 45 96% 58%;
     --accent-foreground: 20 14% 8%;
-
-    /* Destructive — soft red */
     --destructive: 0 72% 55%;
     --destructive-foreground: 35 20% 92%;
-
-    /* Warm borders */
     --border: 20 10% 18%;
     --input: 20 10% 14%;
-    --ring: 16 100% 66%;
+    --ring: 14 90% 58%;
   }
 }
 
@@ -79,76 +75,81 @@
 
 /* Nathan utility classes */
 @layer utilities {
-  .text-cyan {
-    color: #00D9FF;
-  }
-  .bg-surface {
-    background-color: hsl(20 12% 12%);
-  }
-  .border-glow {
-    border-color: rgba(255, 154, 120, 0.3);
-  }
   .text-success {
-    color: #4ade80;
+    color: #16a34a;
   }
   .text-error {
-    color: #f87171;
+    color: #dc2626;
   }
   .bg-success {
-    background-color: #4ade80;
+    background-color: #16a34a;
   }
   .bg-error {
-    background-color: #f87171;
+    background-color: #dc2626;
   }
 }
 
-/* Noise texture overlay for depth */
-.noise-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
+/* Dot pattern background */
+.dot-pattern {
+  background-image: radial-gradient(circle, hsl(25 20% 80% / 0.4) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-/* Custom scrollbar — warm tones */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(20 10% 25%);
+  background: hsl(35 20% 82%);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(16 60% 50%);
+  background: hsl(14 60% 65%);
 }
 
 /* Gradient text utility */
 .gradient-text {
-  background: linear-gradient(135deg, hsl(16 100% 66%), hsl(38 90% 60%));
+  background: linear-gradient(135deg, hsl(14 90% 58%), hsl(45 96% 53%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Frosted glass effect */
-.glass {
-  background: rgba(30, 24, 20, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-/* Warm glow on focus */
-.warm-focus {
+/* Friendly focus glow */
+.friendly-focus {
   transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
-.warm-focus:focus-within {
-  box-shadow: 0 0 0 3px rgba(255, 154, 120, 0.15), 0 0 30px rgba(255, 154, 120, 0.1);
-  border-color: rgba(255, 154, 120, 0.4);
+.friendly-focus:focus-within {
+  box-shadow: 0 0 0 4px hsl(14 90% 58% / 0.12), 0 4px 20px hsl(14 90% 58% / 0.08);
+  border-color: hsl(14 90% 58% / 0.5);
+}
+
+/* Bouncy card hover */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+/* Wavy divider */
+.wave-divider {
+  position: relative;
+}
+.wave-divider::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background: hsl(38 50% 97%);
+  mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 1200 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 16 C300 0 600 0 900 16 L1200 16 L1200 16 L0 16Z' fill='white'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 1200 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 16 C300 0 600 0 900 16 L1200 16 L1200 16 L0 16Z' fill='white'/%3E%3C/svg%3E");
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
 }
