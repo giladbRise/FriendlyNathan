@@ -1,15 +1,13 @@
 import axios from 'axios';
 import { io } from '../index';
 import { geminiService, WorkflowIntent } from './gemini.service';
-import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { workflowLogger } from './workflow-logger.service';
 import { n8nMcpService } from './mcpN8n.service';
 import { workflowGeneratorService } from './workflowGenerator.service';
 import { workflowLearningService } from './workflow-learning.service';
 import { workflowGapDetectorService, Gap, MissingStep } from './workflow-gap-detector.service';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 // Cache TTL in milliseconds (1 hour)
 const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -738,8 +736,13 @@ export class PublicWorkflowService {
     // Emit initial progress
     this.emitProgress(socketId, generationId, 'Starting workflow generation...', 10);
 
-    // Run generation asynchronously
-    this.runGeneration(generationId, n8nUrl, n8nApiKey, description, socketId, startTime, geminiApiKey);
+    // Run generation asynchronously (catch to prevent unhandled rejection)
+    this.runGeneration(generationId, n8nUrl, n8nApiKey, description, socketId, startTime, geminiApiKey)
+      .catch((error) => {
+        console.error(`Generation ${generationId} failed with unhandled error:`, error);
+        this.emitProgress(socketId, generationId, 'Generation failed unexpectedly', 0);
+        activeGenerations.delete(generationId);
+      });
 
     return { generationId };
   }

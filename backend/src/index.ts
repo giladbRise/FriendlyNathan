@@ -17,6 +17,15 @@ import { errorHandler } from './middleware/errorHandler';
 // Load environment variables
 dotenv.config();
 
+// Validate required secrets at startup
+const requiredSecrets = ['JWT_SECRET', 'ENCRYPTION_KEY'] as const;
+for (const secret of requiredSecrets) {
+  if (!process.env[secret]) {
+    console.error(`FATAL: ${secret} environment variable is not set. Server cannot start securely.`);
+    process.exit(1);
+  }
+}
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {

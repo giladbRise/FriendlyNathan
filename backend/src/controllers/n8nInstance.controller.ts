@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { encrypt, decrypt } from '../utils/encryption';
 import axios from 'axios';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 // Validation schemas
 const createInstanceSchema = z.object({

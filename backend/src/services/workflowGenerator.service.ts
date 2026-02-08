@@ -1,4 +1,4 @@
-import { PrismaClient, WorkflowStatus } from '@prisma/client';
+import { WorkflowStatus } from '@prisma/client';
 import axios from 'axios';
 import { decrypt } from '../utils/encryption';
 import { io } from '../index';
@@ -8,8 +8,7 @@ import { n8nMcpService } from './mcpN8n.service';
 import { workflowValidatorService } from './workflow-validator.service';
 import { workflowLearningService } from './workflow-learning.service';
 import { workflowPreferencesService } from './workflow-preferences.service';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 // Cache TTL in milliseconds (1 hour)
 const NODE_CACHE_TTL_MS = 60 * 60 * 1000;
