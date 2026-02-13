@@ -6,7 +6,7 @@ import { workflowLogger } from './workflow-logger.service';
 import { n8nMcpService } from './mcpN8n.service';
 import { workflowGeneratorService } from './workflowGenerator.service';
 import { workflowLearningService } from './workflow-learning.service';
-import { workflowGapDetectorService, Gap, MissingStep, ClarificationQuestion } from './workflow-gap-detector.service';
+import { workflowGapDetectorService, ClarificationQuestion } from './workflow-gap-detector.service';
 import prisma from '../lib/prisma';
 
 // Cache TTL in milliseconds (1 hour)
@@ -91,6 +91,7 @@ interface WorkflowNode {
 
 interface WorkflowConnection {
   main: Array<Array<{ node: string; type: string; index: number }>>;
+  ai_model?: Array<Array<{ node: string; type: string; index: number }>>;
 }
 
 interface N8nWorkflow {
@@ -425,7 +426,6 @@ export class PublicWorkflowService {
     if (hasGeminiKey) {
       try {
         // Get relevant learned patterns to guide generation
-        const usedNodeTypes = relevantNodeTypes.map((nt) => nt.split('.').pop() || nt);
         const learningGuidance = workflowLearningService.getCommonLearningsGuidance();
 
         // Log learning stats for visibility
@@ -604,17 +604,19 @@ export class PublicWorkflowService {
         }
       }
 
-      // Regenerate workflow with enhanced description
+      // Regenerate workflow with enhanced description via Gemini
       if (hasGeminiKey) {
         try {
-          const improvedWorkflow = await workflowGeneratorService.generateWorkflow(
+          const learningGuidance = workflowLearningService.getCommonLearningsGuidance();
+          const improvedResult = await geminiService.generateWorkflow(
             enhancedDescription,
             discoveryResult.nodes,
             geminiApiKey,
             nodeTypeDetails,
-            aiIntent || undefined
+            relevantNodeTypes,
+            learningGuidance
           );
-          workflow = improvedWorkflow.workflow;
+          workflow = improvedResult.workflow;
           workflow.name = originalWorkflowName; // Restore original name after improvement
           improvementCount++;
           workflowLogger.info(previewId, 'AUTO_IMPROVEMENT_APPLIED', `Improvement ${improvementCount} applied`, {
@@ -1744,7 +1746,7 @@ export class PublicWorkflowService {
   /**
    * Generate a default AI prompt based on workflow context
    */
-  private generateDefaultAIPrompt(description: string, nodeName: string): string {
+  private generateDefaultAIPrompt(description: string, _nodeName: string): string {
     const lowerDesc = description.toLowerCase();
 
     if (lowerDesc.includes('summarize') || lowerDesc.includes('summary')) {
