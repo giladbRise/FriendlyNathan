@@ -132,9 +132,57 @@ const NODE_SUGGESTIONS: Record<string, { nodes: string[]; description: string }>
     nodes: ['n8n-nodes-base.gmail', 'n8n-nodes-base.emailSend'],
     description: 'Use Gmail for email operations (Google ecosystem only)',
   },
+  gmail: {
+    nodes: ['n8n-nodes-base.gmail'],
+    description: 'Gmail for reading, sending, and managing emails',
+  },
+  mail: {
+    nodes: ['n8n-nodes-base.gmail'],
+    description: 'Gmail for mail operations (Google ecosystem)',
+  },
+  inbox: {
+    nodes: ['n8n-nodes-base.gmail'],
+    description: 'Gmail inbox operations',
+  },
   google: {
     nodes: ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.gmail', 'n8n-nodes-base.googleDrive', 'n8n-nodes-base.googleDocs'],
     description: 'Google Sheets, Gmail, Docs, and Drive integrations',
+  },
+  spreadsheet: {
+    nodes: ['n8n-nodes-base.googleSheets'],
+    description: 'Google Sheets for spreadsheet operations (read, write, update)',
+  },
+  sheet: {
+    nodes: ['n8n-nodes-base.googleSheets'],
+    description: 'Google Sheets for sheet operations',
+  },
+  row: {
+    nodes: ['n8n-nodes-base.googleSheets'],
+    description: 'Google Sheets row operations (add, update, read)',
+  },
+  column: {
+    nodes: ['n8n-nodes-base.googleSheets'],
+    description: 'Google Sheets column operations',
+  },
+  document: {
+    nodes: ['n8n-nodes-base.googleDocs'],
+    description: 'Google Docs for document creation and editing',
+  },
+  docs: {
+    nodes: ['n8n-nodes-base.googleDocs'],
+    description: 'Google Docs for document operations',
+  },
+  drive: {
+    nodes: ['n8n-nodes-base.googleDrive'],
+    description: 'Google Drive for file storage and management',
+  },
+  file: {
+    nodes: ['n8n-nodes-base.googleDrive'],
+    description: 'File operations via Google Drive',
+  },
+  storage: {
+    nodes: ['n8n-nodes-base.googleDrive'],
+    description: 'File storage via Google Drive',
   },
   ai: {
     nodes: ['@n8n/n8n-nodes-langchain.chainLlm', '@n8n/n8n-nodes-langchain.lmChatGoogleGemini', 'n8n-nodes-base.set'],
@@ -153,12 +201,48 @@ const NODE_SUGGESTIONS: Record<string, { nodes: string[]; description: string }>
     description: 'Data transformation with Set, Code, or Function nodes',
   },
   conditional: {
-    nodes: ['n8n-nodes-base.if', 'n8n-nodes-base.switch', 'n8n-nodes-base.filter'],
-    description: 'Conditional branching with IF, Switch, or Filter nodes',
+    nodes: ['n8n-nodes-base.if', 'n8n-nodes-base.switch'],
+    description: 'Conditional branching with IF or Switch nodes',
+  },
+  filter: {
+    nodes: ['n8n-nodes-base.filter'],
+    description: 'Filter items based on conditions',
   },
   loop: {
     nodes: ['n8n-nodes-base.splitInBatches', 'n8n-nodes-base.merge'],
     description: 'Loop over items with Split In Batches and Merge nodes',
+  },
+  aggregate: {
+    nodes: ['n8n-nodes-base.aggregate', 'n8n-nodes-base.summarize'],
+    description: 'Aggregate or summarize data across items',
+  },
+  date: {
+    nodes: ['n8n-nodes-base.dateTime'],
+    description: 'Date and time manipulation operations',
+  },
+  time: {
+    nodes: ['n8n-nodes-base.dateTime'],
+    description: 'Time-based calculations and formatting',
+  },
+  wait: {
+    nodes: ['n8n-nodes-base.wait'],
+    description: 'Pause workflow execution for a specified duration',
+  },
+  delay: {
+    nodes: ['n8n-nodes-base.wait'],
+    description: 'Delay workflow execution',
+  },
+  sort: {
+    nodes: ['n8n-nodes-base.sort'],
+    description: 'Sort items by field values',
+  },
+  notify: {
+    nodes: ['n8n-nodes-base.slack', 'n8n-nodes-base.gmail'],
+    description: 'Send notifications via Slack or Gmail',
+  },
+  alert: {
+    nodes: ['n8n-nodes-base.slack', 'n8n-nodes-base.gmail'],
+    description: 'Send alert notifications',
   },
 };
 
@@ -311,51 +395,78 @@ async function getNodeTypeDetails(nodeType: string): Promise<N8nNodeType | undef
 // Analyze description and suggest relevant nodes
 function analyzeDescription(description: string): { suggestedNodes: string[]; reasoning: string[] } {
   const lowerDesc = description.toLowerCase();
-  const suggestedNodes: string[] = [];
+  const suggestedSet = new Set<string>();
   const reasoning: string[] = [];
 
-  // Always add a trigger node
-  if (lowerDesc.includes('schedule') || lowerDesc.includes('every') || lowerDesc.includes('daily') || lowerDesc.includes('hourly')) {
-    suggestedNodes.push('n8n-nodes-base.schedule');
+  // --- 1. Trigger selection with expanded keywords ---
+  if (lowerDesc.includes('schedule') || lowerDesc.includes('every') || lowerDesc.includes('daily') ||
+      lowerDesc.includes('hourly') || lowerDesc.includes('weekly') || lowerDesc.includes('monthly') ||
+      lowerDesc.includes('interval') || lowerDesc.includes('recurring')) {
+    suggestedSet.add('n8n-nodes-base.schedule');
     reasoning.push('Using Schedule trigger for timed execution');
-  } else if (lowerDesc.includes('webhook') || lowerDesc.includes('receive')) {
-    suggestedNodes.push('n8n-nodes-base.webhook');
+  } else if (lowerDesc.includes('cron')) {
+    suggestedSet.add('n8n-nodes-base.cron');
+    reasoning.push('Using Cron trigger for advanced scheduling');
+  } else if (lowerDesc.includes('webhook') || lowerDesc.includes('receive') ||
+             lowerDesc.includes('incoming') || lowerDesc.includes('api endpoint') ||
+             lowerDesc.includes('http post')) {
+    suggestedSet.add('n8n-nodes-base.webhook');
     reasoning.push('Using Webhook trigger to receive HTTP requests');
   } else {
-    suggestedNodes.push('n8n-nodes-base.manualTrigger');
+    suggestedSet.add('n8n-nodes-base.manualTrigger');
     reasoning.push('Using Manual Trigger as default starting point');
   }
 
-  // Check for service-specific keywords
+  // --- 2. Service-specific keyword matching ---
   for (const [keyword, suggestion] of Object.entries(NODE_SUGGESTIONS)) {
     if (lowerDesc.includes(keyword)) {
       for (const node of suggestion.nodes) {
-        if (!suggestedNodes.includes(node)) {
-          suggestedNodes.push(node);
-        }
+        suggestedSet.add(node);
       }
       reasoning.push(suggestion.description);
     }
   }
 
-  // Redirect non-Google services to Google equivalents
-  if (lowerDesc.includes('airtable') || lowerDesc.includes('notion') || lowerDesc.includes('excel')) {
-    suggestedNodes.push('n8n-nodes-base.googleSheets');
-    reasoning.push('Using Google Sheets (Google ecosystem — replaces Airtable/Notion/Excel)');
+  // --- 3. Redirect non-Google services to Google equivalents ---
+  if (lowerDesc.includes('airtable') || lowerDesc.includes('notion') || lowerDesc.includes('excel') ||
+      lowerDesc.includes('trello') || lowerDesc.includes('asana') || lowerDesc.includes('jira')) {
+    suggestedSet.add('n8n-nodes-base.googleSheets');
+    reasoning.push('Using Google Sheets (Google ecosystem — replaces non-Google alternatives)');
   }
   if (lowerDesc.includes('outlook') || lowerDesc.includes('microsoft')) {
-    suggestedNodes.push('n8n-nodes-base.gmail');
+    suggestedSet.add('n8n-nodes-base.gmail');
     reasoning.push('Using Gmail (Google ecosystem — replaces Outlook)');
   }
-  // AI always uses chain+model pattern with Gemini
-  if (lowerDesc.includes('openai') || lowerDesc.includes('gpt') || lowerDesc.includes('ai') || lowerDesc.includes('gemini') || lowerDesc.includes('summarize')) {
-    suggestedNodes.push('@n8n/n8n-nodes-langchain.chainLlm');
-    suggestedNodes.push('@n8n/n8n-nodes-langchain.lmChatGoogleGemini');
-    suggestedNodes.push('n8n-nodes-base.set');
+  if (lowerDesc.includes('discord') || lowerDesc.includes('telegram') || lowerDesc.includes('whatsapp')) {
+    suggestedSet.add('n8n-nodes-base.slack');
+    reasoning.push('Using Slack (Google ecosystem — replaces Discord/Telegram/WhatsApp for messaging)');
+  }
+  if (lowerDesc.includes('dropbox') || lowerDesc.includes('onedrive') || lowerDesc.includes('box')) {
+    suggestedSet.add('n8n-nodes-base.googleDrive');
+    reasoning.push('Using Google Drive (Google ecosystem — replaces Dropbox/OneDrive)');
+  }
+  if (lowerDesc.includes('word') && !lowerDesc.includes('google docs') && !lowerDesc.includes('keyword')) {
+    suggestedSet.add('n8n-nodes-base.googleDocs');
+    reasoning.push('Using Google Docs (Google ecosystem — replaces Word)');
+  }
+
+  // --- 4. AI always uses chain+model pattern with Gemini ---
+  if (lowerDesc.includes('openai') || lowerDesc.includes('gpt') || lowerDesc.includes('ai') ||
+      lowerDesc.includes('gemini') || lowerDesc.includes('summarize') || lowerDesc.includes('llm') ||
+      lowerDesc.includes('generate text') || lowerDesc.includes('classify') || lowerDesc.includes('analyze')) {
+    suggestedSet.add('@n8n/n8n-nodes-langchain.chainLlm');
+    suggestedSet.add('@n8n/n8n-nodes-langchain.lmChatGoogleGemini');
+    suggestedSet.add('n8n-nodes-base.set');
     reasoning.push('AI via chain+model: Edit Fields (chatInput) → Basic LLM Chain → Google Gemini Chat Model');
   }
 
-  return { suggestedNodes, reasoning };
+  // Deduplicate: trigger nodes first, then the rest
+  const triggerKeywords = ['Trigger', 'webhook', 'schedule', 'cron'];
+  const allNodes = Array.from(suggestedSet);
+  const triggers = allNodes.filter(n => triggerKeywords.some(k => n.toLowerCase().includes(k.toLowerCase())));
+  const others = allNodes.filter(n => !triggerKeywords.some(k => n.toLowerCase().includes(k.toLowerCase())));
+
+  return { suggestedNodes: [...triggers, ...others], reasoning };
 }
 
 // Generate a basic workflow structure based on suggested nodes

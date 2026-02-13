@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,6 +28,12 @@ interface GenerationResult {
   workflow?: Record<string, any>;
 }
 
+interface ClarificationQuestion {
+  question: string;
+  context: string;
+  options?: string[];
+}
+
 interface PreviewResult {
   previewId: string;
   workflow: Record<string, unknown>;
@@ -35,6 +41,7 @@ interface PreviewResult {
   explanation?: string;
   credentials?: CredentialRequirement[];
   originalDescription?: string;
+  clarifications?: ClarificationQuestion[];
 }
 
 const STORAGE_KEYS = {
@@ -179,10 +186,12 @@ const NathanAvatar: React.FC<{ mood: NathanMood; size?: 'sm' | 'md' | 'lg' | 'xl
   );
 };
 
-// Sunny floating shapes background
+// Sunny floating shapes background — fewer shapes on mobile for performance
 const SunnyBackground: React.FC = () => {
+  const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 640;
+  const shapeCount = isMobileDevice ? 7 : 15;
   const shapes = useMemo(() =>
-    Array.from({ length: 15 }, (_, i) => ({
+    Array.from({ length: shapeCount }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -192,7 +201,8 @@ const SunnyBackground: React.FC = () => {
       opacity: Math.random() * 0.12 + 0.04,
       type: ['circle', 'ring', 'dot'][Math.floor(Math.random() * 3)] as string,
       color: ['hsl(14 90% 58%)', 'hsl(172 66% 50%)', 'hsl(45 96% 58%)', 'hsl(330 80% 65%)'][Math.floor(Math.random() * 4)],
-    })), []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })), [shapeCount]);
 
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -237,9 +247,23 @@ const SUGGESTIONS = [
   { emoji: '📊', text: 'Monitor Google Sheet changes and send email alerts' },
 ];
 
+const useIsMobile = (breakpoint = 640) => {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [breakpoint]);
+  return isMobile;
+};
+
 const SimplifiedWorkflowPage: React.FC = () => {
   const socketRef = useRef<Socket | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isMobile = useIsMobile();
 
   // Credentials
   const [n8nUrl, setN8nUrl] = useState(() => localStorage.getItem(STORAGE_KEYS.N8N_URL) || DEFAULT_N8N_URL);
@@ -248,8 +272,10 @@ const SimplifiedWorkflowPage: React.FC = () => {
   const [showApiKeys, setShowApiKeys] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
 
-  // Workflow state
-  const [workflowDescription, setWorkflowDescription] = useState('');
+  // Workflow state — restore draft from sessionStorage
+  const [workflowDescription, setWorkflowDescription] = useState(
+    () => sessionStorage.getItem('workflow_draft') || ''
+  );
   const [generating, setGenerating] = useState(false);
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -286,29 +312,59 @@ const SimplifiedWorkflowPage: React.FC = () => {
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.N8N_API_KEY, n8nApiKey); }, [n8nApiKey]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey); }, [geminiApiKey]);
 
-  // Socket.io connection
+  // Auto-save workflow description draft
   useEffect(() => {
-    socketRef.current = io(`${API_URL}`);
-    socketRef.current.on('connect', () => console.log('Socket connected:', socketRef.current?.id));
-    socketRef.current.on('workflow:progress', (data) => {
+    const timer = setTimeout(() => {
+      if (workflowDescription) {
+        sessionStorage.setItem('workflow_draft', workflowDescription);
+      } else {
+        sessionStorage.removeItem('workflow_draft');
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [workflowDescription]);
+
+  // Socket.io connection with proper cleanup
+  useEffect(() => {
+    const socket = io(`${API_URL}`);
+    socketRef.current = socket;
+
+    const onConnect = () => {
+      if (import.meta.env.DEV) console.log('Socket connected:', socket.id);
+    };
+    const onProgress = (data: any) => {
       setGenerationProgress({ message: data.message, progress: data.progress, estimatedTimeRemaining: data.estimatedTimeRemaining ?? null });
-    });
-    socketRef.current.on('workflow:complete', (data: GenerationResult) => {
+    };
+    const onComplete = (data: GenerationResult) => {
       setGenerating(false);
       setCurrentGenerationId(null);
       setGenerationResult(data);
-    });
-    socketRef.current.on('workflow:error', (data) => {
+    };
+    const onError = (data: any) => {
       setGenerating(false);
       setCurrentGenerationId(null);
       setError(data.error || 'Workflow generation failed');
-    });
-    socketRef.current.on('workflow:cancelled', () => {
+    };
+    const onCancelled = () => {
       setGenerating(false);
       setCancelling(false);
       setCurrentGenerationId(null);
-    });
-    return () => { socketRef.current?.disconnect(); };
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('workflow:progress', onProgress);
+    socket.on('workflow:complete', onComplete);
+    socket.on('workflow:error', onError);
+    socket.on('workflow:cancelled', onCancelled);
+
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('workflow:progress', onProgress);
+      socket.off('workflow:complete', onComplete);
+      socket.off('workflow:error', onError);
+      socket.off('workflow:cancelled', onCancelled);
+      socket.disconnect();
+    };
   }, []);
 
   const handleValidateConnection = async () => {
@@ -416,8 +472,9 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
   const isReadyToGenerate = n8nUrl && n8nApiKey && workflowDescription.length >= 10;
 
-  const renderFlowPreview = () => {
-    if (!previewResult?.workflow || !showFlowDetails) return null;
+  // Memoize flow preview column computation
+  const flowPreviewColumns = useMemo(() => {
+    if (!previewResult?.workflow) return null;
     const nodes = (previewResult.workflow.nodes as Array<{ id: string; name: string; type: string; position?: [number, number] }>) || [];
     const columns = new Map<number, typeof nodes>();
     for (const node of nodes) {
@@ -425,9 +482,13 @@ const SimplifiedWorkflowPage: React.FC = () => {
       if (!columns.has(x)) columns.set(x, []);
       columns.get(x)!.push(node);
     }
-    const sortedColumns = Array.from(columns.entries())
+    return Array.from(columns.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([, value]) => value.sort((a, b) => (a.position?.[1] ?? 0) - (b.position?.[1] ?? 0)));
+  }, [previewResult?.workflow]);
+
+  const renderFlowPreview = useCallback(() => {
+    if (!flowPreviewColumns || !showFlowDetails) return null;
 
     return (
       <motion.div
@@ -441,9 +502,9 @@ const SimplifiedWorkflowPage: React.FC = () => {
             Hide
           </button>
         </div>
-        <div className="overflow-x-auto pb-2">
+        <div className="overflow-x-auto pb-2 -webkit-overflow-scrolling-touch">
           <div className="inline-flex items-center gap-2">
-            {sortedColumns.map((column, colIndex) => (
+            {flowPreviewColumns.map((column, colIndex) => (
               <React.Fragment key={`col-${colIndex}`}>
                 <div className="flex flex-col gap-2 min-w-[140px]">
                   {column.map((node, nodeIndex) => (
@@ -459,7 +520,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     </motion.div>
                   ))}
                 </div>
-                {colIndex < sortedColumns.length - 1 && (
+                {colIndex < flowPreviewColumns.length - 1 && (
                   <ArrowRight className="w-4 h-4 text-primary/40 flex-shrink-0" />
                 )}
               </React.Fragment>
@@ -468,7 +529,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
         </div>
       </motion.div>
     );
-  };
+  }, [flowPreviewColumns, showFlowDetails]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
@@ -508,6 +569,8 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   ? 'bg-primary text-white shadow-md'
                   : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
               }`}
+              aria-label={showSettings ? 'Close settings' : 'Open settings'}
+              aria-expanded={showSettings}
               title="Settings"
             >
               <Settings className="w-5 h-5" />
@@ -555,10 +618,11 @@ const SimplifiedWorkflowPage: React.FC = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* n8n URL */}
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
+                  <label htmlFor="settings-n8n-url" className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
                     n8n Instance URL
                   </label>
                   <input
+                    id="settings-n8n-url"
                     type="url"
                     value={n8nUrl}
                     onChange={(e) => { setN8nUrl(e.target.value); setValidationSuccess(''); }}
@@ -570,11 +634,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
                 {/* n8n API Key */}
                 <div>
-                  <label className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
+                  <label htmlFor="settings-n8n-key" className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
                     n8n API Key <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
                     <input
+                      id="settings-n8n-key"
                       type={showApiKeys ? 'text' : 'password'}
                       value={n8nApiKey}
                       onChange={(e) => { setN8nApiKey(e.target.value); setValidationSuccess(''); }}
@@ -586,6 +651,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       type="button"
                       onClick={() => setShowApiKeys(!showApiKeys)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                      aria-label={showApiKeys ? 'Hide API key' : 'Show API key'}
                     >
                       {showApiKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -594,11 +660,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
 
                 {/* Gemini API Key */}
                 <div>
-                  <label className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
+                  <label htmlFor="settings-gemini-key" className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
                     Gemini API Key <span className="text-muted-foreground/50">(optional)</span>
                   </label>
                   <div className="relative">
                     <input
+                      id="settings-gemini-key"
                       type={showGeminiKey ? 'text' : 'password'}
                       value={geminiApiKey}
                       onChange={(e) => setGeminiApiKey(e.target.value)}
@@ -610,6 +677,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       type="button"
                       onClick={() => setShowGeminiKey(!showGeminiKey)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                      aria-label={showGeminiKey ? 'Hide Gemini key' : 'Show Gemini key'}
                     >
                       {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -671,7 +739,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     animate={{ y: [0, -10, 0] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                   >
-                    <NathanAvatar mood="idle" size="xl" />
+                    <NathanAvatar mood="idle" size={isMobile ? 'lg' : 'xl'} />
                   </motion.div>
                   <motion.p
                     initial={{ opacity: 0 }}
@@ -707,6 +775,9 @@ const SimplifiedWorkflowPage: React.FC = () => {
               <div className="relative">
                 {generating && (
                   <motion.div
+                    role="status"
+                    aria-live="polite"
+                    aria-label={`Workflow generation ${generationProgress.progress}% complete`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="absolute -top-16 left-0 right-0 flex items-center justify-center gap-3"
@@ -732,13 +803,15 @@ const SimplifiedWorkflowPage: React.FC = () => {
                     ? 'border-primary/20 shadow-lg shadow-primary/5'
                     : 'border-border shadow-md'
                 }`}>
+                  <label htmlFor="workflow-description" className="sr-only">Describe the workflow you want to create</label>
                   <textarea
+                    id="workflow-description"
                     ref={textareaRef}
                     value={workflowDescription}
                     onChange={(e) => setWorkflowDescription(e.target.value)}
                     placeholder="Describe the workflow you want to create..."
                     rows={4}
-                    className="w-full px-5 py-4 bg-white/80 backdrop-blur-sm text-foreground rounded-3xl resize-none focus:outline-none text-base leading-relaxed placeholder:text-muted-foreground/40"
+                    className="w-full px-5 py-4 bg-white/80 backdrop-blur-sm text-foreground rounded-3xl resize-none focus:outline-none text-base leading-relaxed placeholder:text-muted-foreground/40 max-h-64 overflow-y-auto"
                     disabled={generating}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && isReadyToGenerate && !generating) {
@@ -813,18 +886,28 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   </motion.p>
                 )}
 
-                {/* Not ready hint */}
-                {!isReadyToGenerate && !generating && !previewResult && workflowDescription.length === 0 && (
-                  <div className="mt-2">
-                    {!n8nApiKey && (
-                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-xs text-muted-foreground/60">
-                        <button onClick={() => setShowSettings(true)} className="text-primary hover:text-primary/80 font-semibold underline underline-offset-2 transition-colors">
-                          Set up your n8n connection
-                        </button>
-                        {' '}to get started
-                      </motion.p>
-                    )}
-                  </div>
+                {/* Setup prompt — shown when n8n is not configured */}
+                {!n8nApiKey && !generating && !previewResult && workflowDescription.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="mt-4 text-center"
+                  >
+                    <div className="inline-flex flex-col items-center gap-3 px-8 py-6 rounded-3xl border-2 border-dashed border-primary/20 bg-primary/3">
+                      <Settings className="w-8 h-8 text-primary/40" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground/80 mb-1">Connect to your n8n instance</p>
+                        <p className="text-xs text-muted-foreground/60 mb-3">Add your n8n URL and API key to get started</p>
+                      </div>
+                      <button
+                        onClick={() => setShowSettings(true)}
+                        className="px-5 py-2 rounded-2xl bg-primary text-white text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                      >
+                        Set Up Connection
+                      </button>
+                    </div>
+                  </motion.div>
                 )}
               </div>
 
@@ -867,13 +950,23 @@ const SimplifiedWorkflowPage: React.FC = () => {
               <AnimatePresence>
                 {error && !generating && !showSettings && (
                   <motion.div
+                    role="alert"
+                    aria-live="assertive"
+                    aria-atomic="true"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     className="mt-4 px-5 py-3.5 rounded-2xl bg-destructive/5 border-2 border-destructive/15 text-sm text-destructive flex items-start gap-2.5"
                   >
                     <X className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>{error}</span>
+                    <span className="flex-1">{error}</span>
+                    <button
+                      onClick={() => setError('')}
+                      className="flex-shrink-0 p-0.5 rounded-lg hover:bg-destructive/10 transition-colors"
+                      aria-label="Dismiss error"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -908,6 +1001,38 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       <div className="px-5 py-3.5 bg-primary/5 rounded-2xl border-2 border-primary/10">
                         <p className="text-xs text-primary/60 mb-1 uppercase tracking-wider font-semibold">Your request</p>
                         <p className="text-sm text-foreground/80 italic">"{previewResult.originalDescription}"</p>
+                      </div>
+                    )}
+
+                    {/* Clarification questions from gap detector */}
+                    {previewResult.clarifications && previewResult.clarifications.length > 0 && (
+                      <div className="px-5 py-4 bg-amber-50 rounded-2xl border-2 border-amber-200/60 space-y-3">
+                        <p className="text-xs text-amber-700/80 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                          <span>Tips to improve your workflow</span>
+                        </p>
+                        {previewResult.clarifications.map((q: ClarificationQuestion, i: number) => (
+                          <div key={i} className="space-y-1.5">
+                            <p className="text-sm font-semibold text-amber-900">{q.question}</p>
+                            <p className="text-xs text-amber-700/70">{q.context}</p>
+                            {q.options && (
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {q.options.map((opt: string, j: number) => (
+                                  <button
+                                    key={j}
+                                    onClick={() => {
+                                      setWorkflowDescription((prev: string) => `${prev}. ${opt}`);
+                                      setPreviewResult(null);
+                                    }}
+                                    className="text-xs px-2.5 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200/80 transition-colors cursor-pointer"
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <p className="text-[10px] text-amber-600/60 mt-1">Click a suggestion to add it to your description and regenerate</p>
                       </div>
                     )}
 
@@ -970,7 +1095,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                       transition={{ type: 'spring', stiffness: 200, damping: 12 }}
                       className="inline-block mb-5"
                     >
-                      <NathanAvatar mood="success" size="xl" />
+                      <NathanAvatar mood="success" size={isMobile ? 'lg' : 'xl'} />
                     </motion.div>
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}

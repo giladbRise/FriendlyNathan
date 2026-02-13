@@ -6,7 +6,7 @@ import { workflowLogger } from './workflow-logger.service';
 import { n8nMcpService } from './mcpN8n.service';
 import { workflowGeneratorService } from './workflowGenerator.service';
 import { workflowLearningService } from './workflow-learning.service';
-import { workflowGapDetectorService, Gap, MissingStep } from './workflow-gap-detector.service';
+import { workflowGapDetectorService, Gap, MissingStep, ClarificationQuestion } from './workflow-gap-detector.service';
 import prisma from '../lib/prisma';
 
 // Cache TTL in milliseconds (1 hour)
@@ -340,6 +340,7 @@ export class PublicWorkflowService {
     explanation?: string;
     credentials: CredentialRequirement[];
     originalDescription: string;
+    clarifications?: ClarificationQuestion[];
   }> {
 
     const discoveryResult = await this.discoverNodes(n8nUrl, n8nApiKey);
@@ -378,11 +379,33 @@ export class PublicWorkflowService {
 
     let aiIntent: WorkflowIntent | null = null;
     if (hasGeminiKey) {
-      aiIntent = await geminiService.analyzeWorkflowIntent(
-        description,
-        discoveryResult.nodes,
-        geminiApiKey
-      );
+      try {
+        aiIntent = await geminiService.analyzeWorkflowIntent(
+          description,
+          discoveryResult.nodes,
+          geminiApiKey
+        );
+        if (aiIntent) {
+          workflowLogger.info(previewId, 'INTENT_ANALYSIS', 'AI intent extracted successfully', {
+            sender: aiIntent.sender,
+            days: aiIntent.days,
+            slackChannel: aiIntent.slackChannel,
+            wantsEmail: aiIntent.wantsEmail,
+            wantsSlack: aiIntent.wantsSlack,
+            wantsGeminiSummary: aiIntent.wantsGeminiSummary,
+            requestedNodeTypes: aiIntent.requestedNodeTypes?.length || 0,
+          });
+        } else {
+          workflowLogger.warn(previewId, 'INTENT_ANALYSIS_NULL', 'AI intent analysis returned null — falling back to regex parsing', {
+            description: description.slice(0, 200),
+          });
+        }
+      } catch (intentError: any) {
+        workflowLogger.warn(previewId, 'INTENT_ANALYSIS_FAILED', `AI intent analysis failed: ${intentError?.message || intentError}`, {
+          description: description.slice(0, 200),
+        });
+        aiIntent = null;
+      }
       if (aiIntent?.requestedNodeTypes && aiIntent.requestedNodeTypes.length > 0) {
         relevantNodeTypes = this.mergeRelevantNodeTypes(
           [...relevantNodeTypes, ...aiIntent.requestedNodeTypes],
@@ -553,7 +576,7 @@ export class PublicWorkflowService {
         const shortType = n.type.split('.').pop() || '';
         return shortType;
       });
-      const missingSteps = workflowGapDetectorService.suggestMissingSteps(description, detectedNodeTypes);
+      const missingSteps = workflowGapDetectorService.suggestMissingSteps(description, detectedNodeTypes, workflow);
 
       // Check if there are any auto-fixable missing steps
       const autoFixableSteps = missingSteps.filter(step => step.autoFix);
@@ -616,6 +639,14 @@ export class PublicWorkflowService {
     });
     this.storePreview(workflow, previewId, description);
 
+    // Detect ambiguities in the original description to help users refine
+    const clarifications = workflowGapDetectorService.detectAmbiguities(description);
+    if (clarifications.length > 0) {
+      workflowLogger.info(previewId, 'CLARIFICATIONS', `${clarifications.length} clarification question(s) detected`, {
+        questions: clarifications.map(q => q.question),
+      });
+    }
+
     return {
       previewId,
       workflow,
@@ -625,6 +656,7 @@ export class PublicWorkflowService {
         : aiExplanation,
       credentials,
       originalDescription: description,
+      clarifications: clarifications.length > 0 ? clarifications : undefined,
     };
   }
 
@@ -663,8 +695,12 @@ export class PublicWorkflowService {
       result.errorDetails
     );
     if (!result.success) {
+      // Don't delete preview — user can retry deployment
       return { success: false, error: result.error };
     }
+
+    // Deploy succeeded — clean up the preview cache entry
+    this.deletePreview(previewId);
 
     return {
       success: true,
@@ -699,8 +735,13 @@ export class PublicWorkflowService {
       previewCache.delete(previewId);
       return null;
     }
-    previewCache.delete(previewId);
+    // Don't delete on retrieval — allow retries if deploy fails.
+    // Preview is cleaned up by TTL expiration or explicit deletePreview().
     return preview;
+  }
+
+  private deletePreview(previewId: string): void {
+    previewCache.delete(previewId);
   }
 
   private cleanupExpiredPreviews(): void {
@@ -1029,7 +1070,9 @@ export class PublicWorkflowService {
     return credentials;
   }
 
-  private validateWorkflow(workflow: N8nWorkflow): { valid: boolean; error?: string } {
+  private validateWorkflow(workflow: N8nWorkflow): { valid: boolean; error?: string; warnings?: string[] } {
+    const warnings: string[] = [];
+
     if (!workflow.name) return { valid: false, error: 'Workflow must have a name' };
     if (!Array.isArray(workflow.nodes) || workflow.nodes.length === 0) {
       return { valid: false, error: 'Workflow must have at least one node' };
@@ -1038,13 +1081,82 @@ export class PublicWorkflowService {
       return { valid: false, error: 'Workflow must have connections object' };
     }
 
+    const nodeNames = new Set<string>();
     for (const node of workflow.nodes) {
       if (!node.id || !node.name || !node.type) {
         return { valid: false, error: 'Invalid node: missing required fields' };
       }
+      nodeNames.add(node.name);
     }
 
-    return { valid: true };
+    // Validate connections reference existing nodes
+    for (const [sourceName, conn] of Object.entries(workflow.connections)) {
+      if (!nodeNames.has(sourceName)) {
+        warnings.push(`Connection source "${sourceName}" references non-existent node`);
+        continue;
+      }
+      const validateTargets = (targets: Array<Array<{ node: string; type: string; index: number }>>, connType: string) => {
+        for (const branch of targets) {
+          for (const target of branch) {
+            if (!nodeNames.has(target.node)) {
+              warnings.push(`${connType} connection from "${sourceName}" targets non-existent node "${target.node}"`);
+            }
+          }
+        }
+      };
+      if (conn.main) validateTargets(conn.main, 'main');
+      if ((conn as any).ai_model) validateTargets((conn as any).ai_model, 'ai_model');
+    }
+
+    // Validate ai_model connections target AI model nodes
+    const aiModelNodeTypes = new Set([
+      '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
+      '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+      '@n8n/n8n-nodes-langchain.lmChatAnthropic',
+      '@n8n/n8n-nodes-langchain.lmChatOllama',
+    ]);
+    const nodeTypeMap = new Map(workflow.nodes.map((n) => [n.name, n.type]));
+    for (const [sourceName, conn] of Object.entries(workflow.connections)) {
+      if ((conn as any).ai_model) {
+        for (const branch of (conn as any).ai_model) {
+          for (const target of branch) {
+            const targetType = nodeTypeMap.get(target.node);
+            if (targetType && !aiModelNodeTypes.has(targetType)) {
+              warnings.push(`ai_model connection from "${sourceName}" targets non-AI-model node "${target.node}" (${targetType})`);
+            }
+          }
+        }
+      }
+    }
+
+    // Validate chainLlm nodes have ai_model connections
+    for (const node of workflow.nodes) {
+      if (node.type === '@n8n/n8n-nodes-langchain.chainLlm') {
+        const conn = workflow.connections[node.name];
+        const hasModelConn = (conn as any)?.ai_model?.some((branch: any[]) => branch.length > 0);
+        if (!hasModelConn) {
+          warnings.push(`Basic LLM Chain node "${node.name}" has no ai_model connection — workflow will fail`);
+        }
+      }
+    }
+
+    // Validate required parameters for critical node types
+    for (const node of workflow.nodes) {
+      if (node.type === 'n8n-nodes-base.slack' && node.parameters?.operation === 'post') {
+        if (!node.parameters?.channel) {
+          warnings.push(`Slack node "${node.name}" missing required "channel" parameter`);
+        }
+      }
+      if (node.type === 'n8n-nodes-base.gmail' && !node.parameters?.operation) {
+        warnings.push(`Gmail node "${node.name}" missing "operation" parameter`);
+      }
+    }
+
+    if (warnings.length > 0) {
+      console.warn('Workflow validation warnings:', warnings);
+    }
+
+    return { valid: true, warnings: warnings.length > 0 ? warnings : undefined };
   }
 
   /**
@@ -1362,201 +1474,194 @@ export class PublicWorkflowService {
       return node;
     };
 
-    const chain: WorkflowNode[] = [];
-    const outputNodes: WorkflowNode[] = [];
-    let branchBaseNode: WorkflowNode | undefined;
+    // ===================================================================
+    // AUGMENT-FIRST STRATEGY: Preserve AI-generated workflow structure.
+    // Only add missing required nodes and fix critical parameter gaps.
+    // Never discard nodes or rebuild connections from scratch.
+    // ===================================================================
 
+    const connections = { ...workflow.connections };
+
+    // --- 1. Ensure a trigger node exists ---
     const triggerTypes = ['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.webhook', 'n8n-nodes-base.schedule', 'n8n-nodes-base.cron'];
-    const triggerNode = ensureNode(triggerTypes, 'Start');
-    chain.push(triggerNode);
+    const hasTrigger = nodes.some((node) => triggerTypes.includes(node.type));
+    if (!hasTrigger) {
+      const triggerNode = ensureNode(triggerTypes, 'Start');
+      triggerNode.position = [50, 300];
+      // Connect trigger to the first non-trigger node
+      const firstNode = nodes.find((n) => n !== triggerNode);
+      if (firstNode) {
+        connections[triggerNode.name] = {
+          main: [[{ node: firstNode.name, type: 'main', index: 0 }]],
+        };
+      }
+    }
 
-    if (intent.wantsEmail) {
-      const emailTypes = [
-        'n8n-nodes-base.gmail',
-        'n8n-nodes-base.microsoftOutlook',
-        'n8n-nodes-base.imap',
-        'n8n-nodes-base.emailReadImap',
-      ];
-      const preferredEmailType = requestedNodeTypes.find((type) => emailTypes.includes(type));
-      const senderValue = intent.sender?.trim();
+    // --- 2. Enrich existing email nodes with extracted parameters ---
+    if (intent.wantsEmail || intent.sender || intent.days) {
+      const emailTypes = ['n8n-nodes-base.gmail', 'n8n-nodes-base.microsoftOutlook', 'n8n-nodes-base.imap', 'n8n-nodes-base.emailReadImap'];
+      const emailNodes = nodes.filter((n) => emailTypes.includes(n.type));
+
+      // Only add a new email node if AI didn't create one and intent requires it
+      if (emailNodes.length === 0 && intent.wantsEmail) {
+        const preferredEmailType = requestedNodeTypes.find((type) => emailTypes.includes(type));
+        ensureNode(prioritizeTypes(preferredEmailType, emailTypes), 'Get Emails', {
+          operation: 'getAll',
+          limit: 50,
+        });
+      }
+
+      // Enrich ALL email nodes with query parameters from intent
       const queryParts: string[] = [];
-      if (intent.sender) {
-        queryParts.push(`from:"${intent.sender}"`);
-      }
-      if (intent.days) {
-        queryParts.push(`newer_than:${intent.days}d`);
-      }
-      const emailNode = ensureNode(prioritizeTypes(preferredEmailType, emailTypes), 'Get Emails', {});
-      const emailDetails = nodeTypeDetails?.get(emailNode.type);
-      const hasDetails = nodeTypeDetails && nodeTypeDetails.size > 0;
-      if (!hasDetails) {
-        emailNode.parameters.operation = emailNode.parameters.operation ?? 'getAll';
-        emailNode.parameters.limit = emailNode.parameters.limit ?? 50;
-      } else {
-        if (hasProperty(emailNode.type, 'operation') && emailNode.parameters.operation === undefined) {
+      if (intent.sender) queryParts.push(`from:"${intent.sender}"`);
+      if (intent.days) queryParts.push(`newer_than:${intent.days}d`);
+
+      for (const emailNode of nodes.filter((n) => emailTypes.includes(n.type))) {
+        // Set default operation if missing
+        if (emailNode.parameters.operation === undefined) {
+          const emailDetails = nodeTypeDetails?.get(emailNode.type);
           emailNode.parameters.operation = pickOperation(emailDetails) || 'getAll';
         }
-        if (hasProperty(emailNode.type, 'limit') && emailNode.parameters.limit === undefined) {
+        if (emailNode.parameters.limit === undefined) {
           emailNode.parameters.limit = 50;
         }
+        // Apply query filters
+        if (queryParts.length > 0 && emailNode.parameters.operation !== 'markUnread') {
+          const senderValue = intent.sender?.trim();
+          const existingQuery = String(emailNode.parameters.filters?.q || emailNode.parameters.options?.query || emailNode.parameters.query || '');
+          const cleanedQuery = normalizeEmailQuery(existingQuery, senderValue);
+          const mergedQuery = queryParts.reduce((acc, part) => {
+            if (acc.toLowerCase().includes(part.toLowerCase())) return acc;
+            return acc ? `${acc} ${part}` : part;
+          }, cleanedQuery);
+          applyEmailQuery(emailNode, mergedQuery);
+        }
+        ensureResource(emailNode, 'message');
       }
-
-      if (queryParts.length > 0) {
-        const hasDetails = nodeTypeDetails && nodeTypeDetails.size > 0;
-        const existingQuery = (!hasDetails || hasProperty(emailNode.type, 'filters'))
-          ? String(emailNode.parameters.filters?.q || '')
-          : hasProperty(emailNode.type, 'options')
-          ? String(emailNode.parameters.options?.query || '')
-          : String(emailNode.parameters.query || '');
-        const cleanedQuery = normalizeEmailQuery(existingQuery, senderValue);
-        const mergedQuery = queryParts.reduce((acc, part) => {
-          if (acc.toLowerCase().includes(part.toLowerCase())) return acc;
-          return acc ? `${acc} ${part}` : part;
-        }, cleanedQuery);
-        applyEmailQuery(emailNode, mergedQuery);
-      }
-      ensureResource(emailNode, 'message');
-      chain.push(emailNode);
     }
 
+    // --- 3. Ensure mark-unread node exists if requested ---
     if (intent.wantsMarkUnread) {
-      const markNode = ensureNode(['n8n-nodes-base.gmail'], 'Mark as Unread', {
-        operation: 'markUnread',
-        messageId: '={{ $json.id }}',
-      }, 'markUnread');
-      ensureResource(markNode, 'message');
-      chain.push(markNode);
+      const hasMarkNode = nodes.some((n) => n.type === 'n8n-nodes-base.gmail' && n.parameters?.operation === 'markUnread');
+      if (!hasMarkNode) {
+        ensureNode(['n8n-nodes-base.gmail'], 'Mark as Unread', {
+          operation: 'markUnread',
+          messageId: '={{ $json.id }}',
+        }, 'markUnread');
+      }
     }
 
-    if (intent.wantsGeminiSummary) {
-      const preferredGeminiTypes = [
-        '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
-      ];
-      const fallbackGeminiTypes = [
-        '@n8n/n8n-nodes-langchain.chainSummarization',
-        '@n8n/n8n-nodes-langchain.chainLlm',
-        'n8n-nodes-base.code',
-      ];
-      const preferredType = pickAvailable(preferredGeminiTypes) || preferredGeminiTypes[0];
-      const fallbackType = pickAvailable(fallbackGeminiTypes) || fallbackGeminiTypes[0];
-      const canUsePreferred = availableSet.size === 0 || availableSet.has(preferredType);
-
-      let geminiNode = findNode([preferredType]);
-      if (!geminiNode) {
-        const fallbackNode = findNode(fallbackGeminiTypes);
-        if (fallbackNode && canUsePreferred) {
-          fallbackNode.type = preferredType;
-          fallbackNode.typeVersion = fallbackNode.typeVersion || 1;
-          geminiNode = fallbackNode;
-        } else if (canUsePreferred) {
-          geminiNode = ensureNode([preferredType], 'Summarize with Gemini');
-        } else {
-          geminiNode = ensureNode([fallbackType], 'Summarize with Gemini');
+    // --- 4. Ensure Slack node has channel parameter ---
+    if (intent.wantsSlack) {
+      const slackNodes = nodes.filter((n) => n.type === 'n8n-nodes-base.slack');
+      if (slackNodes.length === 0) {
+        ensureNode(['n8n-nodes-base.slack'], 'Send to Slack', {
+          operation: 'post',
+          channel: intent.slackChannel || '#general',
+          text: '={{ $json.summary || $json.text || $json.response || JSON.stringify($json) }}',
+        }, 'post');
+      } else {
+        // Fill missing channel on existing Slack nodes
+        for (const slackNode of slackNodes) {
+          if (!slackNode.parameters.channel) {
+            slackNode.parameters.channel = intent.slackChannel || '#general';
+          }
+          if (!slackNode.parameters.operation) {
+            slackNode.parameters.operation = 'post';
+          }
+          ensureResource(slackNode, 'message');
         }
       }
-      const details = nodeTypeDetails?.get(geminiNode.type);
-      const promptText = 'Summarize the emails from the previous node with key points and action items.';
-      if (details?.properties) {
-        const promptProp = details.properties.find((prop) => /prompt|input|text|instruction/i.test(prop.name));
-        if (promptProp && geminiNode.parameters[promptProp.name] === undefined) {
-          geminiNode.parameters[promptProp.name] = promptText;
-        }
-      } else if (geminiNode.parameters.prompt === undefined) {
-        geminiNode.parameters.prompt = promptText;
-      }
-      chain.push(geminiNode);
-      branchBaseNode = geminiNode;
     }
 
-    if (intent.wantsSpreadsheet) {
-      const summaryPrep = ensureNode(['n8n-nodes-base.set'], 'Prepare Summary', {
+    // --- 5. Ensure spreadsheet nodes have required parameters ---
+    if (intent.wantsSpreadsheet || intent.wantsGoogleSheets) {
+      const sheetTypes = ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.spreadsheetFile'];
+      const sheetNodes = nodes.filter((n) => sheetTypes.includes(n.type));
+      if (sheetNodes.length === 0 && (intent.wantsSpreadsheet || intent.wantsGoogleSheets)) {
+        ensureNode(sheetTypes, 'Update Spreadsheet', {
+          operation: 'append',
+          dataMode: 'autoMapInputData',
+        });
+      }
+      for (const sheetNode of nodes.filter((n) => sheetTypes.includes(n.type))) {
+        if (!sheetNode.parameters.operation) sheetNode.parameters.operation = 'append';
+        if (intent.spreadsheetId && !sheetNode.parameters.documentId) {
+          sheetNode.parameters.documentId = { __rl: true, mode: 'id', value: intent.spreadsheetId };
+        }
+        if (intent.spreadsheetGid && !sheetNode.parameters.sheetId) {
+          sheetNode.parameters.sheetId = Number(intent.spreadsheetGid);
+        }
+        if (!sheetNode.parameters.sheetName) {
+          sheetNode.parameters.sheetName = { __rl: true, mode: 'name', value: 'Sheet1' };
+        }
+      }
+    }
+
+    // --- 6. Ensure AI chain+model pattern is complete ---
+    const chainLlmNodes = nodes.filter((n) => n.type === '@n8n/n8n-nodes-langchain.chainLlm');
+    const geminiModelNodes = nodes.filter((n) => n.type === '@n8n/n8n-nodes-langchain.lmChatGoogleGemini');
+
+    for (const chainNode of chainLlmNodes) {
+      // Check if this chain node already has an ai_model connection
+      const chainConns = connections[chainNode.name];
+      const hasModelConn = chainConns?.ai_model && chainConns.ai_model.length > 0 && chainConns.ai_model[0].length > 0;
+      if (!hasModelConn) {
+        // Find or create a Gemini model node
+        let modelNode = geminiModelNodes.find((m) => {
+          // Prefer one not already connected to another chain
+          return !Object.values(connections).some((c) =>
+            c.ai_model?.some((branch) => branch.some((t) => t.node === m.name))
+          );
+        }) || (geminiModelNodes.length === 0 ? ensureNode(
+          ['@n8n/n8n-nodes-langchain.lmChatGoogleGemini'],
+          'Google Gemini Chat Model',
+          { model: 'gemini-pro' }
+        ) : geminiModelNodes[0]);
+
+        // Position model node below the chain node
+        modelNode.position = [chainNode.position[0], chainNode.position[1] + 200];
+
+        connections[chainNode.name] = {
+          ...connections[chainNode.name],
+          ai_model: [[{ node: modelNode.name, type: 'ai_model', index: 0 }]],
+        };
+      }
+    }
+
+    // --- 7. Ensure Gemini summary nodes exist if requested but AI didn't create them ---
+    if (intent.wantsGeminiSummary && chainLlmNodes.length === 0) {
+      // AI didn't create a chain+model pattern — add the full pattern
+      const editFieldsNode = ensureNode(['n8n-nodes-base.set'], 'Prepare AI Input', {
         mode: 'manual',
         assignments: {
-          assignments: [
-            { id: 'summary', name: 'summary', value: '={{ $json.summary || $json.text || $json.response || JSON.stringify($json) }}', type: 'string' },
-            { id: 'from', name: 'from', value: intent.sender || 'unknown', type: 'string' },
-            { id: 'sinceDays', name: 'sinceDays', value: intent.days || 3, type: 'number' },
-            { id: 'generatedAt', name: 'generatedAt', value: '={{ $now.toISO() }}', type: 'string' },
-          ],
+          assignments: [{
+            id: 'chatInput',
+            name: 'chatInput',
+            value: '=Summarize the following content with key points and action items:\\n\\n{{ $json.snippet || $json.body || $json.text || JSON.stringify($json) }}',
+            type: 'string',
+          }],
         },
       });
-      chain.push(summaryPrep);
-      branchBaseNode = summaryPrep;
-    }
 
-    if (!branchBaseNode) {
-      branchBaseNode = chain[chain.length - 1];
-    }
+      const chainNode = ensureNode(['@n8n/n8n-nodes-langchain.chainLlm'], 'Basic LLM Chain', {});
+      const modelNode = ensureNode(['@n8n/n8n-nodes-langchain.lmChatGoogleGemini'], 'Google Gemini Chat Model', { model: 'gemini-pro' });
+      modelNode.position = [chainNode.position[0], chainNode.position[1] + 200];
 
-    if (intent.wantsSlack) {
-      const slackNode = ensureNode(['n8n-nodes-base.slack'], 'Send to Slack', {
-        operation: 'post',
-        channel: intent.slackChannel || 'C0A1CEBJWJF',
-        text: '={{ $json.summary || $json.text || $json.response || JSON.stringify($json) }}',
-      }, 'post');
-      ensureResource(slackNode, 'message');
-      outputNodes.push(slackNode);
-    }
-
-    if (intent.wantsSpreadsheet) {
-      const sheetTypes = ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.spreadsheetFile'];
-      const sheetNode = ensureNode(sheetTypes, 'Update Spreadsheet', {});
-      const details = nodeTypeDetails?.get(sheetNode.type);
-
-      const applyParam = (name: string, value: any) => {
-        if (details?.properties) {
-          if (details.properties.some((prop) => prop.name === name)) {
-            sheetNode.parameters[name] = value;
-          }
-        } else if (value !== undefined) {
-          sheetNode.parameters[name] = value;
-        }
+      connections[editFieldsNode.name] = {
+        ...connections[editFieldsNode.name],
+        main: [[{ node: chainNode.name, type: 'main', index: 0 }]],
       };
-
-      applyParam('operation', sheetNode.parameters.operation || 'append');
-      applyParam('dataMode', sheetNode.parameters.dataMode || 'autoMapInputData');
-      if (intent.spreadsheetId) {
-        applyParam('documentId', sheetNode.parameters.documentId || { __rl: true, mode: 'id', value: intent.spreadsheetId });
-        applyParam('spreadsheetId', sheetNode.parameters.spreadsheetId || intent.spreadsheetId);
-      }
-      if (intent.spreadsheetGid) {
-        applyParam('sheetId', sheetNode.parameters.sheetId || Number(intent.spreadsheetGid));
-      }
-      applyParam('sheetName', sheetNode.parameters.sheetName || { __rl: true, mode: 'name', value: 'Sheet1' });
-      outputNodes.push(sheetNode);
-    }
-
-    chain.forEach((node, index) => {
-      node.position = [250 + index * 200, 300];
-    });
-
-    const lastChain = chain[chain.length - 1];
-    const outputX = (lastChain?.position?.[0] || 250) + 200;
-    outputNodes.forEach((node, index) => {
-      node.position = [outputX, 300 + index * 180];
-    });
-
-    const connections: Record<string, WorkflowConnection> = {};
-    for (let i = 0; i < chain.length - 1; i++) {
-      connections[chain[i].name] = {
-        main: [[{ node: chain[i + 1].name, type: 'main', index: 0 }]],
+      connections[chainNode.name] = {
+        ...connections[chainNode.name],
+        ai_model: [[{ node: modelNode.name, type: 'ai_model', index: 0 }]],
       };
     }
 
-    if (branchBaseNode && outputNodes.length > 0) {
-      connections[branchBaseNode.name] = {
-        main: [[
-          ...outputNodes.map((node) => ({ node: node.name, type: 'main', index: 0 })),
-        ]],
-      };
-    }
-
-    const allowedNames = new Set([...chain, ...outputNodes].map((node) => node.name));
-    const filteredNodes = nodes.filter((node) => allowedNames.has(node.name));
-
+    // --- 8. Return the augmented workflow — keep ALL original nodes ---
     return {
       ...workflow,
-      nodes: filteredNodes,
+      nodes,
       connections,
       active: false,
     };
@@ -2059,8 +2164,39 @@ return [{ json: { summary, emailCount: count } }];`,
         lastError = error;
         console.error(`n8n API error (attempt ${attempt}/${maxRetries}):`, error.response?.data || error.message);
 
-        // Don't retry client errors
-        if (error.response?.status && error.response.status < 500) {
+        // For 4xx client errors: try AI-based fix before giving up
+        if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
+          // Don't try to fix auth errors
+          if (error.response.status === 401 || error.response.status === 403) {
+            break;
+          }
+
+          // Attempt AI-based fix for 400 Bad Request (validation errors)
+          if (error.response.status === 400 && attempt === 1) {
+            const n8nError = error.response?.data?.message || JSON.stringify(error.response?.data || 'Validation error');
+            console.warn(`n8n rejected workflow (400). Attempting AI fix based on error: ${n8nError}`);
+            if (socketId && generationId) {
+              this.emitProgress(socketId, generationId, 'Fixing workflow based on n8n feedback...', 70);
+            }
+            try {
+              const fixResult = await geminiService.fixWorkflow(
+                workflow,
+                `Fix this workflow — n8n returned error: ${n8nError}`,
+                [`n8n API returned 400: ${n8nError}`],
+                ['Fix the validation error so n8n accepts the workflow'],
+                [],
+              );
+              if (fixResult.fixesApplied.length > 0) {
+                // Update workflow for next attempt with the fixed version
+                const { active: _a, ...fixedWithoutActive } = fixResult.workflow;
+                Object.assign(workflowWithoutActive, fixedWithoutActive);
+                console.log('AI fix applied, retrying n8n creation. Fixes:', fixResult.fixesApplied);
+                continue; // Retry with fixed workflow
+              }
+            } catch (fixError) {
+              console.warn('AI fix attempt failed:', fixError);
+            }
+          }
           break;
         }
 
@@ -2077,16 +2213,16 @@ return [{ json: { summary, emailCount: count } }];`,
     const errorDetails = lastError?.response
       ? { status: lastError.response.status, data: lastError.response.data }
       : undefined;
-    if (lastError.response?.status === 401) {
+    if (lastError?.response?.status === 401) {
       return { success: false, error: 'Invalid n8n API key', errorDetails };
     }
-    if (lastError.response?.status === 403) {
+    if (lastError?.response?.status === 403) {
       return { success: false, error: 'Access denied to n8n instance', errorDetails };
     }
 
     return {
       success: false,
-      error: lastError.response?.data?.message || lastError.message || 'Failed to create workflow',
+      error: lastError?.response?.data?.message || lastError?.message || 'Failed to create workflow',
       errorDetails,
     };
   }

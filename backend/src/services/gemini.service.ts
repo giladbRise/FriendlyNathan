@@ -88,6 +88,17 @@ export class GeminiService {
   private apiKey: string | null = null;
   private v1BetaModels: Set<string> = new Set();
 
+  /** Generation config for structured JSON outputs (low temperature for consistency) */
+  private readonly structuredGenerationConfig = {
+    temperature: 0.2,
+    topP: 0.9,
+    topK: 40,
+    maxOutputTokens: 8192,
+  };
+
+  /** Max retries for transient errors (429, 503) */
+  private readonly MAX_RETRIES = 3;
+
   constructor() {
     // Initialize from environment if available
     if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'dev-gemini-key-placeholder') {
@@ -121,6 +132,7 @@ export class GeminiService {
       const genAI = new GoogleGenerativeAI(apiKey);
       this.model = genAI.getGenerativeModel({
         model: modelName,
+        generationConfig: this.structuredGenerationConfig,
       });
       console.log('Gemini AI model initialized successfully');
     } catch (error) {
@@ -358,6 +370,29 @@ Return ONLY valid JSON with this schema (no markdown):
     return message.includes('not found') || message.includes('models/') || message.includes('404');
   }
 
+  /** Check if error is a transient/retryable error (rate limit, server overload) */
+  private isRetryableError(error: any): boolean {
+    const message = String(error?.message || error).toLowerCase();
+    const status = error?.status || error?.response?.status || error?.code;
+    return (
+      status === 429 ||
+      status === 503 ||
+      status === 500 ||
+      message.includes('rate limit') ||
+      message.includes('resource exhausted') ||
+      message.includes('quota') ||
+      message.includes('overloaded') ||
+      message.includes('unavailable') ||
+      message.includes('too many requests') ||
+      message.includes('internal error')
+    );
+  }
+
+  /** Sleep helper for retry backoff */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   private async generateWithFallback(
     prompt: string,
     apiKey: string,
@@ -365,10 +400,30 @@ Return ONLY valid JSON with this schema (no markdown):
   ): Promise<string> {
     const candidates = this.getModelCandidates();
 
+    // Wrap each generation attempt with retry logic for transient errors
+    const attemptWithRetry = async (generateFn: () => Promise<string>): Promise<string> => {
+      for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
+        try {
+          return await generateFn();
+        } catch (error: any) {
+          if (this.isRetryableError(error) && attempt < this.MAX_RETRIES - 1) {
+            const backoffMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+            console.warn(`Gemini transient error (attempt ${attempt + 1}/${this.MAX_RETRIES}), retrying in ${backoffMs}ms:`, error?.message || error);
+            await this.sleep(backoffMs);
+            continue;
+          }
+          throw error;
+        }
+      }
+      throw new Error('Max retries exceeded');
+    };
+
     if (!usingCustomKey && this.model) {
       try {
-        const result = await this.model.generateContent(prompt);
-        return result.response.text();
+        return await attemptWithRetry(async () => {
+          const result = await this.model!.generateContent(prompt);
+          return result.response.text();
+        });
       } catch (error: any) {
         if (!this.isModelNotFoundError(error)) {
           throw error;
@@ -379,23 +434,24 @@ Return ONLY valid JSON with this schema (no markdown):
     let lastError: any;
     for (const modelName of candidates) {
       try {
-        if (modelName.startsWith('gemini-3-')) {
-          return await this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey);
+        if (modelName.startsWith('gemini-3-') || this.v1BetaModels.has(modelName)) {
+          return await attemptWithRetry(() => this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey));
         }
-        if (this.v1BetaModels.has(modelName)) {
-          return await this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey);
-        }
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        if (!usingCustomKey) {
-          this.model = model;
-          this.apiKey = apiKey;
-    
-          console.log(`Gemini model set to ${modelName}`);
-        }
-        return text;
+        return await attemptWithRetry(async () => {
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: this.structuredGenerationConfig,
+          });
+          const result = await model.generateContent(prompt);
+          const text = result.response.text();
+          if (!usingCustomKey) {
+            this.model = model;
+            this.apiKey = apiKey;
+            console.log(`Gemini model set to ${modelName}`);
+          }
+          return text;
+        });
       } catch (error: any) {
         lastError = error;
         const notFound = this.isModelNotFoundError(error);
@@ -404,7 +460,7 @@ Return ONLY valid JSON with this schema (no markdown):
         }
         if (modelName.startsWith('gemini-3-')) {
           try {
-            return await this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey);
+            return await attemptWithRetry(() => this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey));
           } catch (betaError: any) {
             lastError = betaError;
           }
@@ -431,6 +487,7 @@ Return ONLY valid JSON with this schema (no markdown):
         },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: this.structuredGenerationConfig,
         }),
       }
     );
