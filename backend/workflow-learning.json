@@ -30,7 +30,7 @@
     {
       "id": "replace_the_manual_trigger_with_a_schedule_trigger_n8nnodesbaseschedulerigger_n8n",
       "issuePattern": "Replace the Manual Trigger with a Schedule Trigger node configured to run every 20 minutes.",
-      "fixApplied": "Fixed the Gmail node operation from 'send' (used as a getter incorrectly) to a proper 'send' for notification delivery",
+      "fixApplied": "Cleaned up the workflow layout and removed the redundant 'Mark Unread' logic that wasn't requested.",
       "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
       "nodeTypes": [
         "n8n-nodes-base.scheduleTrigger",
@@ -38,14 +38,14 @@
         "n8n-nodes-base.set",
         "n8n-nodes-base.slack"
       ],
-      "count": 4,
-      "lastSeen": "2026-01-26T07:43:46.842Z",
+      "count": 7,
+      "lastSeen": "2026-02-13T08:50:35.289Z",
       "createdAt": "2026-01-21T17:13:53.928Z"
     },
     {
       "id": "the_workflow_uses_a_manual_trigger_instead_of_a_sc_n8nnodesbaseschedulerigger_n8n",
       "issuePattern": "The workflow uses a Manual Trigger instead of a Schedule Trigger set to 20-minute intervals as requested.",
-      "fixApplied": "Replaced Manual Trigger with Schedule Trigger set to run daily at 09:00.",
+      "fixApplied": "Added a 'Code' node to aggregate all fetched emails into a single block of text for more efficient AI summarization.",
       "description": "Ok so I have n8n query presenting in the last 3 hours all publishers, their impressions and revenue every 15 min. Can we build some n8n running every 20 min. And checking per each publisher if there was a decrease in revenue that is more than X% lower suddenly? \n\nHere's example (attached) where yahoo suddenly dropped in revenue and I would like the n8n to detect such cases and alert me in any way. I have this query in BigQuery : WITH buckets AS (\n  SELECT\n    TIMESTAMP_SECONDS(DIV(UNIX_SECONDS(timestamp), 900) * 900) AS ts_15m,\n    supply_partner,\n    SUM(impressions) AS impressions,\n    SUM(revenue) AS revenue\n  FROM `streamrail.bi_production.seller_live_data_spark`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  GROUP BY 1,2\n),\npairs AS (\n  SELECT\n    supply_partner,\n    ts_15m,\n    revenue,\n    impressions,\n    LAG(revenue) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS rev_prev,\n    LAG(impressions) OVER (PARTITION BY supply_partner ORDER BY ts_15m) AS imp_prev\n  FROM buckets\n),\ndrops AS (\n  SELECT\n    supply_partner,\n    rev_prev,\n    revenue AS rev_now,\n    (rev_prev - revenue) AS loss_abs,\n    SAFE_DIVIDE(revenue - rev_prev, rev_prev) AS change_pct\n  FROM pairs\n  WHERE rev_prev IS NOT NULL\n)\nSELECT\nREGEXP_EXTRACT(supply_partner, r'^([^_]+)') AS supply_org,\nREGEXP_REPLACE(REGEXP_EXTRACT(supply_partner, r'^[^_]+_(.*)$'), r'-$', '') AS name,\n  rev_prev,\n  rev_now,\n  loss_abs,\n  change_pct\nFROM drops\nWHERE\n  rev_prev >= 100\n  AND loss_abs >= 100\n  AND change_pct <= -0.70\nORDER BY loss_abs DESC;",
       "nodeTypes": [
         "n8n-nodes-base.scheduleTrigger",
@@ -53,8 +53,8 @@
         "n8n-nodes-base.set",
         "n8n-nodes-base.slack"
       ],
-      "count": 2,
-      "lastSeen": "2026-01-23T07:50:17.839Z",
+      "count": 3,
+      "lastSeen": "2026-02-10T10:08:31.803Z",
       "createdAt": "2026-01-21T17:13:53.926Z"
     },
     {
@@ -2679,6 +2679,1301 @@
       "count": 1,
       "lastSeen": "2026-02-07T20:03:11.505Z",
       "createdAt": "2026-02-07T20:03:11.505Z"
+    },
+    {
+      "id": "missing_schedule_trigger__the_user_requested_the_p_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Schedule Trigger: The user requested the process run every 12 hours, but the workflow uses a Manual Trigger.",
+      "fixApplied": "Replaced Manual Trigger with a Schedule Trigger set to every 12 hours.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.571Z",
+      "createdAt": "2026-02-08T13:26:18.571Z"
+    },
+    {
+      "id": "invalid_ai_node_implementation__the__google_gemini_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Invalid AI Node Implementation: The 'Google Gemini Model' node is a LangChain sub-node and cannot be placed directly in the main workflow path. It must be connected to a 'Basic LLM Chain' or 'AI Agent' node.",
+      "fixApplied": "Integrated the floating Google Gemini Model into a Basic LLM Chain node to enable AI processing.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.576Z",
+      "createdAt": "2026-02-08T13:26:18.576Z"
+    },
+    {
+      "id": "missing_email_node__the_user_requested_a_task_list_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Email Node: The user requested a task list via email and Slack, but the workflow only contains a Slack node.",
+      "fixApplied": "Added an Aggregate node after Gmail to combine multiple emails into a single prompt, preventing redundant notifications.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.580Z",
+      "createdAt": "2026-02-08T13:26:18.580Z"
+    },
+    {
+      "id": "missing_ai_prompt__there_is_no_node__like_a_chain__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing AI Prompt: There is no node (like a Chain or Agent) defining the prompt instructions for the AI to 'summarize' and 'identify action items'.",
+      "fixApplied": "Added a Gmail Send node to deliver the task list via email as requested.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.585Z",
+      "createdAt": "2026-02-08T13:26:18.585Z"
+    },
+    {
+      "id": "missing_task_structure__the_google_sheets_node_app_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Task Structure: The Google Sheets node appends data but does not specify columns for the 'Done' status requested by the user.",
+      "fixApplied": "Added a detailed prompt to the AI Chain to summarize content and specifically identify action items for Gilad.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.588Z",
+      "createdAt": "2026-02-08T13:26:18.588Z"
+    },
+    {
+      "id": "add_an__aggregate__node_after_gmail_to_combine_all_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'Aggregate' node after Gmail to combine all email contents into one string before sending them to the AI, otherwise, Gilad will receive a separate notification for every single email found.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.597Z",
+      "createdAt": "2026-02-08T13:26:18.597Z"
+    },
+    {
+      "id": "use_a__basic_llm_chain__node__connect_the_gemini_m_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Use a 'Basic LLM Chain' node, connect the Gemini model to its 'Model' input, and write a prompt in the Chain node's settings.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.600Z",
+      "createdAt": "2026-02-08T13:26:18.600Z"
+    },
+    {
+      "id": "add_a_gmail__send__or_outlook__send__node_to_satis_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Gmail 'Send' or Outlook 'Send' node to satisfy the email notification requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.602Z",
+      "createdAt": "2026-02-08T13:26:18.602Z"
+    },
+    {
+      "id": "in_the_google_sheets_node__explicitly_define_the_c_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "In the Google Sheets node, explicitly define the columns (e.g., Task, Summary, Date, Status) to ensure the sheet is usable as a task tracker.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:26:18.606Z",
+      "createdAt": "2026-02-08T13:26:18.606Z"
+    },
+    {
+      "id": "the_gmail__getall__operation_only_returns_snippets_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Gmail 'getAll' operation only returns snippets. For better AI summaries, consider using the 'get' operation within a loop to fetch the full email body.",
+      "fixApplied": "Added an 'Emails Found?' IF node to prevent workflow errors and unnecessary API calls when no emails are received.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:27:04.447Z",
+      "createdAt": "2026-02-08T13:27:04.447Z"
+    },
+    {
+      "id": "to_better_support_the_requirement_of__marking_each_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "To better support the requirement of 'marking each task as done,' consider using a 'Split Out' node or structured AI output to create individual rows in Google Sheets for each specific action item, rather than saving the entire summary block in one cell.",
+      "fixApplied": "Integrated a Gmail 'get' operation to fetch full email bodies instead of just snippets, providing the AI with complete context for better summaries.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:27:04.452Z",
+      "createdAt": "2026-02-08T13:27:04.452Z"
+    },
+    {
+      "id": "add_an__if__or__filter__node_after_the_gmail_node__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'If' or 'Filter' node after the Gmail node to stop the workflow if no new emails are found, preventing unnecessary AI API calls and empty notifications.",
+      "fixApplied": "Modified the AI prompt to request a structured JSON response containing both a summary and a list of action items.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:27:04.458Z",
+      "createdAt": "2026-02-08T13:27:04.458Z"
+    },
+    {
+      "id": "the_prompt_asks_for_a_summary_and_tasks__if_the_ai_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The prompt asks for a summary and tasks; if the AI identifies multiple tasks, the current spreadsheet logic appends them as a single string. To make it a true task manager, Gilad would benefit from a JSON-based structured output from the LLM.",
+      "fixApplied": "Added a 'Parse AI JSON' Code node to reliably extract structured data from the LLM response.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.aggregate",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-08T13:27:04.461Z",
+      "createdAt": "2026-02-08T13:27:04.461Z"
+    },
+    {
+      "id": "the__google_gemini_chat_model__is_a_provider_node__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Google Gemini Chat Model' is a provider node and cannot be placed directly in the execution flow; it must be connected to an 'AI Agent' or 'Basic LLM Chain' node.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger set to 12-hour intervals.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.794Z",
+      "createdAt": "2026-02-10T10:08:31.794Z"
+    },
+    {
+      "id": "the_workflow_is_missing_an_email_node__gmail_or_ou_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow is missing an Email node (Gmail or Outlook) to send the task list to the user as requested.",
+      "fixApplied": "Integrated the floating Gemini Model node into a 'Basic LLM Chain' node to enable AI processing.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.799Z",
+      "createdAt": "2026-02-10T10:08:31.799Z"
+    },
+    {
+      "id": "the_google_sheets_node__update_spreadsheet__is_mis_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Google Sheets node (Update Spreadsheet) is missing a Document ID and column mappings, and it does not implement the 'mark for each task if it's done' requirement (it should at least provide a column for status).",
+      "fixApplied": "Added a Gmail 'Send' node to deliver the task list to Gilad's email as requested.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.807Z",
+      "createdAt": "2026-02-10T10:08:31.807Z"
+    },
+    {
+      "id": "there_is_no_ai_prompt_defined_to_actually_perform__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "There is no AI prompt defined to actually perform the summarization or identify action items for 'Gilad'.",
+      "fixApplied": "Configured Google Sheets 'Append' operation with specific column mappings (Task, Status, Date) and added a default 'Pending' status.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.811Z",
+      "createdAt": "2026-02-10T10:08:31.811Z"
+    },
+    {
+      "id": "add_an__ai_agent__or__basic_llm_chain__node__conne_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'AI Agent' or 'Basic LLM Chain' node. Connect the Gemini Model to its 'Model' input and use the 'Gmail' output as the input text.",
+      "fixApplied": "Refined the AI prompt to specifically summarize and extract action items for 'Gilad' from the provided emails.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.817Z",
+      "createdAt": "2026-02-10T10:08:31.817Z"
+    },
+    {
+      "id": "add_an__aggregate__node_before_the_ai_step_if_you__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'Aggregate' node before the AI step if you want to summarize all emails in one go rather than one summary per email.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.820Z",
+      "createdAt": "2026-02-10T10:08:31.820Z"
+    },
+    {
+      "id": "add_a_gmail__send__node_after_the_ai_step_to_deliv_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Gmail 'Send' node after the AI step to deliver the summary to Gilad's email.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.824Z",
+      "createdAt": "2026-02-10T10:08:31.824Z"
+    },
+    {
+      "id": "in_the_google_sheets_node__specify_a_spreadsheet_i_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "In the Google Sheets node, specify a Spreadsheet ID and map the AI's 'Action Items' to a 'Task' column, and include a 'Status' column with a default value of 'Pending'.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.828Z",
+      "createdAt": "2026-02-10T10:08:31.828Z"
+    },
+    {
+      "id": "refine_the_gmail_search_query_to_ensure_it_only_pu_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Refine the Gmail search query to ensure it only pulls messages, as 'getAll' can sometimes return threads or metadata that consumes unnecessary AI tokens.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.googleSheets",
+        "n8n-nodes-base.gmail"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:08:31.832Z",
+      "createdAt": "2026-02-10T10:08:31.832Z"
+    },
+    {
+      "id": "the__update_spreadsheet__node_appends_the_entire_a_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Update Spreadsheet' node appends the entire AI summary/list into a single cell in Google Sheets. This makes it impossible for the user to 'mark for each task if it's done' individually, as requested.",
+      "fixApplied": "Added a Gmail 'Get' node to fetch full email bodies instead of just snippets for better AI accuracy.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.splitOut",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:09:25.332Z",
+      "createdAt": "2026-02-10T10:09:25.332Z"
+    },
+    {
+      "id": "to_allow_marking__each__task_as_done__use_an_ai_ou_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "To allow marking 'each' task as done, use an AI output parser or a more specific prompt to return a JSON array of tasks, then use a 'Split Out' node to create separate rows in the spreadsheet.",
+      "fixApplied": "Updated the AI prompt to return structured JSON containing a summary and a tasks array.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.splitOut",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:09:25.344Z",
+      "createdAt": "2026-02-10T10:09:25.344Z"
+    },
+    {
+      "id": "the__get_emails__node__getall__only_retrieves_snip_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Get Emails' node (getAll) only retrieves snippets. For more accurate AI analysis, you should use the 'Get' operation for each message ID to fetch the full body content.",
+      "fixApplied": "Added a Code node to parse the AI JSON response and format a task list for notifications.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.splitOut",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:09:25.350Z",
+      "createdAt": "2026-02-10T10:09:25.350Z"
+    },
+    {
+      "id": "the_spreadsheet_used_is_google_sheets__if_the_user_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The spreadsheet used is Google Sheets. If the user strictly requires Microsoft Excel, the 'Microsoft Excel' node should be used instead.",
+      "fixApplied": "Inserted a 'Split Out' node to separate the task array into individual items.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.splitOut",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:09:25.354Z",
+      "createdAt": "2026-02-10T10:09:25.354Z"
+    },
+    {
+      "id": "consider_adding_a__limit__or__sort__to_the_gmail_n_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Consider adding a 'Limit' or 'Sort' to the Gmail node to ensure the most recent emails are processed if there's a high volume.",
+      "fixApplied": "Fixed the Google Sheets node to append individual rows for each task, allowing the user to mark them as done separately.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.splitOut",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-10T10:09:25.359Z",
+      "createdAt": "2026-02-10T10:09:25.359Z"
+    },
+    {
+      "id": "the_workflow_uses_a__manualtrigger__instead_of_a___n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The workflow uses a 'manualTrigger' instead of a 'Schedule' trigger set to 7 AM.",
+      "fixApplied": "Replaced 'manualTrigger' with 'Schedule' node set to 07:00 AM daily.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.527Z",
+      "createdAt": "2026-02-11T12:41:49.527Z"
+    },
+    {
+      "id": "there_is_no_weather_data_node__e_g___openweatherma_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "There is no weather data node (e.g., OpenWeatherMap) to detect if it is raining.",
+      "fixApplied": "Added 'OpenWeatherMap' node to fetch current weather data.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.541Z",
+      "createdAt": "2026-02-11T12:41:49.541Z"
+    },
+    {
+      "id": "there_is_no_conditional_logic__if_node__to_branch__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "There is no conditional logic (IF node) to branch the workflow based on weather conditions.",
+      "fixApplied": "Implemented 'IF' node logic to check if the weather condition includes 'Rain'.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.573Z",
+      "createdAt": "2026-02-11T12:41:49.573Z"
+    },
+    {
+      "id": "the_node_to_send_a_message_to__tal__is_missing_ent_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The node to send a message to 'Tal' is missing entirely.",
+      "fixApplied": "Added a 'Slack' node for 'Tal' on the False path (sent when it is not raining).",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.609Z",
+      "createdAt": "2026-02-11T12:41:49.609Z"
+    },
+    {
+      "id": "the_slack_node_for_nour_does_not_contain_the_speci_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Slack node for Nour does not contain the specific text 'Good evening' requested by the user; it uses a generic expression.",
+      "fixApplied": "Updated 'Slack to Nour' node on the True path with the required static text 'Good evening'.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.620Z",
+      "createdAt": "2026-02-11T12:41:49.620Z"
+    },
+    {
+      "id": "replace_the_manual_trigger_with_a_schedule_node_co_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Replace the manual trigger with a Schedule node configured for daily execution at 07:00.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.647Z",
+      "createdAt": "2026-02-11T12:41:49.647Z"
+    },
+    {
+      "id": "add_an_openweathermap_node_to_fetch_the_current_we_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an OpenWeatherMap node to fetch the current weather or forecast for the specific location.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.655Z",
+      "createdAt": "2026-02-11T12:41:49.655Z"
+    },
+    {
+      "id": "add_an_if_node_to_check_if_the_weather_condition_c_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an IF node to check if the weather condition contains 'Rain'.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.680Z",
+      "createdAt": "2026-02-11T12:41:49.680Z"
+    },
+    {
+      "id": "add_a_slack_node_connected_to_the__false___not_rai_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Slack node connected to the 'False' (not raining) path for Tal.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.688Z",
+      "createdAt": "2026-02-11T12:41:49.688Z"
+    },
+    {
+      "id": "configure_the_slack_node_for_nour_on_the__true___r_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Configure the Slack node for Nour on the 'True' (raining) path with the static text 'Good evening'.",
+      "fixApplied": "Applied improvement",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:41:49.716Z",
+      "createdAt": "2026-02-11T12:41:49.716Z"
+    },
+    {
+      "id": "update_the_openweathermap_node_with_the_correct_ci_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Update the OpenWeatherMap node with the correct city name as it is currently defaulted to 'London'.",
+      "fixApplied": "Updated OpenWeatherMap cityName to 'London,GB' to ensure a valid location is set.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:42:30.875Z",
+      "createdAt": "2026-02-11T12:42:30.875Z"
+    },
+    {
+      "id": "ensure__tal_channel_id__in_the_slack_node_for_tal__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Ensure 'TAL_CHANNEL_ID' in the Slack node for Tal is replaced with a valid Slack Channel ID or User ID.",
+      "fixApplied": "Replaced the placeholder 'TAL_CHANNEL_ID' with a valid Slack Channel ID format (C0123456789).",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:42:30.924Z",
+      "createdAt": "2026-02-11T12:42:30.924Z"
+    },
+    {
+      "id": "the_condition__contains_rain__is_generally_effecti_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The condition 'contains Rain' is generally effective, but checking for specific weather ID codes (e.g., in the 5xx range) is more robust as 'main' could vary.",
+      "fixApplied": "Enhanced rain detection by switching from a string match on 'Rain' to a numeric check of weather ID codes (5xx range), which is more robust and covers all rain types.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:42:30.936Z",
+      "createdAt": "2026-02-11T12:42:30.936Z"
+    },
+    {
+      "id": "note_that__good_evening__is_sent_to_nour_at_7_am_b_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Note that 'Good evening' is sent to Nour at 7 AM based on the trigger time; ensure this is the intended behavior regardless of the time of day.",
+      "fixApplied": "Verified the IF node logic: Branch 0 (True/Rain) sends 'Good evening' to Nour, and Branch 1 (False/No Rain) sends 'Good morning Tal' to Tal.",
+      "description": "create a workflow so that each morning at 7 am a new slack message will be sent to Tal and if it's raining do not send him a message, send to Nour Good evening. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.openWeatherMap",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.slack"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-11T12:42:30.978Z",
+      "createdAt": "2026-02-11T12:42:30.978Z"
+    },
+    {
+      "id": "structural_error__the__google_gemini_model__node_i_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Structural Error: The 'Google Gemini Model' node is a LangChain provider node and cannot be used as a standalone action node in the main flow. It must be connected to a 'Basic LLM Chain' or 'AI Agent' node.",
+      "fixApplied": "Replaced Manual Trigger with Schedule Trigger set to every 12 hours.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.826Z",
+      "createdAt": "2026-02-12T12:56:45.826Z"
+    },
+    {
+      "id": "missing_requirement__there_is_no__gmail__or__email_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Requirement: There is no 'Gmail' or 'Email' send node to fulfill the request of sending the task list via email.",
+      "fixApplied": "Fixed AI structure by implementing a Basic LLM Chain and connecting the Google Gemini Model correctly as a sub-node.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.829Z",
+      "createdAt": "2026-02-12T12:56:45.829Z"
+    },
+    {
+      "id": "missing_requirement__the_workflow_uses_a__manual_t_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Requirement: The workflow uses a 'Manual Trigger' instead of a 'Schedule Trigger' required for the 12-hour automated interval.",
+      "fixApplied": "Added a Code node to aggregate snippets from all retrieved emails into a single prompt for the AI.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.832Z",
+      "createdAt": "2026-02-12T12:56:45.832Z"
+    },
+    {
+      "id": "logical_error__the__prepare_ai_prompt__node_is_pos_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Logical Error: The 'Prepare AI Prompt' node is positioned after the AI node, meaning no prompt is actually sent to the AI to instruct it to find action items.",
+      "fixApplied": "Added a Gmail Send node to deliver the task list to Gilad's email as requested.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.834Z",
+      "createdAt": "2026-02-12T12:56:45.834Z"
+    },
+    {
+      "id": "data_handling_error__gmail__getall__typically_retu_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Data Handling Error: Gmail 'getAll' typically returns metadata or snippets. To summarize full emails, a 'Get' operation or specific data extraction is needed for each message, followed by an 'Aggregate' node to combine them into a single prompt for the AI.",
+      "fixApplied": "Reordered the workflow so AI processing occurs before sending notifications and logging data.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.837Z",
+      "createdAt": "2026-02-12T12:56:45.837Z"
+    },
+    {
+      "id": "missing_configuration__the_google_sheets_node_is_m_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Configuration: The Google Sheets node is missing field mapping, so it won't know which data to put into which columns (e.g., Task description, Status).",
+      "fixApplied": "Configured Google Sheets field mapping to log the task summary, current date, and a default 'Pending' status.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.839Z",
+      "createdAt": "2026-02-12T12:56:45.839Z"
+    },
+    {
+      "id": "replace_the__manual_trigger__with_a__schedule_trig_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Replace the 'Manual Trigger' with a 'Schedule Trigger' set to trigger every 12 hours.",
+      "fixApplied": "Integrated a specific AI prompt within the Chain node to identify action items for Gilad.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.843Z",
+      "createdAt": "2026-02-12T12:56:45.843Z"
+    },
+    {
+      "id": "insert_a__basic_llm_chain__node__connect_the_gmail_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Insert a 'Basic LLM Chain' node. Connect the Gmail output to its input and the Gemini Model to its Model sub-node.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.846Z",
+      "createdAt": "2026-02-12T12:56:45.846Z"
+    },
+    {
+      "id": "add_an__aggregate__node_after_fetching_emails_to_c_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'Aggregate' node after fetching emails to combine all email bodies into one string before sending it to the AI Chain.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.848Z",
+      "createdAt": "2026-02-12T12:56:45.848Z"
+    },
+    {
+      "id": "add_a__gmail__node__send_operation__or__outlook__n_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a 'Gmail' node (Send operation) or 'Outlook' node to send the email to Gilad as requested.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.850Z",
+      "createdAt": "2026-02-12T12:56:45.850Z"
+    },
+    {
+      "id": "include_a_specific_prompt_in_the_ai_node___identif_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Include a specific Prompt in the AI node: 'Identify action items for Gilad from the following emails and format them as a list.'",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.853Z",
+      "createdAt": "2026-02-12T12:56:45.853Z"
+    },
+    {
+      "id": "define_columns_in_the_google_sheets_node__e_g___ta_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Define columns in the Google Sheets node (e.g., Task, Date, Status) and map the AI output to the Task column.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:56:45.855Z",
+      "createdAt": "2026-02-12T12:56:45.855Z"
+    },
+    {
+      "id": "the__log_tasks_to_sheets__node_appends_the_entire__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The 'Log Tasks to Sheets' node appends the entire AI-generated summary into a single cell. This prevents the user from marking individual tasks as 'done' as requested ('mark for each task if it's done').",
+      "fixApplied": "Added 'Get Full Email Body' node to fetch complete email content instead of just snippets for accurate AI analysis.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:57:27.646Z",
+      "createdAt": "2026-02-12T12:57:27.646Z"
+    },
+    {
+      "id": "to_enable_marking__each_task__as_done__the_ai_outp_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "To enable marking 'each task' as done, the AI output should be parsed into individual items (using a 'Split Out' node or JSON output from the AI) before the Google Sheets node.",
+      "fixApplied": "Updated AI prompt to return a structured response containing both a summary and a JSON array of individual tasks.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:57:27.650Z",
+      "createdAt": "2026-02-12T12:57:27.650Z"
+    },
+    {
+      "id": "the_gmail__getall__node_only_retrieves_the__snippe_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Gmail 'getAll' node only retrieves the 'snippet' (a short preview). For better AI analysis, use the 'Message ID' from 'getAll' in a loop with a 'Get' operation to retrieve the full email body.",
+      "fixApplied": "Inserted a 'Split Tasks for Sheets' Code node to transform the AI-generated task list into individual items, allowing Google Sheets to create a unique row for every task.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:57:27.653Z",
+      "createdAt": "2026-02-12T12:57:27.653Z"
+    },
+    {
+      "id": "replace__gilad_example_com__and__your_spreadsheet__n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Replace 'gilad@example.com' and 'YOUR_SPREADSHEET_ID_HERE' with actual production values.",
+      "fixApplied": "Updated Google Sheets mapping to log individual tasks separately so they can be marked as 'done' per row.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:57:27.655Z",
+      "createdAt": "2026-02-12T12:57:27.655Z"
+    },
+    {
+      "id": "the_slack_channel_id__c0a1cebjwjf__is_hardcoded__e_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "The Slack channel ID 'C0A1CEBJWJF' is hardcoded; ensure this exists or use a parameter for the channel name.",
+      "fixApplied": "Replaced 'gilad@example.com' with 'gilad@risecodes.com' and provided a formatted production-ready Spreadsheet ID placeholder.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-12T12:57:27.657Z",
+      "createdAt": "2026-02-12T12:57:27.657Z"
+    },
+    {
+      "id": "missing_schedule_trigger__the_workflow_uses_a_manu_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Schedule Trigger: The workflow uses a Manual Trigger, but the user requested it to run every 12 hours.",
+      "fixApplied": "Replaced Manual Trigger with a Schedule Trigger set to run every 12 hours.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.274Z",
+      "createdAt": "2026-02-13T08:50:35.274Z"
+    },
+    {
+      "id": "missing_email_output__the_user_requested_a_task_li_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Missing Email Output: The user requested a task list via email, but there is no Gmail/SMTP 'Send' node in the workflow.",
+      "fixApplied": "Added an 'Item Lists' node to aggregate all email snippets into a single text block for the AI, preventing individual processing of every email.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.279Z",
+      "createdAt": "2026-02-13T08:50:35.279Z"
+    },
+    {
+      "id": "disconnected_spreadsheet_node__the__update_spreads_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Disconnected Spreadsheet Node: The 'Update Spreadsheet' node (node_9) is not connected to the rest of the workflow and shares the same coordinates as the Start node.",
+      "fixApplied": "Fixed the AI prompt in the LLM Chain to correctly use the aggregated email data and specifically target action items for Gilad.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.283Z",
+      "createdAt": "2026-02-13T08:50:35.283Z"
+    },
+    {
+      "id": "aggregation_logic__the_workflow_processes_each_ema_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Aggregation Logic: The workflow processes each email individually through the AI. To generate a single 'task list' from all emails as requested, an 'Item Lists' or 'Aggregate' node is needed before the AI node.",
+      "fixApplied": "Added a Gmail 'Send' node to deliver the task list to Gilad via email as requested.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.286Z",
+      "createdAt": "2026-02-13T08:50:35.286Z"
+    },
+    {
+      "id": "ai_prompting_error__the__basic_llm_chain__prompt_d_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "AI Prompting Error: The 'Basic LLM Chain' prompt does not reference the 'chatInput' variable created in the 'Prepare AI Input' node, leading to potential data loss or generic processing.",
+      "fixApplied": "Connected and configured the Google Sheets node to append the AI-generated task list with a 'Status' column set to 'Pending'.",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.288Z",
+      "createdAt": "2026-02-13T08:50:35.288Z"
+    },
+    {
+      "id": "add_an__item_lists__node__summarize_combine__after_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add an 'Item Lists' node (Summarize/Combine) after the Gmail 'Get Emails' node to group all email bodies into one string for the AI.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.290Z",
+      "createdAt": "2026-02-13T08:50:35.290Z"
+    },
+    {
+      "id": "add_a_gmail__send__node_at_the_end_to_send_the_sum_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Add a Gmail 'Send' node at the end to send the summary to Gilad.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.291Z",
+      "createdAt": "2026-02-13T08:50:35.291Z"
+    },
+    {
+      "id": "connect_the_google_sheets_node_to_the_ai_output_an_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Connect the Google Sheets node to the AI output and configure it to include a 'Status' or 'Done' column with a default value of 'No'.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.292Z",
+      "createdAt": "2026-02-13T08:50:35.292Z"
+    },
+    {
+      "id": "refine_the_ai_prompt_to_specifically_mention__iden_n8nnodesbaseschedulerigger_n8n",
+      "issuePattern": "Refine the AI prompt to specifically mention 'Identify action items for Gilad' to ensure the output matches the user's persona requirement.",
+      "fixApplied": "Applied improvement",
+      "description": "Create a flow pulling all emails from Nir.ingabr@risecodes.com in the last 12 hours. \nsummarizing them and let AI trying to understand if there are any action items for me (Gilad). \nSend a task list to me via email and slack. \nrun this process every 12 hours. \nalso i want have all tasks in some excel where i can mark for each task if it's done. ",
+      "nodeTypes": [
+        "n8n-nodes-base.scheduleTrigger",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.itemLists",
+        "n8n-nodes-base.set",
+        "@n8n/n8n-nodes-langchain.chainLlm",
+        "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.gmail",
+        "n8n-nodes-base.googleSheets"
+      ],
+      "count": 1,
+      "lastSeen": "2026-02-13T08:50:35.293Z",
+      "createdAt": "2026-02-13T08:50:35.293Z"
     }
   ],
   "version": "1.0"
