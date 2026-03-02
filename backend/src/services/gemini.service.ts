@@ -80,7 +80,7 @@ export interface VerificationResult {
 
 // ─── Vertex AI Auth Helpers ────────────────────────────────────────────────
 
-const VERTEX_MODEL = 'gemini-2.0-flash-001';
+const VERTEX_MODEL = 'gemini-3.1-pro-preview';
 const TOKEN_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const TOKEN_CACHE_TTL_MS = 55 * 60 * 1000; // 55 minutes (tokens last 60)
