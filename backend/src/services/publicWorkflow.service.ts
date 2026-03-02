@@ -383,8 +383,7 @@ export class PublicWorkflowService {
       try {
         aiIntent = await geminiService.analyzeWorkflowIntent(
           description,
-          discoveryResult.nodes,
-          geminiApiKey
+          discoveryResult.nodes
         );
         if (aiIntent) {
           workflowLogger.info(previewId, 'INTENT_ANALYSIS', 'AI intent extracted successfully', {
@@ -441,7 +440,8 @@ export class PublicWorkflowService {
         const aiResult = await geminiService.generateWorkflow(
           description,
           discoveryResult.nodes,
-          geminiApiKey,
+          undefined,
+          undefined,
           nodeTypeDetails,
           relevantNodeTypes,
           learningGuidance
@@ -483,7 +483,7 @@ export class PublicWorkflowService {
         workflowLogger.info(previewId, 'VERIFICATION', 'Verifying workflow with Gemini AI');
 
         while (iteration < MAX_FIX_ITERATIONS) {
-          const verification = await geminiService.verifyWorkflow(currentWorkflow, description, geminiApiKey);
+          const verification = await geminiService.verifyWorkflow(currentWorkflow, description);
 
           workflowLogger.info(previewId, 'VERIFICATION_RESULT', `AI verification iteration ${iteration + 1}`, {
             isValid: verification.isValid,
@@ -507,8 +507,7 @@ export class PublicWorkflowService {
               verification.issues,
               verification.suggestions,
               discoveryResult.nodes,
-              nodeTypeDetails,
-              geminiApiKey
+              nodeTypeDetails
             );
 
             if (fixResult.fixesApplied.length > 0) {
@@ -611,7 +610,8 @@ export class PublicWorkflowService {
           const improvedResult = await geminiService.generateWorkflow(
             enhancedDescription,
             discoveryResult.nodes,
-            geminiApiKey,
+            undefined,
+            undefined,
             nodeTypeDetails,
             relevantNodeTypes,
             learningGuidance
@@ -898,8 +898,7 @@ export class PublicWorkflowService {
       if (hasGeminiKey) {
         aiIntent = await geminiService.analyzeWorkflowIntent(
           description,
-          discoveryResult.nodes,
-          geminiApiKey
+          discoveryResult.nodes
         );
         if (aiIntent?.requestedNodeTypes && aiIntent.requestedNodeTypes.length > 0) {
           relevantNodeTypes = this.mergeRelevantNodeTypes(
@@ -936,7 +935,8 @@ export class PublicWorkflowService {
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
-            geminiApiKey,
+            undefined,
+            undefined,
             nodeTypeDetails,
             relevantNodeTypes
           );

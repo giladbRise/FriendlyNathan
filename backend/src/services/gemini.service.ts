@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import crypto from 'crypto';
 
 interface N8nNode {
   name: string;
@@ -78,15 +78,80 @@ export interface VerificationResult {
   analysis: string;
 }
 
+// ─── Vertex AI Auth Helpers ────────────────────────────────────────────────
+
+const VERTEX_MODEL = 'gemini-3-1-pro-preview';
+const TOKEN_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
+const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const TOKEN_CACHE_TTL_MS = 55 * 60 * 1000; // 55 minutes (tokens last 60)
+
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+}
+
+/** Extract GCP project ID from service account email: name@project-id.iam.gserviceaccount.com */
+function projectIdFromEmail(saEmail: string): string {
+  const parts = saEmail.split('@');
+  if (parts.length !== 2) throw new Error('Invalid service account email format');
+  const domain = parts[1]; // project-id.iam.gserviceaccount.com
+  return domain.split('.')[0]; // project-id
+}
+
+/** Sign a JWT for Google OAuth2 service account flow using RS256 */
+function signServiceAccountJwt(saEmail: string, privateKey: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: saEmail,
+    sub: saEmail,
+    aud: TOKEN_URL,
+    scope: TOKEN_SCOPE,
+    iat: now,
+    exp: now + 3600,
+  })).toString('base64url');
+
+  const toSign = `${header}.${payload}`;
+  const pem = privateKey.replace(/\\n/g, '\n');
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(toSign);
+  sign.end();
+  const signature = sign.sign(pem, 'base64url');
+  return `${toSign}.${signature}`;
+}
+
+/** Exchange a signed JWT for a Google OAuth2 Bearer access token */
+async function fetchAccessToken(saEmail: string, privateKey: string): Promise<string> {
+  const jwt = signServiceAccountJwt(saEmail, privateKey);
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion: jwt,
+  });
+
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+
+  const data = await res.json() as any;
+  if (!res.ok) {
+    throw new Error(`Vertex AI token exchange failed: ${data?.error_description || data?.error || res.status}`);
+  }
+  return data.access_token as string;
+}
+
 /**
- * Gemini AI Service for intelligent workflow generation
- * Uses Google Gemini 3 Flash Preview (gemini-3-flash-preview) to understand user requests and generate n8n workflows
- * Model can be overridden via GEMINI_MODEL environment variable
+ * Gemini AI Service — now using Vertex AI with service account JWT auth.
+ * Model: gemini-3-1-pro-preview
+ * Auth: Service account email + private key → OAuth2 Bearer token (cached 55 min)
  */
 export class GeminiService {
-  private model: GenerativeModel | null = null;
-  private apiKey: string | null = null;
-  private v1BetaModels: Set<string> = new Set();
+  private serverSaEmail: string | null = null;
+  private serverPrivateKey: string | null = null;
+
+  /** Token cache keyed by SA email to avoid re-fetching every request */
+  private tokenCache = new Map<string, CachedToken>();
 
   /** Generation config for structured JSON outputs (low temperature for consistency) */
   private readonly structuredGenerationConfig = {
@@ -100,54 +165,47 @@ export class GeminiService {
   private readonly MAX_RETRIES = 3;
 
   constructor() {
-    // Initialize from environment if available
-    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'dev-gemini-key-placeholder') {
-      this.initializeModel(process.env.GEMINI_API_KEY);
+    const email = process.env.VERTEX_SA_EMAIL;
+    const key = process.env.VERTEX_PRIVATE_KEY;
+    if (email && key && email !== 'your-sa@project.iam.gserviceaccount.com') {
+      this.serverSaEmail = email;
+      this.serverPrivateKey = key;
+      console.log(`Vertex AI initialized with SA: ${email}`);
+    } else {
+      console.warn('Vertex AI credentials not configured in VERTEX_SA_EMAIL / VERTEX_PRIVATE_KEY');
     }
   }
 
-  /**
-   * Initialize or re-initialize with a specific API key
-   */
-  initializeModel(apiKey: string): void {
-    if (!apiKey || apiKey === 'dev-gemini-key-placeholder') {
-      console.warn('Gemini API key not configured, AI workflow generation will be limited');
-      this.model = null;
-      this.apiKey = null;
-      return;
-    }
-
-    try {
-      const modelName = this.getModelCandidates()[0];
-      this.apiKey = apiKey;
-
-
-      if (modelName.startsWith('gemini-3-')) {
-        this.model = null;
-        this.v1BetaModels.add(modelName);
-        console.log(`Gemini AI model initialized for v1beta (${modelName})`);
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      this.model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: this.structuredGenerationConfig,
-      });
-      console.log('Gemini AI model initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize Gemini model:', error);
-      this.model = null;
-      this.apiKey = null;
-
-    }
-  }
-
-  /**
-   * Check if Gemini AI is available
-   */
+  /** Returns true if server-level Vertex AI credentials are configured */
   isAvailable(): boolean {
-    return this.apiKey !== null;
+    return this.serverSaEmail !== null && this.serverPrivateKey !== null;
+  }
+
+  /** Get a cached or fresh Bearer token for the given SA credentials */
+  private async getBearerToken(saEmail: string, privateKey: string): Promise<string> {
+    const cached = this.tokenCache.get(saEmail);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.token;
+    }
+    try {
+      const token = await fetchAccessToken(saEmail, privateKey);
+      this.tokenCache.set(saEmail, { token, expiresAt: Date.now() + TOKEN_CACHE_TTL_MS });
+      return token;
+    } catch (error) {
+      this.tokenCache.delete(saEmail);
+      throw error;
+    }
+  }
+
+  /** Resolve which SA credentials to use: custom (user-provided) or server defaults */
+  private resolveCredentials(customSaEmail?: string, customPrivateKey?: string): { saEmail: string; privateKey: string } {
+    if (customSaEmail && customPrivateKey) {
+      return { saEmail: customSaEmail, privateKey: customPrivateKey };
+    }
+    if (this.serverSaEmail && this.serverPrivateKey) {
+      return { saEmail: this.serverSaEmail, privateKey: this.serverPrivateKey };
+    }
+    throw new Error('Vertex AI not available. Please provide service account credentials.');
   }
 
   /**
@@ -160,10 +218,13 @@ export class GeminiService {
     suggestions: string[],
     availableNodes: N8nNode[],
     nodeTypeDetails?: Map<string, NodeTypeDetails>,
-    customApiKey?: string
+    customSaEmail?: string,
+    customPrivateKey?: string
   ): Promise<{ workflow: N8nWorkflow; fixesApplied: string[] }> {
-    const apiKey = customApiKey || this.apiKey;
-    if (!apiKey) {
+    let credentials: { saEmail: string; privateKey: string };
+    try {
+      credentials = this.resolveCredentials(customSaEmail, customPrivateKey);
+    } catch {
       return { workflow, fixesApplied: [] };
     }
 
@@ -213,7 +274,7 @@ Return ONLY valid JSON with this schema (no markdown, no code blocks):
 }`;
 
     try {
-      const text = await this.generateWithFallback(prompt, apiKey, customApiKey !== undefined);
+      const text = await this.callVertexAI(prompt, credentials.saEmail, credentials.privateKey);
       const parsed = this.parseJsonResponse(text) as any;
 
       if (parsed.workflow && parsed.workflow.nodes) {
@@ -237,15 +298,18 @@ Return ONLY valid JSON with this schema (no markdown, no code blocks):
   async verifyWorkflow(
     workflow: N8nWorkflow,
     description: string,
-    customApiKey?: string
+    customSaEmail?: string,
+    customPrivateKey?: string
   ): Promise<VerificationResult> {
-    const apiKey = customApiKey || this.apiKey;
-    if (!apiKey) {
+    let credentials: { saEmail: string; privateKey: string };
+    try {
+      credentials = this.resolveCredentials(customSaEmail, customPrivateKey);
+    } catch {
       return {
         isValid: true, // Assume valid if no AI to check
         issues: [],
         suggestions: [],
-        analysis: 'AI verification unavailable (no API key)',
+        analysis: 'AI verification unavailable (no credentials)',
       };
     }
 
@@ -271,9 +335,9 @@ Return ONLY valid JSON with this schema (no markdown):
 }`;
 
     try {
-      const text = await this.generateWithFallback(prompt, apiKey, customApiKey !== undefined);
+      const text = await this.callVertexAI(prompt, credentials.saEmail, credentials.privateKey);
       const parsed = this.parseJsonResponse(text) as any;
-      
+
       return {
         isValid: typeof parsed.isValid === 'boolean' ? parsed.isValid : true,
         issues: Array.isArray(parsed.issues) ? parsed.issues : [],
@@ -297,21 +361,19 @@ Return ONLY valid JSON with this schema (no markdown):
   async generateWorkflow(
     description: string,
     availableNodes: N8nNode[],
-    customApiKey?: string,
+    customSaEmail?: string,
+    customPrivateKey?: string,
     nodeTypeDetails?: Map<string, NodeTypeDetails>,
     suggestedNodeTypes?: string[],
     learningGuidance?: string
   ): Promise<GeneratedWorkflow> {
-    const apiKey = customApiKey || this.apiKey;
-    if (!apiKey) {
-      throw new Error('Gemini AI not available. Please provide a valid API key.');
-    }
+    const credentials = this.resolveCredentials(customSaEmail, customPrivateKey);
 
     // Build the prompt with context about available nodes and their configurations
     const prompt = this.buildPrompt(description, availableNodes, nodeTypeDetails, suggestedNodeTypes, learningGuidance);
 
     try {
-      const text = await this.generateWithFallback(prompt, apiKey, customApiKey !== undefined);
+      const text = await this.callVertexAI(prompt, credentials.saEmail, credentials.privateKey);
 
       // Parse the generated workflow from the response
       const workflow = this.normalizeWorkflow(
@@ -337,15 +399,20 @@ Return ONLY valid JSON with this schema (no markdown):
   async analyzeWorkflowIntent(
     description: string,
     availableNodes: N8nNode[],
-    customApiKey?: string
+    customSaEmail?: string,
+    customPrivateKey?: string
   ): Promise<WorkflowIntent | null> {
-    const apiKey = customApiKey || this.apiKey;
-    if (!apiKey) return null;
+    let credentials: { saEmail: string; privateKey: string };
+    try {
+      credentials = this.resolveCredentials(customSaEmail, customPrivateKey);
+    } catch {
+      return null;
+    }
 
     const prompt = this.buildIntentPrompt(description, availableNodes);
 
     try {
-      const text = await this.generateWithFallback(prompt, apiKey, customApiKey !== undefined);
+      const text = await this.callVertexAI(prompt, credentials.saEmail, credentials.privateKey);
       return this.parseIntentResponse(text);
     } catch (error) {
       console.warn('Gemini intent analysis failed:', error);
@@ -353,165 +420,60 @@ Return ONLY valid JSON with this schema (no markdown):
     }
   }
 
-  private getModelCandidates(): string[] {
-    const candidates = [
-      process.env.GEMINI_MODEL,
-      'gemini-3-flash-preview',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
-      'gemini-1.0-pro',
-    ].filter((model): model is string => !!model);
+  /** Call Vertex AI Gemini with retry logic for transient errors */
+  private async callVertexAI(prompt: string, saEmail: string, privateKey: string): Promise<string> {
+    const projectId = projectIdFromEmail(saEmail);
+    const location = process.env.VERTEX_LOCATION || 'us-central1';
+    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${VERTEX_MODEL}:generateContent`;
 
-    return Array.from(new Set(candidates));
-  }
-
-  private isModelNotFoundError(error: any): boolean {
-    const message = String(error?.message || error);
-    return message.includes('not found') || message.includes('models/') || message.includes('404');
-  }
-
-  /** Check if error is a transient/retryable error (rate limit, server overload) */
-  private isRetryableError(error: any): boolean {
-    const message = String(error?.message || error).toLowerCase();
-    const status = error?.status || error?.response?.status || error?.code;
-    return (
-      status === 429 ||
-      status === 503 ||
-      status === 500 ||
-      message.includes('rate limit') ||
-      message.includes('resource exhausted') ||
-      message.includes('quota') ||
-      message.includes('overloaded') ||
-      message.includes('unavailable') ||
-      message.includes('too many requests') ||
-      message.includes('internal error')
-    );
-  }
-
-  /** Sleep helper for retry backoff */
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  private async generateWithFallback(
-    prompt: string,
-    apiKey: string,
-    usingCustomKey: boolean
-  ): Promise<string> {
-    const candidates = this.getModelCandidates();
-
-    // Wrap each generation attempt with retry logic for transient errors
-    const attemptWithRetry = async (generateFn: () => Promise<string>): Promise<string> => {
-      for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
-        try {
-          return await generateFn();
-        } catch (error: any) {
-          if (this.isRetryableError(error) && attempt < this.MAX_RETRIES - 1) {
-            const backoffMs = Math.min(1000 * Math.pow(2, attempt), 8000);
-            console.warn(`Gemini transient error (attempt ${attempt + 1}/${this.MAX_RETRIES}), retrying in ${backoffMs}ms:`, error?.message || error);
-            await this.sleep(backoffMs);
-            continue;
-          }
-          throw error;
-        }
-      }
-      throw new Error('Max retries exceeded');
-    };
-
-    if (!usingCustomKey && this.model) {
+    for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
       try {
-        return await attemptWithRetry(async () => {
-          const result = await this.model!.generateContent(prompt);
-          return result.response.text();
-        });
-      } catch (error: any) {
-        if (!this.isModelNotFoundError(error)) {
-          throw error;
-        }
-      }
-    }
-
-    let lastError: any;
-    for (const modelName of candidates) {
-      try {
-        if (modelName.startsWith('gemini-3-') || this.v1BetaModels.has(modelName)) {
-          return await attemptWithRetry(() => this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey));
-        }
-        return await attemptWithRetry(async () => {
-          const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({
-            model: modelName,
+        const token = await this.getBearerToken(saEmail, privateKey);
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: this.structuredGenerationConfig,
-          });
-          const result = await model.generateContent(prompt);
-          const text = result.response.text();
-          if (!usingCustomKey) {
-            this.model = model;
-            this.apiKey = apiKey;
-            console.log(`Gemini model set to ${modelName}`);
-          }
-          return text;
+          }),
         });
-      } catch (error: any) {
-        lastError = error;
-        const notFound = this.isModelNotFoundError(error);
-        if (!notFound) {
-          throw error;
-        }
-        if (modelName.startsWith('gemini-3-')) {
-          try {
-            return await attemptWithRetry(() => this.generateWithV1Beta(prompt, apiKey, modelName, usingCustomKey));
-          } catch (betaError: any) {
-            lastError = betaError;
+
+        const data = await res.json() as any;
+
+        if (!res.ok) {
+          const errMsg = data?.error?.message || `Vertex AI error (${res.status})`;
+          if (res.status === 401) {
+            this.tokenCache.delete(saEmail);
           }
+          throw new Error(errMsg);
         }
+
+        const text = data?.candidates?.[0]?.content?.parts
+          ?.map((p: { text?: string }) => p.text || '')
+          .join('');
+
+        if (!text) throw new Error('Vertex AI returned empty response');
+        return text;
+
+      } catch (err: any) {
+        const msg = err.message || '';
+        const isRetryable = msg.includes('429') || msg.includes('503') || msg.includes('500') ||
+          msg.includes('rate limit') || msg.includes('quota') || msg.includes('overloaded') ||
+          msg.includes('unavailable') || msg.includes('fetch failed') || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED';
+
+        if (isRetryable && attempt < this.MAX_RETRIES - 1) {
+          const backoffMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+          console.warn(`Vertex AI transient error (attempt ${attempt + 1}/${this.MAX_RETRIES}), retrying in ${backoffMs}ms:`, msg);
+          await new Promise(r => setTimeout(r, backoffMs));
+          continue;
+        }
+        throw err;
       }
     }
-
-    throw lastError || new Error('Gemini model not available');
-  }
-
-  private async generateWithV1Beta(
-    prompt: string,
-    apiKey: string,
-    modelName: string,
-    usingCustomKey: boolean
-  ): Promise<string> {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: this.structuredGenerationConfig,
-        }),
-      }
-    );
-
-    const data = await response.json() as any;
-    if (!response.ok) {
-      throw new Error(data?.error?.message || `Gemini v1beta error (${response.status})`);
-    }
-
-    const text = data?.candidates?.[0]?.content?.parts
-      ?.map((part: { text?: string }) => part.text || '')
-      .join('');
-    if (!text) {
-      throw new Error('Gemini v1beta returned empty response');
-    }
-
-    if (!usingCustomKey) {
-      this.v1BetaModels.add(modelName);
-
-      this.apiKey = apiKey;
-      console.log(`Gemini model set to ${modelName} (v1beta)`);
-    }
-
-    return text;
+    throw new Error('Vertex AI: max retries exceeded');
   }
 
   /**
@@ -636,8 +598,7 @@ Use these extracted values DIRECTLY in the workflow parameters.
 ## Available n8n Nodes (partial list):
 ${nodeContext}
 ${allowedNodesSection}${suggestedNodesSection}
-${nodeConfigSection}
-## Instructions:
+${nodeConfigSection}## Instructions:
 1. Analyze the user's request carefully and understand ALL the steps they need
 2. Create a complete workflow that implements ALL requested functionality
 3. Use appropriate trigger nodes (manualTrigger, webhook, schedule) based on context
@@ -663,8 +624,7 @@ ${nodeConfigSection}
 11. For options/enums, use the exact values listed (e.g., "post" not "POST" for Slack operation)
 12. ONLY use node types from "Allowed Node Types". If a requested node is unavailable, choose the closest allowed Google ecosystem node and reflect any assumptions in the explanation.
 13. **SERVICE RESTRICTION: Only use Google ecosystem products** (Gmail, Google Sheets, Google Docs, Google Drive). If the user mentions Microsoft, Airtable, Notion, or other non-Google services, use the equivalent Google product instead and note the substitution in the explanation.
-${learningGuidance || ''}
-## Important Rules - READ CAREFULLY:
+${learningGuidance || ''}## Important Rules - READ CAREFULLY:
 - ALWAYS create ALL nodes needed to complete the ENTIRE request
 - If the user asks for multiple steps (e.g., "get emails, then mark them, then summarize, then send to slack"), create nodes for EACH step
 - Use realistic parameter values based on the description

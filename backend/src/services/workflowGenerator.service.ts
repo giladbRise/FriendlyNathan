@@ -2077,8 +2077,7 @@ return [
       if (hasGeminiKey) {
         aiIntent = await geminiService.analyzeWorkflowIntent(
           description,
-          discoveryResult.nodes,
-          geminiApiKey
+          discoveryResult.nodes
         );
         if (aiIntent?.requestedNodeTypes && aiIntent.requestedNodeTypes.length > 0) {
           relevantNodeTypes = this.mergeRelevantNodeTypes(
@@ -2120,7 +2119,8 @@ return [
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
-            geminiApiKey, // Pass custom key if provided
+            undefined, // customSaEmail — use server credentials
+            undefined, // customPrivateKey — use server credentials
             nodeTypeDetails, // Pass node configurations to AI
             relevantNodeTypes, // Suggested node types from MCP/heuristics
             learningGuidance // Learning from previous corrections
@@ -2245,7 +2245,7 @@ return [
         this.emitProgress(socketId, generationId, 'Verifying workflow logic with Gemini AI...', 90);
         
         try {
-            const verification = await geminiService.verifyWorkflow(workflow, description, geminiApiKey);
+            const verification = await geminiService.verifyWorkflow(workflow, description);
             workflowLogger.info(generationId, 'VERIFICATION', 'AI Verification Result', verification);
             
             if (socketId) {
