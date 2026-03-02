@@ -333,7 +333,8 @@ export class PublicWorkflowService {
     n8nUrl: string,
     n8nApiKey: string,
     description: string,
-    geminiApiKey?: string
+    vertexSaEmail?: string,
+    vertexPrivateKey?: string
   ): Promise<{
     previewId: string;
     workflow: N8nWorkflow;
@@ -345,7 +346,7 @@ export class PublicWorkflowService {
   }> {
 
     const discoveryResult = await this.discoverNodes(n8nUrl, n8nApiKey);
-    const hasGeminiKey = !!(geminiApiKey || geminiService.isAvailable());
+    const hasVertexCredentials = !!((vertexSaEmail && vertexPrivateKey) || geminiService.isAvailable());
     const previewId = randomUUID();
 
     workflowLogger.logGenerationStart(
@@ -353,7 +354,7 @@ export class PublicWorkflowService {
       'public',
       description,
       n8nUrl,
-      hasGeminiKey
+      hasVertexCredentials
     );
     workflowLogger.logNodeDiscovery(
       previewId,
@@ -379,11 +380,13 @@ export class PublicWorkflowService {
     workflowLogger.logRelevantNodeTypes(previewId, relevantNodeTypes);
 
     let aiIntent: WorkflowIntent | null = null;
-    if (hasGeminiKey) {
+    if (hasVertexCredentials) {
       try {
         aiIntent = await geminiService.analyzeWorkflowIntent(
           description,
-          discoveryResult.nodes
+          discoveryResult.nodes,
+          vertexSaEmail,
+          vertexPrivateKey
         );
         if (aiIntent) {
           workflowLogger.info(previewId, 'INTENT_ANALYSIS', 'AI intent extracted successfully', {
@@ -422,7 +425,7 @@ export class PublicWorkflowService {
     let aiExplanation: string | undefined;
     let generationMethod: 'AI' | 'RULE_BASED' = 'RULE_BASED';
 
-    if (hasGeminiKey) {
+    if (hasVertexCredentials) {
       try {
         // Get relevant learned patterns to guide generation
         const learningGuidance = workflowLearningService.getCommonLearningsGuidance();
@@ -440,8 +443,8 @@ export class PublicWorkflowService {
         const aiResult = await geminiService.generateWorkflow(
           description,
           discoveryResult.nodes,
-          undefined,
-          undefined,
+          vertexSaEmail,
+          vertexPrivateKey,
           nodeTypeDetails,
           relevantNodeTypes,
           learningGuidance
@@ -472,7 +475,7 @@ export class PublicWorkflowService {
     workflowLogger.logCredentialsDetected(previewId, credentials);
 
     // Verify and auto-fix workflow with Gemini if API key is available
-    if (hasGeminiKey) {
+    if (hasVertexCredentials) {
       const MAX_FIX_ITERATIONS = 2;
       let currentWorkflow = workflow;
       const originalWorkflowName = workflow.name; // Preserve original name
@@ -483,7 +486,7 @@ export class PublicWorkflowService {
         workflowLogger.info(previewId, 'VERIFICATION', 'Verifying workflow with Gemini AI');
 
         while (iteration < MAX_FIX_ITERATIONS) {
-          const verification = await geminiService.verifyWorkflow(currentWorkflow, description);
+          const verification = await geminiService.verifyWorkflow(currentWorkflow, description, vertexSaEmail, vertexPrivateKey);
 
           workflowLogger.info(previewId, 'VERIFICATION_RESULT', `AI verification iteration ${iteration + 1}`, {
             isValid: verification.isValid,
@@ -507,7 +510,9 @@ export class PublicWorkflowService {
               verification.issues,
               verification.suggestions,
               discoveryResult.nodes,
-              nodeTypeDetails
+              nodeTypeDetails,
+              vertexSaEmail,
+              vertexPrivateKey
             );
 
             if (fixResult.fixesApplied.length > 0) {
@@ -604,14 +609,14 @@ export class PublicWorkflowService {
       }
 
       // Regenerate workflow with enhanced description via Gemini
-      if (hasGeminiKey) {
+      if (hasVertexCredentials) {
         try {
           const learningGuidance = workflowLearningService.getCommonLearningsGuidance();
           const improvedResult = await geminiService.generateWorkflow(
             enhancedDescription,
             discoveryResult.nodes,
-            undefined,
-            undefined,
+            vertexSaEmail,
+            vertexPrivateKey,
             nodeTypeDetails,
             relevantNodeTypes,
             learningGuidance
@@ -763,7 +768,8 @@ export class PublicWorkflowService {
     n8nApiKey: string,
     description: string,
     socketId?: string,
-    geminiApiKey?: string
+    vertexSaEmail?: string,
+    vertexPrivateKey?: string
   ): Promise<{ generationId: string }> {
     const generationId = this.generateId();
     const startTime = Date.now();
@@ -780,7 +786,7 @@ export class PublicWorkflowService {
     this.emitProgress(socketId, generationId, 'Starting workflow generation...', 10);
 
     // Run generation asynchronously (catch to prevent unhandled rejection)
-    this.runGeneration(generationId, n8nUrl, n8nApiKey, description, socketId, startTime, geminiApiKey)
+    this.runGeneration(generationId, n8nUrl, n8nApiKey, description, socketId, startTime, vertexSaEmail, vertexPrivateKey)
       .catch((error) => {
         console.error(`Generation ${generationId} failed with unhandled error:`, error);
         this.emitProgress(socketId, generationId, 'Generation failed unexpectedly', 0);
@@ -828,9 +834,10 @@ export class PublicWorkflowService {
     description: string,
     socketId: string | undefined,
     startTime: number,
-    geminiApiKey?: string
+    vertexSaEmail?: string,
+    vertexPrivateKey?: string
   ) {
-    const hasGeminiKey = !!(geminiApiKey || geminiService.isAvailable());
+    const hasVertexCredentials = !!((vertexSaEmail && vertexPrivateKey) || geminiService.isAvailable());
     let workflow: N8nWorkflow | undefined;
 
     // Log generation start
@@ -839,7 +846,7 @@ export class PublicWorkflowService {
       'public', // No user ID for public workflow
       description,
       n8nUrl,
-      hasGeminiKey
+      hasVertexCredentials
     );
 
     try {
@@ -895,10 +902,12 @@ export class PublicWorkflowService {
       workflowLogger.logRelevantNodeTypes(generationId, relevantNodeTypes);
 
       let aiIntent: WorkflowIntent | null = null;
-      if (hasGeminiKey) {
+      if (hasVertexCredentials) {
         aiIntent = await geminiService.analyzeWorkflowIntent(
           description,
-          discoveryResult.nodes
+          discoveryResult.nodes,
+          vertexSaEmail,
+          vertexPrivateKey
         );
         if (aiIntent?.requestedNodeTypes && aiIntent.requestedNodeTypes.length > 0) {
           relevantNodeTypes = this.mergeRelevantNodeTypes(
@@ -927,7 +936,7 @@ export class PublicWorkflowService {
       let generationMethod: 'AI' | 'RULE_BASED' = 'RULE_BASED';
       let aiExplanation: string | undefined;
 
-      if (hasGeminiKey) {
+      if (hasVertexCredentials) {
         try {
           this.emitProgress(socketId, generationId, 'Using AI to understand your request...', 45);
           workflowLogger.info(generationId, 'AI_GENERATION', 'Starting AI-based workflow generation');
@@ -935,8 +944,8 @@ export class PublicWorkflowService {
           const aiResult = await geminiService.generateWorkflow(
             description,
             discoveryResult.nodes,
-            undefined,
-            undefined,
+            vertexSaEmail,
+            vertexPrivateKey,
             nodeTypeDetails,
             relevantNodeTypes
           );
@@ -996,7 +1005,7 @@ export class PublicWorkflowService {
       this.emitProgress(socketId, generationId, 'Creating workflow in n8n...', 60);
       workflowLogger.info(generationId, 'N8N_CREATE', 'Sending workflow to n8n API');
 
-      const n8nResult = await this.createWorkflowInN8n(n8nUrl, n8nApiKey, workflow, 3, socketId, generationId);
+      const n8nResult = await this.createWorkflowInN8n(n8nUrl, n8nApiKey, workflow, 3, socketId, generationId, vertexSaEmail, vertexPrivateKey);
 
       // Log n8n creation result
       workflowLogger.logN8nCreation(
@@ -2122,7 +2131,9 @@ return [{ json: { summary, emailCount: count } }];`,
     workflow: N8nWorkflow,
     maxRetries: number = 3,
     socketId?: string,
-    generationId?: string
+    generationId?: string,
+    vertexSaEmail?: string,
+    vertexPrivateKey?: string
   ): Promise<{ success: boolean; n8nWorkflowId?: string; n8nWorkflowUrl?: string; error?: string; errorDetails?: any }> {
     const baseUrl = n8nUrl.replace(/\/$/, '');
     let lastError: any = null;
@@ -2187,6 +2198,9 @@ return [{ json: { summary, emailCount: count } }];`,
                 [`n8n API returned 400: ${n8nError}`],
                 ['Fix the validation error so n8n accepts the workflow'],
                 [],
+                undefined,
+                vertexSaEmail,
+                vertexPrivateKey
               );
               if (fixResult.fixesApplied.length > 0) {
                 // Update workflow for next attempt with the fixed version

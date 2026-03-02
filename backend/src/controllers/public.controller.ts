@@ -14,7 +14,8 @@ const generateWorkflowSchema = z.object({
   n8nApiKey: z.string().min(1, 'n8n API key is required'),
   description: z.string().min(10, 'Description must be at least 10 characters').max(5000, 'Description too long'),
   socketId: z.string().optional(),
-  geminiApiKey: z.string().optional(),
+  vertexSaEmail: z.string().optional(),
+  vertexPrivateKey: z.string().optional(),
 });
 
 const previewWorkflowSchema = generateWorkflowSchema.omit({ socketId: true });
@@ -116,7 +117,8 @@ export const generateWorkflowPublic = async (req: Request, res: Response): Promi
       validatedData.n8nApiKey,
       validatedData.description,
       validatedData.socketId,
-      validatedData.geminiApiKey
+      validatedData.vertexSaEmail,
+      validatedData.vertexPrivateKey
     );
 
     res.status(202).json({
@@ -152,7 +154,8 @@ export const previewWorkflowPublic = async (req: Request, res: Response): Promis
       validatedData.n8nUrl,
       validatedData.n8nApiKey,
       validatedData.description,
-      validatedData.geminiApiKey
+      validatedData.vertexSaEmail,
+      validatedData.vertexPrivateKey
     );
 
     res.json(result);
