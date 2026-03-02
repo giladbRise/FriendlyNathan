@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
@@ -66,8 +67,10 @@ const WorkflowCreatePage: React.FC = () => {
 
   // State for workflow
   const [workflowDescription, setWorkflowDescription] = useState('');
-  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [vertexSaEmail, setVertexSaEmail] = useState('');
+  const [vertexPrivateKey, setVertexPrivateKey] = useState('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [showVertexKey, setShowVertexKey] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -301,7 +304,8 @@ const WorkflowCreatePage: React.FC = () => {
           description: workflowDescription,
           socketId,
           skipDuplicateCheck: duplicateWarning !== null, // Skip if user already saw warning
-          geminiApiKey: geminiApiKey.trim() || undefined, // Include Gemini API key if provided
+          vertexSaEmail: vertexSaEmail.trim() || undefined,
+          vertexPrivateKey: vertexPrivateKey.trim() || undefined,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -674,55 +678,92 @@ const WorkflowCreatePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Advanced Options - Gemini API Key */}
-                <div className="mt-4">
-                  <button
-                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                    className="text-sm text-primary hover:text-secondary flex items-center gap-1 transition-colors"
-                    disabled={generating}
-                  >
-                    <span className="transform transition-transform" style={{ display: 'inline-block', transform: showAdvancedOptions ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-                      ▶
-                    </span>
-                    Advanced AI Options
-                  </button>
+              {/* Advanced Options — Vertex AI Credentials */}
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                  className="text-sm text-primary hover:text-secondary flex items-center gap-1 transition-colors"
+                  disabled={generating}
+                >
+                  <span className="transform transition-transform" style={{ display: 'inline-block', transform: showAdvancedOptions ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                    ▶
+                  </span>
+                  Advanced AI Options
+                </button>
 
-                  {showAdvancedOptions && (
-                    <div className="mt-3 p-4 bg-primary/10 border border-primary/30 rounded-md">
-                      <div className="space-y-3">
-                        <div>
-                          <label htmlFor="geminiApiKey" className="block text-sm font-medium text-foreground mb-2">
-                            Google Gemini API Key <span className="text-muted-foreground">(optional)</span>
+                {showAdvancedOptions && (
+                  <div className="mt-3 p-4 bg-primary/10 border border-primary/30 rounded-md">
+                    <div className="space-y-4">
+                      <p className="text-xs text-muted-foreground">
+                        Optionally provide your own Vertex AI service account credentials. Leave empty to use the server default.
+                      </p>
+
+                      {/* Service Account Email */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <label htmlFor="vertexSaEmail" className="block text-sm font-medium text-foreground">
+                            Service Account Email <span className="text-muted-foreground">(optional)</span>
                           </label>
-                          <input
-                            type="password"
-                            id="geminiApiKey"
-                            value={geminiApiKey}
-                            onChange={(e) => setGeminiApiKey(e.target.value)}
-                            placeholder="AIzaSy..."
-                            className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
-                            disabled={generating}
-                          />
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Provide your own Gemini API key for enhanced AI-powered workflow generation.
-                            Without a key, basic rule-based generation will be used.
-                          </p>
+                          <div className="relative group">
+                            <span className="text-muted-foreground cursor-help text-sm">ⓘ</span>
+                            <div className="absolute left-0 bottom-6 w-72 p-3 bg-foreground text-background text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                              Your GCP service account email.<br/>
+                              Format: <code>name@project-id.iam.gserviceaccount.com</code><br/><br/>
+                              Find it in GCP Console → IAM &amp; Admin → Service Accounts.
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xs text-secondary">
-                          <strong>Tip:</strong> Get your API key from{' '}
-                          <a
-                            href="https://aistudio.google.com/app/apikey"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline hover:text-primary"
+                        <input
+                          type="text"
+                          id="vertexSaEmail"
+                          value={vertexSaEmail}
+                          onChange={(e) => setVertexSaEmail(e.target.value)}
+                          placeholder="name@project-id.iam.gserviceaccount.com"
+                          className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                        />
+                      </div>
+
+                      {/* Private Key */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <label htmlFor="vertexPrivateKey" className="block text-sm font-medium text-foreground">
+                            Private Key <span className="text-muted-foreground">(optional)</span>
+                          </label>
+                          <div className="relative group">
+                            <span className="text-muted-foreground cursor-help text-sm">ⓘ</span>
+                            <div className="absolute left-0 bottom-6 w-72 p-3 bg-foreground text-background text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                              Paste the full private key block from your service account JSON:<br/><br/>
+                              <code>-----BEGIN PRIVATE KEY-----</code><br/>
+                              ...key data...<br/>
+                              <code>-----END PRIVATE KEY-----</code><br/><br/>
+                              Found under <code>&quot;private_key&quot;</code> in the downloaded JSON key file.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <textarea
+                            id="vertexPrivateKey"
+                            rows={showVertexKey ? 5 : 2}
+                            value={showVertexKey ? vertexPrivateKey : (vertexPrivateKey ? '••••••••••••••••••••••••••••••••' : '')}
+                            onChange={(e) => { if (showVertexKey) setVertexPrivateKey(e.target.value); }}
+                            placeholder="-----BEGIN PRIVATE KEY-----"
+                            className="w-full px-4 py-2 border border-border rounded-md bg-input text-foreground focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-xs pr-10 resize-none"
+                            readOnly={!showVertexKey}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowVertexKey(!showVertexKey)}
+                            className="absolute right-2 top-2 text-muted-foreground hover:text-primary transition-colors"
+                            aria-label={showVertexKey ? 'Hide key' : 'Show key'}
                           >
-                            Google AI Studio
-                          </a>
+                            {showVertexKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
 
                 {error && (
                   <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded-md">
