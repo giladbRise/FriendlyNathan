@@ -1198,13 +1198,13 @@ export class PublicWorkflowService {
       { keywords: ['google drive', 'drive', 'file storage'], nodeType: 'n8n-nodes-base.googleDrive' },
       { keywords: ['csv file', 'csv', 'spreadsheet file'], nodeType: 'n8n-nodes-base.spreadsheetFile' },
 
-      // AI/LLM Nodes — chain+model pattern only (Edit Fields → chainLlm → lmChatGoogleGemini)
-      { keywords: ['gemini', 'google ai', 'palm', 'bard', 'openai', 'gpt', 'chatgpt', 'ai', 'artificial intelligence', 'llm', 'language model', 'chat ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
-      { keywords: ['gemini', 'google ai', 'palm', 'bard', 'openai', 'gpt', 'chatgpt', 'ai', 'llm'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
-      { keywords: ['summarize', 'summarization', 'summary ai', 'ai summary', 'summary'], nodeType: '@n8n/n8n-nodes-langchain.chainSummarization' },
+      // AI/LLM Nodes — ONLY when explicitly requested (DO NOT trigger on generic words like "summary" or "query")
+      { keywords: ['use ai', 'use gemini', 'google ai', 'palm', 'bard', 'openai', 'gpt', 'chatgpt', 'artificial intelligence', 'llm', 'language model', 'chat ai', 'ai analysis', 'ai summary', 'summarize with ai', 'analyze with ai'], nodeType: '@n8n/n8n-nodes-langchain.chainLlm' },
+      { keywords: ['use ai', 'use gemini', 'google ai', 'palm', 'bard', 'openai', 'gpt', 'chatgpt', 'llm', 'ai analysis', 'ai summary', 'summarize with ai'], nodeType: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
+      { keywords: ['summarize with ai', 'ai summarization', 'ai summary'], nodeType: '@n8n/n8n-nodes-langchain.chainSummarization' },
 
-      // Databases
-      { keywords: ['postgres', 'postgresql', 'database', 'sql'], nodeType: 'n8n-nodes-base.postgres' },
+      // Databases — only postgres/mysql when not BigQuery context
+      { keywords: ['postgres', 'postgresql', 'pg database'], nodeType: 'n8n-nodes-base.postgres' },
       { keywords: ['mysql', 'mariadb'], nodeType: 'n8n-nodes-base.mySql' },
       { keywords: ['mongodb', 'mongo', 'nosql'], nodeType: 'n8n-nodes-base.mongoDb' },
       { keywords: ['bigquery', 'big query', 'bq query', 'bq table', 'gcp query', 'google bigquery'], nodeType: 'n8n-nodes-base.googleBigQuery' },

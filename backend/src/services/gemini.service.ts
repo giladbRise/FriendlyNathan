@@ -531,6 +531,14 @@ Return ONLY valid JSON with this schema (no markdown):
     const descriptionLower = description.toLowerCase();
     const suggestedSet = new Set((suggestedNodeTypes || []).map((node) => node.toLowerCase()));
 
+    // Extra keyword aliases for scoring nodes that don't match by display name
+    const nodeKeywordAliases: Record<string, string[]> = {
+      'n8n-nodes-base.googleBigQuery': ['bigquery', 'big query', 'bq', 'gcp query'],
+      'n8n-nodes-base.confluence': ['confluence', 'atlassian', 'wiki', 'wiki page'],
+      'n8n-nodes-base.scheduleTrigger': ['schedule', 'weekly', 'daily', 'every week', 'once a week', 'cron'],
+      '@n8n/n8n-nodes-langchain.chainLlm': ['summarize with ai', 'ai analysis', 'use ai', 'use gemini'],
+    };
+
     const nodeContext = availableNodes.length > 0
       ? availableNodes
           .map((node) => {
@@ -538,6 +546,11 @@ Return ONLY valid JSON with this schema (no markdown):
             if (suggestedSet.has(node.name.toLowerCase())) score += 5;
             if (descriptionLower.includes(node.displayName.toLowerCase())) score += 2;
             if (descriptionLower.includes(node.name.split('.').pop()?.toLowerCase() || '')) score += 1;
+            // Alias-based scoring for nodes with names that don't match common keywords
+            const aliases = nodeKeywordAliases[node.name] || [];
+            for (const alias of aliases) {
+              if (descriptionLower.includes(alias)) { score += 4; break; }
+            }
             return { node, score };
           })
           .sort((a, b) => b.score - a.score)
@@ -613,19 +626,16 @@ ${nodeConfigSection}## Instructions:
 5. For email operations, use Gmail nodes ONLY (no Microsoft Outlook)
 6. For spreadsheet/document operations, use Google Sheets/Docs/Drive ONLY (no Microsoft Excel, no Airtable, no Notion)
    - EXCEPTION: Confluence (Atlassian) is an allowed documentation/wiki platform — use n8n-nodes-base.confluence
-7. **CRITICAL - AI Nodes (READ THIS CAREFULLY - THIS IS THE CORRECT PATTERN):**
-   - ALWAYS use the chain+model pattern for AI operations
-   - Create THREE nodes for AI processing:
+7. **AI Nodes — ONLY if explicitly requested:**
+   - **DO NOT add AI/LLM nodes unless the user explicitly asks for AI, summarization, analysis, or uses words like "summarize", "analyze with AI", "use Gemini", "LLM", etc.**
+   - If the user only asks to query a database and update a page — do NOT add AI nodes. Just use BigQuery + Code/Set + Confluence.
+   - WHEN AI IS needed, use the chain+model pattern:
      a) Edit Fields node (n8n-nodes-base.set) to prepare input with "chatInput" field (string type)
      b) Basic LLM Chain node (@n8n/n8n-nodes-langchain.chainLlm) for AI processing
      c) Google Gemini Chat Model node (@n8n/n8n-nodes-langchain.lmChatGoogleGemini) as the AI model
-   - Connection pattern: EditFields → chainLlm (via main connection) AND chainLlm → lmChatGoogleGemini (via ai_model connection)
-   - The chainLlm node MUST have an "ai_model" connection to lmChatGoogleGemini
-   - NEVER use standalone "@n8n/n8n-nodes-langchain.toolLlm"
-   - NEVER use AI nodes without the Edit Fields → Chain → Model pattern
-   - NEVER use n8n-nodes-base.openAi — always use the Gemini chain+model pattern instead
-   - The Edit Fields node should aggregate/format data into a single "chatInput" string field
-   - The chainLlm node receives its input via {{ $json.chatInput }} expression
+   - Connection pattern: EditFields → chainLlm (via main connection) AND lmChatGoogleGemini → chainLlm (via ai_model connection)
+   - NEVER use standalone AI nodes without this full pattern
+   - NEVER use n8n-nodes-base.openAi
 8. For Slack, use the Slack node with proper channel configuration
 9. Position nodes horizontally with 200px spacing starting at x=250
 10. **CRITICAL: Use the EXACT parameter names from the Node Configuration Reference above**
