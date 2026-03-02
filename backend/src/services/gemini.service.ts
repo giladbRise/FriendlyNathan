@@ -81,6 +81,8 @@ export interface VerificationResult {
 // ─── Vertex AI Auth Helpers ────────────────────────────────────────────────
 
 const VERTEX_MODEL = 'gemini-3.1-pro-preview';
+// gemini-3.1-pro-preview is only available via the global endpoint
+const VERTEX_GLOBAL_MODELS = new Set(['gemini-3.1-pro-preview']);
 const TOKEN_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const TOKEN_CACHE_TTL_MS = 55 * 60 * 1000; // 55 minutes (tokens last 60)
@@ -423,8 +425,11 @@ Return ONLY valid JSON with this schema (no markdown):
   /** Call Vertex AI Gemini with retry logic for transient errors */
   private async callVertexAI(prompt: string, saEmail: string, privateKey: string): Promise<string> {
     const projectId = projectIdFromEmail(saEmail);
-    const location = process.env.VERTEX_LOCATION || 'us-central1';
-    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${VERTEX_MODEL}:generateContent`;
+    // Some models (e.g. gemini-3.1-pro-preview) are only available via the global endpoint
+    const isGlobal = VERTEX_GLOBAL_MODELS.has(VERTEX_MODEL);
+    const location = isGlobal ? 'global' : (process.env.VERTEX_LOCATION || 'us-central1');
+    const baseHost = isGlobal ? 'aiplatform.googleapis.com' : `${location}-aiplatform.googleapis.com`;
+    const url = `https://${baseHost}/v1/projects/${projectId}/locations/${location}/publishers/google/models/${VERTEX_MODEL}:generateContent`;
 
     for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
       try {
