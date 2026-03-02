@@ -1207,6 +1207,10 @@ export class PublicWorkflowService {
       { keywords: ['postgres', 'postgresql', 'database', 'sql'], nodeType: 'n8n-nodes-base.postgres' },
       { keywords: ['mysql', 'mariadb'], nodeType: 'n8n-nodes-base.mySql' },
       { keywords: ['mongodb', 'mongo', 'nosql'], nodeType: 'n8n-nodes-base.mongoDb' },
+      { keywords: ['bigquery', 'big query', 'bq query', 'bq table', 'gcp query', 'google bigquery'], nodeType: 'n8n-nodes-base.googleBigQuery' },
+
+      // Collaboration & Documentation
+      { keywords: ['confluence', 'atlassian', 'wiki page', 'confluence page'], nodeType: 'n8n-nodes-base.confluence' },
 
       // Logic & Flow Control
       { keywords: ['if', 'condition', 'branch', 'when', 'conditional'], nodeType: 'n8n-nodes-base.if' },

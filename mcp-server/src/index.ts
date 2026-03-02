@@ -192,6 +192,30 @@ const NODE_SUGGESTIONS: Record<string, { nodes: string[]; description: string }>
     nodes: ['n8n-nodes-base.postgres', 'n8n-nodes-base.mysql', 'n8n-nodes-base.mongodb'],
     description: 'Database nodes for PostgreSQL, MySQL, and MongoDB',
   },
+  bigquery: {
+    nodes: ['n8n-nodes-base.googleBigQuery'],
+    description: 'Google BigQuery for running SQL queries on large datasets',
+  },
+  'big query': {
+    nodes: ['n8n-nodes-base.googleBigQuery'],
+    description: 'Google BigQuery SQL query node',
+  },
+  bq: {
+    nodes: ['n8n-nodes-base.googleBigQuery'],
+    description: 'Google BigQuery node for data warehousing queries',
+  },
+  confluence: {
+    nodes: ['n8n-nodes-base.confluence'],
+    description: 'Confluence wiki page operations (get, create, update)',
+  },
+  atlassian: {
+    nodes: ['n8n-nodes-base.confluence'],
+    description: 'Atlassian Confluence for wiki/documentation pages',
+  },
+  wiki: {
+    nodes: ['n8n-nodes-base.confluence'],
+    description: 'Confluence wiki page creation and updates',
+  },
   schedule: {
     nodes: ['n8n-nodes-base.schedule', 'n8n-nodes-base.cron'],
     description: 'Schedule or Cron triggers for timed workflows',

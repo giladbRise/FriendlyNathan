@@ -505,6 +505,8 @@ Return ONLY valid JSON with this schema (no markdown):
       'n8n-nodes-base.gmail',
       'n8n-nodes-base.googleDocs',
       'n8n-nodes-base.googleDrive',
+      'n8n-nodes-base.googleBigQuery',
+      'n8n-nodes-base.confluence',
       'n8n-nodes-base.set',
       'n8n-nodes-base.code',
       'n8n-nodes-base.if',
@@ -610,6 +612,7 @@ ${nodeConfigSection}## Instructions:
 4. Chain nodes together properly with connections
 5. For email operations, use Gmail nodes ONLY (no Microsoft Outlook)
 6. For spreadsheet/document operations, use Google Sheets/Docs/Drive ONLY (no Microsoft Excel, no Airtable, no Notion)
+   - EXCEPTION: Confluence (Atlassian) is an allowed documentation/wiki platform — use n8n-nodes-base.confluence
 7. **CRITICAL - AI Nodes (READ THIS CAREFULLY - THIS IS THE CORRECT PATTERN):**
    - ALWAYS use the chain+model pattern for AI operations
    - Create THREE nodes for AI processing:
@@ -628,7 +631,15 @@ ${nodeConfigSection}## Instructions:
 10. **CRITICAL: Use the EXACT parameter names from the Node Configuration Reference above**
 11. For options/enums, use the exact values listed (e.g., "post" not "POST" for Slack operation)
 12. ONLY use node types from "Allowed Node Types". If a requested node is unavailable, choose the closest allowed Google ecosystem node and reflect any assumptions in the explanation.
-13. **SERVICE RESTRICTION: Only use Google ecosystem products** (Gmail, Google Sheets, Google Docs, Google Drive). If the user mentions Microsoft, Airtable, Notion, or other non-Google services, use the equivalent Google product instead and note the substitution in the explanation.
+13. **SERVICE RESTRICTION: Prefer Google ecosystem products** (Gmail, Google Sheets, Google Docs, Google Drive). If the user mentions Microsoft, Airtable, Notion, substitute with Google equivalent.
+    - ALLOWED EXCEPTIONS: Confluence/Atlassian wiki (use n8n-nodes-base.confluence), BigQuery (use n8n-nodes-base.googleBigQuery)
+14. **BigQuery nodes** (n8n-nodes-base.googleBigQuery): Use operation="executeQuery" with parameters: { "projectId": "...", "query": "SELECT ...", "location": "US" }. Credentials: googleApi.
+15. **Confluence nodes** (n8n-nodes-base.confluence):
+    - To GET a page: operation="get", resource="page", parameters: { "pageId": "PAGE_ID" }
+    - To UPDATE a page with HTML: operation="update", resource="page", parameters: { "pageId": "PAGE_ID", "title": "...", "version": "={{ $json.version.number + 1 }}", "body": "HTML_CONTENT", "bodyType": "storage" }
+    - ALWAYS fetch the current page version first (GET), then update with version+1
+    - For interactive HTML tables in Confluence: use the Storage Format (XHTML-based). Build a <table> with search/filter using HTML macro if supported, or include a full self-contained HTML page with JavaScript search using the HTML macro.
+    - Credentials: confluenceApi
 ${learningGuidance || ''}## Important Rules - READ CAREFULLY:
 - ALWAYS create ALL nodes needed to complete the ENTIRE request
 - If the user asks for multiple steps (e.g., "get emails, then mark them, then summarize, then send to slack"), create nodes for EACH step
@@ -665,6 +676,14 @@ ${learningGuidance || ''}## Important Rules - READ CAREFULLY:
    - Use the exact parameter names from the Node Configuration Reference
    - Example: If the config shows "documentId" for Google Sheets, use "documentId", NOT "spreadsheetId"
    - Example: If the config shows "channel" for Slack, use "channel", NOT "channelId" or "channelName"
+
+6. **Confluence Page Updates MUST follow this exact pattern**:
+   - Step 1: GET the current page to retrieve version number (operation="get", resource="page")
+   - Step 2: Use a Code or Set node to transform BigQuery results into an HTML table string with inline JavaScript for live search/filter
+   - Step 3: UPDATE the page with: version="{{ $('Get Page').item.json.version.number + 1 }}", bodyType="storage", body=the HTML string
+   - The HTML for an interactive table MUST include: <input> search box, <table> with <thead>/<tbody>, and inline <script> that filters rows on keyup
+   - Example HTML template for interactive Confluence table:
+     <html><body><input id="search" placeholder="Search..." onkeyup="..."/><table><thead><tr><th>Publisher</th><th>CSM</th></tr></thead><tbody>{{rows}}</tbody></table><script>document.getElementById('search').onkeyup=function(){var v=this.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none'})}</script></body></html>
 
 ## Response Format:
 Return ONLY a valid JSON object with this structure (no markdown, no explanations outside JSON):
