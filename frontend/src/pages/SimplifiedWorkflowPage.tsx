@@ -47,7 +47,8 @@ interface PreviewResult {
 const STORAGE_KEYS = {
   N8N_URL: 'rise_n8n_url',
   N8N_API_KEY: 'rise_n8n_api_key',
-  GEMINI_API_KEY: 'rise_gemini_api_key',
+  VERTEX_SA_EMAIL: 'rise_vertex_sa_email',
+  VERTEX_PRIVATE_KEY: 'rise_vertex_private_key',
 };
 
 const DEFAULT_N8N_URL = 'https://n8n.risecodes.com/';
@@ -268,9 +269,11 @@ const SimplifiedWorkflowPage: React.FC = () => {
   // Credentials
   const [n8nUrl, setN8nUrl] = useState(() => localStorage.getItem(STORAGE_KEYS.N8N_URL) || DEFAULT_N8N_URL);
   const [n8nApiKey, setN8nApiKey] = useState(() => localStorage.getItem(STORAGE_KEYS.N8N_API_KEY) || '');
-  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
+  const [vertexSaEmail, setVertexSaEmail] = useState(() => localStorage.getItem(STORAGE_KEYS.VERTEX_SA_EMAIL) || '');
+  const [vertexPrivateKey, setVertexPrivateKey] = useState(() => localStorage.getItem(STORAGE_KEYS.VERTEX_PRIVATE_KEY) || '');
   const [showApiKeys, setShowApiKeys] = useState(false);
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showVertexKey, setShowVertexKey] = useState(false);
+  const [showVertexSection, setShowVertexSection] = useState(false);
 
   // Workflow state — restore draft from sessionStorage
   const [workflowDescription, setWorkflowDescription] = useState(
@@ -310,7 +313,8 @@ const SimplifiedWorkflowPage: React.FC = () => {
   // Persist credentials
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.N8N_URL, n8nUrl); }, [n8nUrl]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.N8N_API_KEY, n8nApiKey); }, [n8nApiKey]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey); }, [geminiApiKey]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.VERTEX_SA_EMAIL, vertexSaEmail); }, [vertexSaEmail]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.VERTEX_PRIVATE_KEY, vertexPrivateKey); }, [vertexPrivateKey]);
 
   // Auto-save workflow description draft
   useEffect(() => {
@@ -391,7 +395,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
       setGenerating(true);
       setGenerationProgress({ message: 'Generating preview...', progress: 50, estimatedTimeRemaining: null });
       const response = await axios.post(`${API_URL}/api/public/preview-workflow`, {
-        n8nUrl, n8nApiKey, description: workflowDescription, geminiApiKey: geminiApiKey.trim() || undefined,
+        n8nUrl, n8nApiKey, description: workflowDescription, vertexSaEmail: vertexSaEmail.trim() || undefined, vertexPrivateKey: vertexPrivateKey.trim() || undefined,
       });
       setPreviewResult(response.data);
       setGenerating(false);
@@ -454,10 +458,12 @@ const SimplifiedWorkflowPage: React.FC = () => {
   const handleClearCredentials = () => {
     setN8nUrl(DEFAULT_N8N_URL);
     setN8nApiKey('');
-    setGeminiApiKey('');
+    setVertexSaEmail('');
+    setVertexPrivateKey('');
     localStorage.removeItem(STORAGE_KEYS.N8N_URL);
     localStorage.removeItem(STORAGE_KEYS.N8N_API_KEY);
-    localStorage.removeItem(STORAGE_KEYS.GEMINI_API_KEY);
+    localStorage.removeItem(STORAGE_KEYS.VERTEX_SA_EMAIL);
+    localStorage.removeItem(STORAGE_KEYS.VERTEX_PRIVATE_KEY);
     setValidationSuccess('');
     setError('');
   };
@@ -599,7 +605,7 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   Configuration
                 </h2>
                 <div className="flex items-center gap-3">
-                  {(n8nApiKey || geminiApiKey) && (
+                  {(n8nApiKey || vertexSaEmail) && (
                     <button onClick={handleClearCredentials} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
                       Clear all
                     </button>
@@ -658,36 +664,96 @@ const SimplifiedWorkflowPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Gemini API Key */}
+                {/* Vertex AI Credentials — collapsible */}
                 <div>
-                  <label htmlFor="settings-gemini-key" className="block text-xs font-semibold text-foreground/70 mb-1.5 uppercase tracking-wider">
-                    Gemini API Key <span className="text-muted-foreground/50">(optional)</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="settings-gemini-key"
-                      type={showGeminiKey ? 'text' : 'password'}
-                      value={geminiApiKey}
-                      onChange={(e) => setGeminiApiKey(e.target.value)}
-                      placeholder="AIzaSy..."
-                      className="w-full px-4 py-3 border-2 border-border rounded-2xl bg-white text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all pr-12 friendly-focus"
-                      disabled={generating}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowGeminiKey(!showGeminiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
-                      aria-label={showGeminiKey ? 'Hide Gemini key' : 'Show Gemini key'}
+                  <button
+                    type="button"
+                    onClick={() => setShowVertexSection(!showVertexSection)}
+                    className="flex items-center gap-2 text-xs font-semibold text-foreground/70 uppercase tracking-wider hover:text-primary transition-colors w-full text-left"
+                    disabled={generating}
+                  >
+                    <span
+                      className="transition-transform duration-200"
+                      style={{ display: 'inline-block', transform: showVertexSection ? 'rotate(90deg)' : 'rotate(0deg)' }}
                     >
-                      {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-muted-foreground">
-                    From{' '}
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
-                      Google AI Studio
-                    </a>
-                  </p>
+                      ▶
+                    </span>
+                    Vertex AI Credentials
+                    <span className="text-muted-foreground/50 normal-case tracking-normal font-normal">(optional — uses server default if empty)</span>
+                  </button>
+
+                  {showVertexSection && (
+                    <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
+                      {/* Service Account Email */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <label htmlFor="settings-vertex-email" className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                            Service Account Email
+                          </label>
+                          <div className="relative group">
+                            <span className="text-muted-foreground cursor-help text-xs">ⓘ</span>
+                            <div className="absolute left-0 bottom-6 w-72 p-3 bg-foreground text-background text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                              Your GCP service account email.<br/>
+                              Format: <code className="text-primary/80">name@project-id.iam.gserviceaccount.com</code><br/><br/>
+                              Find it in GCP Console → IAM &amp; Admin → Service Accounts. The project ID is extracted automatically from this email.
+                            </div>
+                          </div>
+                        </div>
+                        <input
+                          id="settings-vertex-email"
+                          type="text"
+                          value={vertexSaEmail}
+                          onChange={(e) => setVertexSaEmail(e.target.value)}
+                          placeholder="name@project-id.iam.gserviceaccount.com"
+                          className="w-full px-4 py-3 border-2 border-border rounded-2xl bg-white text-foreground text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all friendly-focus"
+                          disabled={generating}
+                        />
+                      </div>
+
+                      {/* Private Key */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <label htmlFor="settings-vertex-key" className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                            Private Key
+                          </label>
+                          <div className="relative group">
+                            <span className="text-muted-foreground cursor-help text-xs">ⓘ</span>
+                            <div className="absolute left-0 bottom-6 w-72 p-3 bg-foreground text-background text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                              The private key from your service account JSON file.<br/><br/>
+                              Paste the full block including:<br/>
+                              <code className="text-primary/80 break-all">-----BEGIN PRIVATE KEY-----</code><br/>
+                              ...key data...<br/>
+                              <code className="text-primary/80 break-all">-----END PRIVATE KEY-----</code><br/><br/>
+                              Found under <code className="text-primary/80">&quot;private_key&quot;</code> in the downloaded JSON key file from GCP Console.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <textarea
+                            id="settings-vertex-key"
+                            rows={showVertexKey ? 6 : 2}
+                            value={showVertexKey ? vertexPrivateKey : (vertexPrivateKey ? '••••••••••••••••••••••••••••••••' : '')}
+                            onChange={(e) => { if (showVertexKey) setVertexPrivateKey(e.target.value); }}
+                            placeholder="-----BEGIN PRIVATE KEY-----"
+                            className="w-full px-4 py-3 border-2 border-border rounded-2xl bg-white text-foreground text-xs font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all pr-12 friendly-focus resize-none"
+                            disabled={generating}
+                            readOnly={!showVertexKey}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowVertexKey(!showVertexKey)}
+                            className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                            aria-label={showVertexKey ? 'Hide private key' : 'Show private key'}
+                          >
+                            {showVertexKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                          Stored in your browser only. Never sent to our servers beyond this request.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
