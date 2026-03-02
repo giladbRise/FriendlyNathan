@@ -322,18 +322,37 @@ User Request: "${description}"
 Generated Workflow (JSON):
 ${JSON.stringify(workflow, null, 2)}
 
-Instructions:
-1. Check if the workflow logic logically accomplishes the User Request.
-2. Check for common n8n mistakes (e.g., disconnected nodes, wrong node types for the task, missing critical parameters).
-3. Verify that data flows logically from trigger to actions.
-4. "isValid" should be false ONLY if there are critical blocking issues. Minor improvements suggestions do not make it invalid.
+## Verification Checklist:
+
+1. **Completeness**: Does the workflow implement ALL steps the user asked for? Check every noun and verb in the request.
+2. **Node correctness**: Are the right node types used? (e.g., BigQuery requests need n8n-nodes-base.googleBigQuery, Confluence updates need n8n-nodes-base.confluence, not httpRequest)
+3. **Data flow**: Does data flow correctly from source → transform → destination?
+4. **Missing nodes**: Are any required intermediate steps missing?
+   - BigQuery workflow: needs Schedule/Manual Trigger → googleBigQuery (executeQuery) → Code node (build HTML) → confluence GET (get current version) → confluence UPDATE (with version+1)
+   - If BigQuery result rows need to become an HTML table, there MUST be a Code node that builds the HTML string
+   - If updating Confluence, there MUST be a GET before UPDATE to fetch the current version number
+5. **Parameter completeness**: Do nodes have required parameters set? (e.g., BigQuery needs projectId + query, Confluence update needs pageId + version + body)
+6. **Connection integrity**: Are all nodes connected? No orphaned nodes?
+7. **AI nodes**: AI/LLM nodes should ONLY be present if the user explicitly asked for AI processing. If the user only asked to query data and update a page — no AI nodes should exist.
+
+## Critical Issues (mark isValid=false):
+- Missing entire steps the user asked for
+- Wrong node type used (e.g., httpRequest instead of googleBigQuery)
+- BigQuery node missing query parameter
+- Confluence update without prior GET to fetch version
+- Disconnected nodes
+
+## Suggestions (isValid stays true, list as suggestions):
+- Parameter values that could be more specific
+- Missing optional but useful nodes (e.g., error handling)
+- Better data transformation approaches
 
 Return ONLY valid JSON with this schema (no markdown):
 {
   "isValid": boolean,
-  "issues": string[],     // List of critical logical errors found
-  "suggestions": string[], // List of improvement suggestions
-  "analysis": string       // Brief summary of the verification
+  "issues": string[],     // Critical blocking errors — be specific (e.g., "Missing Code node to transform BigQuery rows into HTML table")
+  "suggestions": string[], // Non-blocking improvements
+  "analysis": string       // Brief summary of what the workflow does and what's missing
 }`;
 
     try {
