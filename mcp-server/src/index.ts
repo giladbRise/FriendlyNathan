@@ -205,16 +205,16 @@ const NODE_SUGGESTIONS: Record<string, { nodes: string[]; description: string }>
     description: 'Google BigQuery node for data warehousing queries',
   },
   confluence: {
-    nodes: ['n8n-nodes-base.confluence'],
-    description: 'Confluence wiki page operations (get, create, update)',
+    nodes: ['n8n-nodes-base.httpRequest', 'n8n-nodes-base.code'],
+    description: 'Confluence wiki: use httpRequest (GET then PUT) to Atlassian REST API v2 with jiraSoftwareCloudApi credentials. No built-in confluence node exists in n8n.',
   },
   atlassian: {
-    nodes: ['n8n-nodes-base.confluence'],
-    description: 'Atlassian Confluence for wiki/documentation pages',
+    nodes: ['n8n-nodes-base.httpRequest', 'n8n-nodes-base.code'],
+    description: 'Atlassian Confluence via httpRequest to https://DOMAIN.atlassian.net/wiki/api/v2/pages/PAGE_ID',
   },
   wiki: {
-    nodes: ['n8n-nodes-base.confluence'],
-    description: 'Confluence wiki page creation and updates',
+    nodes: ['n8n-nodes-base.httpRequest', 'n8n-nodes-base.code'],
+    description: 'Confluence wiki update via httpRequest GET (fetch version) + PUT (update page) with Atlassian REST API v2',
   },
   schedule: {
     nodes: ['n8n-nodes-base.schedule', 'n8n-nodes-base.cron'],

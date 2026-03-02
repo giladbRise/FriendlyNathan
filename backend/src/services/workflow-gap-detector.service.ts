@@ -547,34 +547,62 @@ class WorkflowGapDetectorService {
       });
     }
 
-    // === BIGQUERY WORKFLOW GAPS ===
+    // === BIGQUERY + CONFLUENCE (via httpRequest) WORKFLOW GAPS ===
+    // NOTE: n8n-nodes-base.confluence does NOT exist. Confluence must use httpRequest.
     const hasBigQuery = detectedNodes.includes('googleBigQuery');
-    const hasConfluence = detectedNodes.includes('confluence');
     const hasCode = detectedNodes.includes('code');
-    const hasSet = detectedNodes.includes('set');
     const needsBigQuery = lowerDesc.includes('bigquery') || lowerDesc.includes('big query') || lowerDesc.includes('bq ');
     const needsConfluence = lowerDesc.includes('confluence') || lowerDesc.includes('wiki') || lowerDesc.includes('atlassian');
 
-    // BigQuery present but no Code/Set node to transform results → HTML
-    if (hasBigQuery && !hasCode && !hasSet && needsConfluence) {
+    // BigQuery present but no Code node to transform results → Confluence Storage Format HTML
+    if (hasBigQuery && !hasCode && needsConfluence) {
       suggestions.push({
-        step: 'Add Code node to transform BigQuery results into HTML table',
-        reason: 'BigQuery returns rows as JSON — need a Code node to build an HTML table string with search/filter for Confluence',
-        nodeToAdd: 'Code node (build HTML table with inline JS search)',
+        step: 'Add Code node to transform BigQuery results into Confluence Storage Format HTML table',
+        reason: 'BigQuery returns JSON rows — need a Code node to build Confluence Storage Format HTML with search/filter and the full updatePayload for the Confluence REST API PUT',
+        nodeToAdd: 'Code node (build Confluence Storage Format HTML + updatePayload)',
         autoFix: true,
       });
     }
 
-    // Confluence present but no GET before UPDATE (version fetch required)
-    if (hasConfluence && workflow) {
-      const confluenceNodes = workflow.nodes.filter(n => n.type === 'n8n-nodes-base.confluence');
-      const hasGet = confluenceNodes.some(n => n.parameters?.operation === 'get');
-      const hasUpdate = confluenceNodes.some(n => n.parameters?.operation === 'update' || n.parameters?.operation === 'updatePage');
-      if (hasUpdate && !hasGet) {
+    // Fake confluence node detected — must be replaced with httpRequest
+    if (workflow) {
+      const hasFakeConfluenceNode = workflow.nodes.some(n => n.type === 'n8n-nodes-base.confluence');
+      if (hasFakeConfluenceNode) {
         suggestions.push({
-          step: 'Add Confluence GET before UPDATE to fetch current page version',
-          reason: 'Confluence requires version+1 when updating — must GET current version first',
-          nodeToAdd: 'Confluence GET (resource=page, operation=get)',
+          step: 'Replace n8n-nodes-base.confluence with httpRequest calling Atlassian REST API v2',
+          reason: 'n8n-nodes-base.confluence does not exist in n8n. Must use httpRequest GET + PUT to https://risecodes.atlassian.net/wiki/api/v2/pages/576028681 with jiraSoftwareCloudApi credentials',
+          nodeToAdd: 'httpRequest GET + httpRequest PUT (jiraSoftwareCloudApi auth, Atlassian REST API v2)',
+          autoFix: true,
+        });
+      }
+    }
+
+    // Confluence via httpRequest — check GET exists before PUT
+    if (needsConfluence && workflow) {
+      const httpNodes = workflow.nodes.filter(n => n.type === 'n8n-nodes-base.httpRequest');
+      const hasAtlassianGet = httpNodes.some(n => {
+        const url = String(n.parameters?.url || '');
+        const method = String(n.parameters?.method || 'GET').toUpperCase();
+        return url.includes('atlassian.net') && method === 'GET';
+      });
+      const hasAtlassianPut = httpNodes.some(n => {
+        const url = String(n.parameters?.url || '');
+        const method = String(n.parameters?.method || '').toUpperCase();
+        return url.includes('atlassian.net') && method === 'PUT';
+      });
+      if (hasAtlassianPut && !hasAtlassianGet) {
+        suggestions.push({
+          step: 'Add httpRequest GET before PUT to fetch current Confluence page version',
+          reason: 'Confluence API v2 PUT requires version.number+1 — must GET current version first',
+          nodeToAdd: 'httpRequest GET https://risecodes.atlassian.net/wiki/api/v2/pages/576028681 (jiraSoftwareCloudApi auth)',
+          autoFix: true,
+        });
+      }
+      if (!hasAtlassianGet && !hasAtlassianPut && !workflow.nodes.some(n => n.type === 'n8n-nodes-base.confluence')) {
+        suggestions.push({
+          step: 'Add httpRequest nodes for Confluence GET and PUT',
+          reason: 'Confluence update requires two httpRequest nodes: GET to fetch version, PUT to update with version+1',
+          nodeToAdd: 'httpRequest GET + httpRequest PUT to https://risecodes.atlassian.net/wiki/api/v2/pages/576028681',
           autoFix: true,
         });
       }
@@ -586,16 +614,6 @@ class WorkflowGapDetectorService {
         step: 'Add Google BigQuery node to run the SQL query',
         reason: 'User asked for BigQuery but no googleBigQuery node was generated',
         nodeToAdd: 'n8n-nodes-base.googleBigQuery (operation=executeQuery)',
-        autoFix: true,
-      });
-    }
-
-    // Description mentions Confluence but no Confluence node generated
-    if (needsConfluence && !hasConfluence) {
-      suggestions.push({
-        step: 'Add Confluence node to update the wiki page',
-        reason: 'User asked for Confluence update but no confluence node was generated',
-        nodeToAdd: 'n8n-nodes-base.confluence (GET then UPDATE)',
         autoFix: true,
       });
     }

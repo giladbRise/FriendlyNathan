@@ -328,7 +328,8 @@ ${JSON.stringify(workflow, null, 2)}
 2. **Node correctness**: Are the right node types used? (e.g., BigQuery requests need n8n-nodes-base.googleBigQuery, Confluence updates need n8n-nodes-base.confluence, not httpRequest)
 3. **Data flow**: Does data flow correctly from source → transform → destination?
 4. **Missing nodes**: Are any required intermediate steps missing?
-   - BigQuery workflow: needs Schedule/Manual Trigger → googleBigQuery (executeQuery) → Code node (build HTML) → confluence GET (get current version) → confluence UPDATE (with version+1)
+   - BigQuery+Confluence workflow: needs Schedule/Manual Trigger → httpRequest GET (Confluence API v2 to get version) → googleBigQuery (executeQuery) → Code node (build HTML + updatePayload JSON) → httpRequest PUT (Confluence API v2 update)
+   - CRITICAL: There is NO n8n-nodes-base.confluence node. If you see it, flag it as a critical error. Confluence MUST use n8n-nodes-base.httpRequest calling https://DOMAIN.atlassian.net/wiki/api/v2/pages/PAGE_ID
    - If BigQuery result rows need to become an HTML table, there MUST be a Code node that builds the HTML string
    - If updating Confluence, there MUST be a GET before UPDATE to fetch the current version number
 5. **Parameter completeness**: Do nodes have required parameters set? (e.g., BigQuery needs projectId + query, Confluence update needs pageId + version + body)
@@ -525,7 +526,7 @@ Return ONLY valid JSON with this schema (no markdown):
       'n8n-nodes-base.googleDocs',
       'n8n-nodes-base.googleDrive',
       'n8n-nodes-base.googleBigQuery',
-      'n8n-nodes-base.confluence',
+      // Confluence: use httpRequest with Atlassian REST API v2 (no built-in confluence node in n8n)
       'n8n-nodes-base.set',
       'n8n-nodes-base.code',
       'n8n-nodes-base.if',
@@ -553,7 +554,8 @@ Return ONLY valid JSON with this schema (no markdown):
     // Extra keyword aliases for scoring nodes that don't match by display name
     const nodeKeywordAliases: Record<string, string[]> = {
       'n8n-nodes-base.googleBigQuery': ['bigquery', 'big query', 'bq', 'gcp query'],
-      'n8n-nodes-base.confluence': ['confluence', 'atlassian', 'wiki', 'wiki page'],
+      // Confluence is handled via httpRequest — boost httpRequest score when confluence mentioned
+      'n8n-nodes-base.httpRequest': ['confluence', 'atlassian', 'wiki', 'wiki page', 'api call', 'rest api'],
       'n8n-nodes-base.scheduleTrigger': ['schedule', 'weekly', 'daily', 'every week', 'once a week', 'cron'],
       '@n8n/n8n-nodes-langchain.chainLlm': ['summarize with ai', 'ai analysis', 'use ai', 'use gemini'],
     };
@@ -644,7 +646,7 @@ ${nodeConfigSection}## Instructions:
 4. Chain nodes together properly with connections
 5. For email operations, use Gmail nodes ONLY (no Microsoft Outlook)
 6. For spreadsheet/document operations, use Google Sheets/Docs/Drive ONLY (no Microsoft Excel, no Airtable, no Notion)
-   - EXCEPTION: Confluence (Atlassian) is an allowed documentation/wiki platform — use n8n-nodes-base.confluence
+   - EXCEPTION: Confluence (Atlassian) is supported via n8n-nodes-base.httpRequest calling the Atlassian REST API v2 — NOT a built-in confluence node
 7. **AI Nodes — ONLY if explicitly requested:**
    - **DO NOT add AI/LLM nodes unless the user explicitly asks for AI, summarization, analysis, or uses words like "summarize", "analyze with AI", "use Gemini", "LLM", etc.**
    - If the user only asks to query a database and update a page — do NOT add AI nodes. Just use BigQuery + Code/Set + Confluence.
@@ -661,14 +663,15 @@ ${nodeConfigSection}## Instructions:
 11. For options/enums, use the exact values listed (e.g., "post" not "POST" for Slack operation)
 12. ONLY use node types from "Allowed Node Types". If a requested node is unavailable, choose the closest allowed Google ecosystem node and reflect any assumptions in the explanation.
 13. **SERVICE RESTRICTION: Prefer Google ecosystem products** (Gmail, Google Sheets, Google Docs, Google Drive). If the user mentions Microsoft, Airtable, Notion, substitute with Google equivalent.
-    - ALLOWED EXCEPTIONS: Confluence/Atlassian wiki (use n8n-nodes-base.confluence), BigQuery (use n8n-nodes-base.googleBigQuery)
-14. **BigQuery nodes** (n8n-nodes-base.googleBigQuery): Use operation="executeQuery" with parameters: { "projectId": "...", "query": "SELECT ...", "location": "US" }. Credentials: googleApi.
-15. **Confluence nodes** (n8n-nodes-base.confluence):
-    - To GET a page: operation="get", resource="page", parameters: { "pageId": "PAGE_ID" }
-    - To UPDATE a page with HTML: operation="update", resource="page", parameters: { "pageId": "PAGE_ID", "title": "...", "version": "={{ $json.version.number + 1 }}", "body": "HTML_CONTENT", "bodyType": "storage" }
-    - ALWAYS fetch the current page version first (GET), then update with version+1
-    - For interactive HTML tables in Confluence: use the Storage Format (XHTML-based). Build a <table> with search/filter using HTML macro if supported, or include a full self-contained HTML page with JavaScript search using the HTML macro.
-    - Credentials: confluenceApi
+    - ALLOWED EXCEPTIONS: Confluence/Atlassian wiki (via httpRequest), BigQuery (use n8n-nodes-base.googleBigQuery)
+14. **BigQuery nodes** (n8n-nodes-base.googleBigQuery): Use operation="executeQuery" with parameters: { "projectId": "...", "query": "SELECT ...", "location": "US" }. Credentials: googleBigQueryOAuth2Api.
+15. **Confluence via httpRequest** — there is NO built-in n8n confluence node. ALWAYS use n8n-nodes-base.httpRequest:
+    - To GET current page (fetch version): method=GET, url="https://YOUR_DOMAIN.atlassian.net/wiki/api/v2/pages/PAGE_ID", authentication="predefinedCredentialType", nodeCredentialType="jiraSoftwareCloudApi"
+    - To UPDATE page: method=PUT, url="https://YOUR_DOMAIN.atlassian.net/wiki/api/v2/pages/PAGE_ID", authentication="predefinedCredentialType", nodeCredentialType="jiraSoftwareCloudApi", sendBody=true, specifyBody="json", jsonBody={{ JSON.stringify($json.updatePayload) }}
+    - The PUT body JSON structure MUST be: { "id": "PAGE_ID", "status": "current", "title": "PAGE_TITLE", "spaceId": "SPACE_ID", "body": { "representation": "storage", "value": "CONFLUENCE_STORAGE_HTML" }, "version": { "number": VERSION_PLUS_ONE } }
+    - Content uses Confluence Storage Format: wrap HTML table in <ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[ ...HTML... ]]></ac:plain-text-body></ac:structured-macro>
+    - For the Publishers+CSMs page: domain=risecodes.atlassian.net, pageId=576028681
+    - ALWAYS: GET page first → Code node (build HTML + updatePayload) → PUT to update
 ${learningGuidance || ''}## Important Rules - READ CAREFULLY:
 - ALWAYS create ALL nodes needed to complete the ENTIRE request
 - If the user asks for multiple steps (e.g., "get emails, then mark them, then summarize, then send to slack"), create nodes for EACH step
@@ -706,13 +709,13 @@ ${learningGuidance || ''}## Important Rules - READ CAREFULLY:
    - Example: If the config shows "documentId" for Google Sheets, use "documentId", NOT "spreadsheetId"
    - Example: If the config shows "channel" for Slack, use "channel", NOT "channelId" or "channelName"
 
-6. **Confluence Page Updates MUST follow this exact pattern**:
-   - Step 1: GET the current page to retrieve version number (operation="get", resource="page")
-   - Step 2: Use a Code or Set node to transform BigQuery results into an HTML table string with inline JavaScript for live search/filter
-   - Step 3: UPDATE the page with: version="{{ $('Get Page').item.json.version.number + 1 }}", bodyType="storage", body=the HTML string
-   - The HTML for an interactive table MUST include: <input> search box, <table> with <thead>/<tbody>, and inline <script> that filters rows on keyup
-   - Example HTML template for interactive Confluence table:
-     <html><body><input id="search" placeholder="Search..." onkeyup="..."/><table><thead><tr><th>Publisher</th><th>CSM</th></tr></thead><tbody>{{rows}}</tbody></table><script>document.getElementById('search').onkeyup=function(){var v=this.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none'})}</script></body></html>
+6. **Confluence Updates MUST use httpRequest (NOT a confluence node — that doesn't exist in n8n)**:
+   - Node 1: httpRequest GET → url="https://risecodes.atlassian.net/wiki/api/v2/pages/576028681", authentication="predefinedCredentialType", nodeCredentialType="jiraSoftwareCloudApi"
+   - Node 2: Code node → reads BigQuery rows + GET page response, builds Confluence Storage Format HTML, outputs { updatePayload: { id, status:"current", title, spaceId, body:{representation:"storage",value:STORAGE_HTML}, version:{number: pageVersion+1} } }
+   - Node 3: httpRequest PUT → url="https://risecodes.atlassian.net/wiki/api/v2/pages/576028681", method=PUT, authentication="predefinedCredentialType", nodeCredentialType="jiraSoftwareCloudApi", sendBody=true, specifyBody="json", jsonBody={{ JSON.stringify($json.updatePayload) }}
+   - The Confluence Storage Format for an interactive search table:
+     <ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[<input id="s" placeholder="Search Publisher or CSM..." style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;" onkeyup="var v=this.value.toLowerCase();document.querySelectorAll('#t tbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none'})"/><table id="t" style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:8px;border:1px solid #ddd;background:#f2f2f2">Publisher</th><th style="padding:8px;border:1px solid #ddd;background:#f2f2f2">CSM</th></tr></thead><tbody>ROWS_HERE</tbody></table>]]></ac:plain-text-body></ac:structured-macro>
+   - Each row: <tr><td style="padding:8px;border:1px solid #ddd">PUBLISHER</td><td style="padding:8px;border:1px solid #ddd">CSM</td></tr>
 
 ## Response Format:
 Return ONLY a valid JSON object with this structure (no markdown, no explanations outside JSON):

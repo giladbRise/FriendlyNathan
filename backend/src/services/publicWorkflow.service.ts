@@ -605,14 +605,14 @@ export class PublicWorkflowService {
           enhancedDescription += '. Add Edit Fields node before AI to format input as chatInput field.';
         } else if (step.nodeToAdd.includes('aggregate') || step.nodeToAdd.includes('Item Lists')) {
           enhancedDescription += '. Combine all items into one before processing.';
-        } else if (step.nodeToAdd.includes('Code node') && step.nodeToAdd.includes('HTML')) {
-          enhancedDescription += '. After the BigQuery node, add a Code node that transforms the result rows into a self-contained HTML string with a search input and a table (<table><thead><tr><th>Publisher</th><th>CSM</th></tr></thead><tbody>...</tbody></table>) and inline JavaScript that filters rows on keyup. The Code node output must be a single item with a field called "htmlBody" containing this full HTML.';
-        } else if (step.nodeToAdd.includes('Confluence GET')) {
-          enhancedDescription += '. Before the Confluence UPDATE node, add a Confluence GET node (resource=page, operation=get, pageId=PAGE_ID) to fetch the current page version. The UPDATE node must use version={{ $("Get Page").item.json.version.number + 1 }}.';
+        } else if (step.nodeToAdd.includes('Confluence Storage Format')) {
+          enhancedDescription += '. After the BigQuery node, add a Code node that: (1) reads BigQuery rows via $input.all(), (2) reads the Confluence page info fetched earlier, (3) builds Confluence Storage Format HTML wrapping a searchable table in <ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[...]]></ac:plain-text-body></ac:structured-macro>, (4) outputs { updatePayload: { id, status:"current", title, spaceId, body: { representation:"storage", value: storageHtml }, version: { number: pageVersion+1 } } }.';
+        } else if ((step.nodeToAdd.includes('jiraSoftwareCloudApi') || step.nodeToAdd.includes('Atlassian REST') || step.nodeToAdd.includes('atlassian')) && !step.nodeToAdd.includes('Confluence GET')) {
+          enhancedDescription += '. CRITICAL: n8n-nodes-base.confluence does NOT exist in n8n. Use httpRequest nodes instead: GET https://risecodes.atlassian.net/wiki/api/v2/pages/576028681 with authentication=predefinedCredentialType, nodeCredentialType=jiraSoftwareCloudApi. Then PUT the same URL with method=PUT, sendBody=true, specifyBody=json, jsonBody={{ JSON.stringify($json.updatePayload) }}, same auth.';
+        } else if (step.nodeToAdd.includes('httpRequest GET') && step.step.includes('version')) {
+          enhancedDescription += '. Add an httpRequest GET node BEFORE the PUT: url=https://risecodes.atlassian.net/wiki/api/v2/pages/576028681, authentication=predefinedCredentialType, nodeCredentialType=jiraSoftwareCloudApi. Use the returned version.number+1 in the PUT body.';
         } else if (step.nodeToAdd.includes('googleBigQuery')) {
-          enhancedDescription += '. Use a Google BigQuery node (n8n-nodes-base.googleBigQuery, operation=executeQuery) to run the SQL query. Set projectId, query, and location parameters.';
-        } else if (step.nodeToAdd.includes('confluence') && step.nodeToAdd.includes('GET then UPDATE')) {
-          enhancedDescription += '. Use Confluence nodes (n8n-nodes-base.confluence): first a GET node to fetch the current page and version, then an UPDATE node to write the new HTML content with version+1.';
+          enhancedDescription += '. Use a Google BigQuery node (n8n-nodes-base.googleBigQuery, operation=executeQuery) with projectId="streamrail", location="US", and the full SQL query.';
         }
       }
 
@@ -1217,8 +1217,8 @@ export class PublicWorkflowService {
       { keywords: ['mongodb', 'mongo', 'nosql'], nodeType: 'n8n-nodes-base.mongoDb' },
       { keywords: ['bigquery', 'big query', 'bq query', 'bq table', 'gcp query', 'google bigquery'], nodeType: 'n8n-nodes-base.googleBigQuery' },
 
-      // Collaboration & Documentation
-      { keywords: ['confluence', 'atlassian', 'wiki page', 'confluence page'], nodeType: 'n8n-nodes-base.confluence' },
+      // Collaboration & Documentation — Confluence uses httpRequest, NOT a built-in confluence node
+      { keywords: ['confluence', 'atlassian', 'wiki page', 'confluence page'], nodeType: 'n8n-nodes-base.httpRequest' },
 
       // Logic & Flow Control
       { keywords: ['if', 'condition', 'branch', 'when', 'conditional'], nodeType: 'n8n-nodes-base.if' },
